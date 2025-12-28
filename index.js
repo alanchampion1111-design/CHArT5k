@@ -285,26 +285,29 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
 */
 async function filterPositions(
   thisPage,category,
-  catClass = 'agegroup')   // alternatively 'gender'
+  catClass = 'agegroup')                         // alternatively 'gender'
 {
+  const expectedValue = catClass+': '+category;  //    ...likewise with gender: Male/Female
   // var initialRowCount = await thisPage.locator('.table-selector tr').count();  // Check WARNING below?
-  const searchINPUT = 'input#search';            // Does not find 1st input field since hidden!!
-  const classELEM = '.selectize';                // Useful for traces
-  const classINPUT = classELEM+' input';         // Finds 2nd input text field (within the class element)
-  await thisPage.waitForSelector(classINPUT);
-  await thisPage.click(classINPUT);              //  1. Focus may be automatic on typing in 2.
-  await thisPage.type(classINPUT,category);      //  2. Type valid Age-Category (or Male/Female Gender)
+  // const searchINPUT = 'input#search';         // FAILS -Does not find 1st input field since hidden!!
+  const selectBASE = '.selectize-input';
+  const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
+  await thisPage.waitForSelector(selectINPUT);
+  await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
+  await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
   await thisPage.keyboard.press('Enter');        //  3. Press Enter to select matching pull-down...
-  let expectedValue = catClass+': '+category;    //    ...potentially likewise with gender: Male/Female
-  const selectedClassITEM = '.selectize-input .item';
-  await thisPage.waitForSelector(selectedClassITEM,
-    {visible: true,timeout: 5000});              //  4. Wait until the new element exists (& table mods too?)
+  // var elem = await thisPage.$(selectBASE);       
+  // console.log(await elem.evaluate(            // confirmed as expected in commit b248b74
+  //    elem => elem.outerHTML));
+  const selectOUTPUT = selectBASE+' .item';      //  4. Wait until the new element exists
+  await thisPage.waitForSelector(selectOUTPUT,
+    {visible: true,timeout: 5000});              //     ... with table mods also expected?
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
-    selectedClassITEM, elem => elem.dataset.value);  // ...as likewise directed into searchINPUT (but hidden!)
+    selectOUTPUT, elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
     console.log('The filter option for '+category+' matched a pull-down option');
   else {
-    elem = await thisPage.$(classELEM);
+    elem = await thisPage.$(selectBASE);
     console.log(await elem.evaluate(elem => elem.outerHTML));
     throw new Error('Expected '+expectedValue+' category but got '+selectedValue);
   }
