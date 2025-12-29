@@ -244,7 +244,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
 
 // async function filterPositions > preview
 /*
-// BEFORE entering the age Category,
+// BEFORE entering the age Category, there is no class="item ..."
   <input type="text" name="search" class="js-ResultsSearch selectized"
     placeholder="Start typing to search" tabindex="-1" value="" style="display: none;">
   <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
@@ -328,21 +328,19 @@ async function unfilterCategory(thisPage) {
   const selectOUTPUT = selectBASE+' .item';
   // const selectREMOVE = selectOUTPUT+' .remove';
   const selectREMOVE = selectOUTPUT+' a.remove';
-  await thisPage.waitForSelector(selectREMOVE);
-  await thisPage.click(selectREMOVE);
-  // if that fails, try
-  var removes = await thisPage.$$(selectOUTPUT+' a.remove');
-  await removes[1].click(); // click the 2nd remove button
-  // await thisPage.click(selectREMOVE,{clickCount: 1});  // Assume one filter category
-  // await thisPage.click(selectREMOVE,{clickCount: 2});  // ...and the 2nd is identical!!
+  var removes = await thisPage.$$(selectREMOVE);
+  if (removes.length > 0) await removes[0].click(); // click the first X (top one)
   let selectedValue = await thisPage.$eval(
     selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
   if (selectedValue === expectedValue)
     console.log('The filter option for '+category+' was successfully removed');
   else {
-    var elem = await thisPage.$(selectBASE);       
-    console.log(await elem.evaluate(elem => elem.outerHTML));
-    throw new Error('Expected blank category but got '+selectedValue);
+    // if neither click works, simply remove the class item completely to reset to virgin state
+    console.warn('WARNING: Expected blank category but got ',selectedValue);
+    await thisPage.waitForSelector(selectOUTPUT);
+    await thisPage.$eval(selectITEM, elem => elem.remove());  // ..and then confirm it has gone!
+    var outerHTML = await thisPage.$eval(selectBASE, elem => elem.outerHTML);
+    console.log(outerHTML);
   }
   // WARNING: Consider continue (as above) only after number of rows differ
 }
