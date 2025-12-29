@@ -291,19 +291,18 @@ async function filterPositions(
   // var initialRowCount = await thisPage.locator('.table-selector tr').count();  // Check WARNING below?
   // const searchINPUT = 'input#search';         // FAILS -Does not find 1st input field since hidden!!
   const selectBASE = '.selectize-input';
+  const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
   await thisPage.waitForSelector(selectINPUT);
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
   await thisPage.keyboard.press('Enter');        //  3. Press Enter to select matching pull-down...
   // var elem = await thisPage.$(selectBASE);       
-  // console.log(await elem.evaluate(            // confirmed as expected in commit b248b74
-  //    elem => elem.outerHTML));
-  const selectOUTPUT = selectBASE+' .item';      //  4. Wait until the new element exists
-  await thisPage.waitForSelector(selectOUTPUT,
+  // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74
+  await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists
     {visible: true,timeout: 5000});              //     ... with table mods also expected?
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
-    selectOUTPUT, elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
+    selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
     console.log('The filter option for '+category+' matched a pull-down option');
   else {
@@ -325,11 +324,20 @@ async function filterPositions(
 */
 async function unfilterCategory(thisPage) {
   // This only resets the filter search, without impacting the sort order
-  const classREMOVE = '.selectize-input .remove'; 
-  await thisPage.click(classREMOVE);    // assume a single filter category
-  const selectedClassITEM = '.selectize-input .item';  
-  let selectedValue = await thisPage.$eval(selectedClassITEM, elem => elem.value);
-  if (selectedValue !== '') throw new Error('Expected blank category but got '+selectedValue);
+  const selectBASE = '.selectize-input';      // define same constants as in filterPositions
+  const selectOUTPUT = selectBASE+' .item';
+  const selectREMOVE = selectBASE+' .remove';
+  await thisPage.waitForSelector(selectREMOVE);
+  await thisPage.click(selectREMOVE);    // assume a single filter category
+  let selectedValue = await thisPage.$eval(
+    selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
+  if (selectedValue === '')
+    console.log('The filter option for '+category+' was successfully removed');
+  } else {
+    var elem = await thisPage.$(selectBASE);       
+    console.log(await elem.evaluate(elem => elem.outerHTML));
+    throw new Error('Expected blank category but got '+selectedValue);
+  }
   // WARNING: Consider continue (as above) only after number of rows differ
 }
 
