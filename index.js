@@ -329,8 +329,8 @@ async function unfilterCategory(thisPage) {
   const selectREMOVE = selectBASE+' .remove';
   // const selectREMOVE = selectBASE+' .remove:first-of-type';
   await thisPage.waitForSelector(selectREMOVE);
-  await thisPage.click(selectREMOVE,{clickCount: 1});     // Assume one filter category
-  // await thisPage.click(selectREMOVE,{clickCount: 2});  // ...although the 2nd is identical!!
+  await thisPage.click(selectREMOVE,{clickCount: 1});  // Assume one filter category
+  await thisPage.click(selectREMOVE,{clickCount: 2});  // ...and the 2nd is identical!!
   let selectedValue = await thisPage.$eval(
     selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
   if (selectedValue === expectedValue)
@@ -338,7 +338,7 @@ async function unfilterCategory(thisPage) {
   else {
     var elem = await thisPage.$(selectBASE);       
     console.log(await elem.evaluate(elem => elem.outerHTML));
-    throw new Error('Expected blank ('+expectedValue+') category but got '+selectedValue);
+    throw new Error('Expected blank category but got '+selectedValue);
   }
   // WARNING: Consider continue (as above) only after number of rows differ
 }
