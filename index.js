@@ -178,12 +178,7 @@ exports.getUrl = async (req,res) => {
   :
   </tr>
 </tbody>
-*/  // TODO redunmant
-async function getRunnerRows(thisPage) {
-  const resultsTABLE = 'tr.Results-table-row';
-  await thisPage.waitForSelector(resultsTABLE);
-  return await thisPage.$$(resultsTABLE);
-}
+*/
 
 async function getRunnerNames(thisPage) {
   const resultsTABLE = 'tr.Results-table-row';
@@ -191,12 +186,6 @@ async function getRunnerNames(thisPage) {
   return await thisPage.$$eval(resultsTABLE,
     rows => rows.map(row => row.getAttribute('data-name'))
   );
-}
-
-function getMatchRow(rows,name) {
-  let position = Array.from(names)
-    .findIndex(row => row.getAttribute('data-name') === name);
-  return position === -1 ? null : position+1;
 }
 
 function getMatchName(names, name) {
@@ -333,7 +322,7 @@ async function unfilterCategory(thisPage) {
     selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
   if (selectedValue === '')
     console.log('The filter option for '+category+' was successfully removed');
-  } else {
+  else {
     var elem = await thisPage.$(selectBASE);       
     console.log(await elem.evaluate(elem => elem.outerHTML));
     throw new Error('Expected blank category but got '+selectedValue);
