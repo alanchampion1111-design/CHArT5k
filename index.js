@@ -321,14 +321,14 @@ async function filterPositions(
       </div><input type="text" autocomplete="off" tabindex="" style="width: 14px; opacity: 1; position: relative; left: 0px;">
     </div>
 */
-async function unfilterCategory(thisPage) {
+async function unfilterCategory(thisPage,category) {
   const expectedValue = '';  //    ...likewise with gender: Male/Female
   // This only resets the filter search, without impacting the sort order
   const selectBASE = '.selectize-input';      // define same constants as in filterPositions
   const selectOUTPUT = selectBASE+' .item';
   // const selectREMOVE = selectOUTPUT+' .remove';
   const selectREMOVE = selectOUTPUT+' a.remove';
-  var removes = await thisPage.$$(selectREMOVE);
+  let removes = await thisPage.$$(selectREMOVE);
   if (removes.length > 0) await removes[0].click(); // click the first X (top one)
   let selectedValue = await thisPage.$eval(
     selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
@@ -338,8 +338,8 @@ async function unfilterCategory(thisPage) {
     // if neither click works, simply remove the class item completely to reset to virgin state
     console.warn('WARNING: Expected blank category but got ',selectedValue);
     await thisPage.waitForSelector(selectOUTPUT);
-    await thisPage.$eval(selectITEM, elem => elem.remove());  // ..and then confirm it has gone!
-    var outerHTML = await thisPage.$eval(selectBASE, elem => elem.outerHTML);
+    await thisPage.$eval(selectOUTPUT, elem => elem.remove());  // ..and then confirm it has gone!
+    let outerHTML = await thisPage.$eval(selectBASE, elem => elem.outerHTML);
     console.log(outerHTML);
   }
   // WARNING: Consider continue (as above) only after number of rows differ
@@ -360,7 +360,7 @@ async function filterCategory(
     let position = getMatchName(runners,matchRunner);
     if (position) console.log(category+' position for matching runner, '+matchRunner+' is '+position);
     else throw new Error('Failed to find matching runner, '+matchRunner+' in filtered '+category+' within results, '+thisPage.url());
-    await unfilterCategory(thisPage); // Reset filter WHEN a subsequent position is required (e.g. gender position)
+    await unfilterCategory(thisPage,category); // Reset filter WHEN a subsequent position is required (e.g. gender)
     return position;
   } catch (err) {
     console.error(err, 'on', thisPage.url());
