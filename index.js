@@ -326,9 +326,13 @@ async function unfilterCategory(thisPage) {
   // This only resets the filter search, without impacting the sort order
   const selectBASE = '.selectize-input';      // define same constants as in filterPositions
   const selectOUTPUT = selectBASE+' .item';
-   const selectREMOVE = selectOUTPUT+' .remove:first-of-type';
+  // const selectREMOVE = selectOUTPUT+' .remove';
+  const selectREMOVE = selectOUTPUT+' a.remove';
   await thisPage.waitForSelector(selectREMOVE);
   await thisPage.click(selectREMOVE);
+  // if that fails, try
+  var removes = await thisPage.$$(selectOUTPUT+' a.remove');
+  await removes[1].click(); // click the 2nd remove button
   // await thisPage.click(selectREMOVE,{clickCount: 1});  // Assume one filter category
   // await thisPage.click(selectREMOVE,{clickCount: 2});  // ...and the 2nd is identical!!
   let selectedValue = await thisPage.$eval(
