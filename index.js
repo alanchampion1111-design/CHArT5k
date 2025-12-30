@@ -69,8 +69,9 @@ let cloudBrowser = async (
       console.log('Retained page ID,',thisPageId);
       thisPage.setDefaultTimeout(pageSECS);  // Set the timeout for loading the page
       await thisPage.setUserAgent(userAgent);
-      await thisPage.goto('about:blank');    // To verify that the browser is ready
-      console.log('Blank page loaded');
+      await thisPage.goto('about:blank',{waitUntil: 'domcontentloaded'});    // Verify the browser is ready
+      var content = await thisPage.content();    // always ensure page is fully loaded
+      console.log('Blank page fully loaded');
     } else {
       console.warn('WARNING: Potentially failed to retain page ID,',thisPageId);
     }
