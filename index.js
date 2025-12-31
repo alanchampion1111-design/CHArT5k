@@ -256,7 +256,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
         :
         // sample subset category for Gender, Age Group, & Achievement
         <div class="option" data-selectable="" data-value="gender: Male">
-          <span class="value">Male</span>
+          <span class="321````value">Male</span>
           <span class="type type--gender">Gender</span>
         </div>
         // samples after typing VM, which automatically gets highlighted
@@ -310,18 +310,42 @@ async function filterPositions(
 }
 
 /**
-*  This does a reset to complement the above filterPositions within filterCategory
+*  This removes any category filter to complement the above filterPositions within filterCategory
 */
 /*
+  <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
   	<div class="selectize-input items not-full has-options has-items">
       <div class="item item--agegroup" data-value="agegroup: VM55-59">
         <span class="filter-type ">Age Group:</span>
         <span class="filter-value">VM55-59</span>
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
-      </div><input type="text" autocomplete="off" tabindex="" style="width: 14px; opacity: 1; position: relative; left: 0px;">
-    </div>
 */
+async function removeFilter(thisPage,category) {
+  const expectedValue = '';  //    ...likewise with gender: Male/Female
+  // This only resets the filter search, without impacting the sort order
+  const selectPARENT = '.selectize-control.js-ResultsSearch';
+  const selectBASE = selectPARENT+ '.selectize-input';      // more specific than in filterPositions
+  const selectOUTPUT = selectBASE+' .item';
+  const selectREMOVE = selectOUTPUT+' .remove';
+  try {
+    await thisPage.waitForSelector(selectREMOVE);
+    await thisPage.evaluate((selectREMOVE) => {
+      document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
+      // document.querySelectorAll(selectREMOVE).forEach(btn => btn.click()); if 
+      console.log('Filter for category, '+category+' removed');
+      // assume table update is instant, if expected data already queried on client browser
+    }, selectREMOVE);
+    await thisPage.waitForFunction(() => {
+      var input = document.querySelector(selectBASE);
+      return !input || !input.classList.contains('has-items');
+    });
+    console.log('Filter for category, '+category+' removed');
+  } catch (err) {
+    console.warn('WARNING: No filter for category, '+category+' to remove: '+err);
+  }
+}
+// obsolete alternative 
 async function unfilterCategory(thisPage,category) {
   const expectedValue = '';  //    ...likewise with gender: Male/Female
   // This only resets the filter search, without impacting the sort order
@@ -361,7 +385,7 @@ async function filterCategory(
     let position = getMatchName(runners,matchRunner);
     if (position) console.log(category+' position for matching runner, '+matchRunner+' is '+position);
     else throw new Error('Failed to find matching runner, '+matchRunner+' in filtered '+category+' within results, '+thisPage.url());
-    await unfilterCategory(thisPage,category); // Reset filter WHEN a subsequent position is required (e.g. gender)
+    await removeFilter(thisPage,category); // Reset filter WHEN a subsequent position is required (e.g. gender)
     return position;
   } catch (err) {
     console.error(err, 'on', thisPage.url());
