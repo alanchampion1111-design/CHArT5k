@@ -332,7 +332,7 @@ async function removeFilter(thisPage,category) {
   try {
     await thisPage.waitForSelector(selectOUTPUT);
     await thisPage.waitForSelector(selectREMOVE);
-    var elementHTML = await thisPage.evaluate((selectREMOVE) => {
+    var elementHTML = await thisPage.evaluate((selectOUTPUT,selectREMOVE) => {
       var html = document.querySelector(selectOUTPUT)?.outerHTML;
       document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
       // document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
