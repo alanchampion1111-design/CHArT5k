@@ -161,7 +161,7 @@ exports.getUrl = async (req,res) => {
         getRunnerNames
         getMatchName
         sortPositions (to unsort)
-      filterCategory
+      filterCategory* (for agegroup & gender)
         waitForResultsReady
         filterPositions
         getRunnerNames
@@ -385,8 +385,9 @@ exports.filterUrl = async (req,res) => {
   console.log('thisUrl: '+thisUrl);
   console.log('matchRunner: '+matchRunner);
   console.log('ageCat: '+ageCat);
+  console.log('gcCat: '+genderCat);
   console.log('ageGrade: '+ageGrade);
-  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'" \\'
+  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+ageCat+'"" \\'
     +'-H "Athorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
@@ -397,9 +398,9 @@ exports.filterUrl = async (req,res) => {
     // 2. Filter by Age-Category to get ageCat position of matchRunner
     let acPosition = await filterCategory(thisPage,matchRunner,ageCat);
     // 3. Filter by Gender if need to get genderCat position of matchRunner
-    // let gcPosition = await filterCategory(thisPage,matchRunner,genderCat,'gender');
-    res.status(200).json({acPosition,agPosition});      // in expected order
-    // res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
+    let gcPosition = await filterCategory(thisPage,matchRunner,genderCat,'gender');
+    // res.status(200).json({acPosition,agPosition});      // in expected order
+    res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
   } catch (err) {
     console.error('ERROR:',err);
     res.status(500).send('ERROR: '+err.message);
