@@ -324,18 +324,23 @@ async function filterPositions(
 async function removeFilter(thisPage,category) {
   const expectedValue = '';  //    ...likewise with gender: Male/Female
   // This only resets the filter search, without impacting the sort order
-  const selectPARENT = '.selectize-control.js-ResultsSearch';
-  const selectBASE = selectPARENT+ '.selectize-input';      // more specific than in filterPositions
+  // const selectPARENT = '.selectize-control.js-ResultsSearch';
+  // const selectBASE = selectPARENT+ '.selectize-input';      // more specific than in filterPositions
+  const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';
   const selectREMOVE = selectOUTPUT+' .remove';
   try {
+    await thisPage.waitForSelector(selectOUTPUT);
     await thisPage.waitForSelector(selectREMOVE);
-    await thisPage.evaluate((selectREMOVE) => {
-      document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
-      // document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
+    var elementHTML = await thisPage.evaluate((selectREMOVE) => {
+      var html = document.querySelector(selectOUTPUT)?.outerHTML;
+      document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
+      // document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
+      return html;
       console.log('Filter for category, '+category+' removed');
       // assume table update is instant, if expected data already queried on client browser
     }, selectREMOVE);
+    console.log(elementHTML);
     await thisPage.waitForFunction((selectBASE) => {
       var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
