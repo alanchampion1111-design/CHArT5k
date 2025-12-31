@@ -332,14 +332,14 @@ async function removeFilter(thisPage,category) {
     await thisPage.waitForSelector(selectREMOVE);
     await thisPage.evaluate((selectREMOVE) => {
       document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
-      // document.querySelectorAll(selectREMOVE).forEach(btn => btn.click()); if 
+      // document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
       console.log('Filter for category, '+category+' removed');
       // assume table update is instant, if expected data already queried on client browser
     }, selectREMOVE);
-    await thisPage.waitForFunction(() => {
+    await thisPage.waitForFunction((selectBASE) => {
       var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
-    });
+    },selectBASE);
     console.log('Filter for category, '+category+' removed');
   } catch (err) {
     console.warn('WARNING: No filter for category, '+category+' to remove: '+err);
