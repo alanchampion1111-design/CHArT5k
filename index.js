@@ -339,9 +339,9 @@ async function removeFilter(thisPage,category) {
       return html;
       console.log('Filter for category, '+category+' removed');
       // assume table update is instant, if expected data already queried on client browser
-    }, selectREMOVE);
+    }, selectOUTPUT,selectREMOVE);
     console.log(elementHTML);
-    await thisPage.waitForFunction((selectBASE) => {
+    await thisPage.waitForFunction((selectBASE) => {    // verify gone
       var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
     },selectBASE);
