@@ -28,6 +28,12 @@ const launchSECS = 45000;
 const pageSECS = 15000;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
+/**
+ *  Launches a headless Chrome browser with specified session limit.
+ *    @param {number} [sessionLimit default 5] - Session limit in minutes
+ *  @returns {Promise<void>}
+ *  @sideeffect leaves the browser connected and returns a presistent WS endpoint for re-use
+ */
 let cloudBrowser = async (
   sessionLimit = 5) =>
 {
@@ -80,6 +86,12 @@ let cloudBrowser = async (
   }
 }
 
+
+/**
+ *  Initializes the browser and returns the WebSocket endpoint.
+ *    @returns {Promise<void>} before continuing
+ *    @sideeffect - preserve the browser WS endpoint and re0usable page ID for re-use
+ */
 exports.initBrowser = async (_,res) => {
   if (!initPromise) {
     initPromise = (async () => {
@@ -101,6 +113,12 @@ exports.initBrowser = async (_,res) => {
   }
 }
 
+/**
+ *  Loads URL in Puppeteer and waits for page load
+ *    @param {Page} page - Puppeteer page object
+ *    @param {string} url - URL to load
+ *  @returns thisPage for detailed searchning or the HTML content via a {Promise} Resolves when page loaded
+ */
 let loadUrl = async (thisUrl, pageOnly=false) => {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
@@ -133,6 +151,11 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
   // TODO: Consider closing the page and avoid re-using if parallel approach better and less risky
 }
 
+/**
+ *  Gets the entire HTML content for a URL, typically all of results for a specific parkrunner 
+ *    @param {string} url - e.g. 
+ *  @returns {string} as HTML content
+ */
 exports.getUrl = async (req,res) => {
   // Default in case no ? parameters passed - sample runner is Alan
   let thisUrl = req.query?.url || 'https://www.parkrun.org.uk/parkrunner/777764/all/';
@@ -166,21 +189,21 @@ exports.getUrl = async (req,res) => {
         filterPositions
         getRunnerNames
         getMatchName
-        unfilterCategory
+        resopmoveCategory
 / ________________________________________________________________________
 */
 
-// async function getRunnerNames(thisPage) > preview
+@param {list} names - list of runners by name
+/**
+ *  Extracts runner names from results table on page
+ *    @param {Page} thisPage - Puppeteer page object containing a table of results
+ *  @returns {array} of runner names from the results table
+ */
 /*
-<table class="ResultsTable js-ResultsTable Results-table--compact">
-:
-<tbody class="js-ResultsBody">
-  <tr class="Results-table-row" data-name="James HARWOOD" data-agegroup="VM35-39" ... data-gender="Male" data-position="1" ...>
-  :
-  </tr>
-</tbody>
+  <table class="ResultsTable js-ResultsTable Results-table--compact">
+    <tbody class="js-ResultsBody">
+      <tr class="Results-table-row" data-name="James HARWOOD" data-agegroup="VM35-39" ... data-gender="Male" data-position="1" ...>
 */
-
 async function getRunnerNames(thisPage) {
   const resultsTABLE = 'tr.Results-table-row';
   await thisPage.waitForSelector(resultsTABLE);
@@ -189,18 +212,33 @@ async function getRunnerNames(thisPage) {
   );
 }
 
+/**
+ *  Gets position of match name from page
+ *    @param {array} names - list of runners by name
+ *    @param {string} name - exists within array
+ *  @returns {number} position - matching name  in the names list
+ */
 function getMatchName(names, name) {
   let position = names.indexOf(name);
   return position === -1 ? null : position+1;
 }
 
+/**
+ *  Waits for results table to appear on the opened page
+ *    @param {Page} page - Puppeteer page object
+ *  @returns {Promise} Resolves when results table is ready
+ */
 async function waitForResultsReady(thisPage) {
   await thisPage.waitForFunction(() =>
     document.querySelector('.Results-table')
   );
 }
   
-// async function sortPositions > preview
+/**
+ * Orders the runners according to Age-Grade %age or reverts to default order of finish
+ *    @param {Page} thisPage - Puppeteer page object containing table of runners
+ *    @param {selection} order - typically agegrade-desc (unless to reset as default)
+ */
 /*
   <select name="sort" class="js-ResultsSelect">
     <option value="position-asc">Sort by Position ▲</option>
@@ -225,6 +263,13 @@ async function sortPositions(
   }, order);  // ensures order is in scope of the thisPage evaluation
 }
 
+/**
+ *  Effects the Age-Grade (descending) order in the runner results to match the position
+ *    @param {Page} thisPage - Puppeteer page object containing table of results
+ *    @param {string} matchnumber - name to match on this page of results 
+ *  @returns {number} position of matching name via {Promise} Resolves when sorted
+ *    ...and resets the order back to normal finishing-time (fastest first)
+ */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
     await waitForResultsReady(thisPage);  // sort options useless without the data
@@ -243,7 +288,11 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   }
 }
 
-// async function filterPositions > preview
+/**
+ * Retrieves a position after filtering runners according to Age or Gender Category and  reverts to default order
+ *    @param {Page} thisPage - Puppeteer page object containing table of runners
+ *    @param {selection} order - typically agegrade-desc (unless to reset as default)
+ */
 /*
 // BEFORE entering the age Category, there is no class="item ..."
   <input type="text" name="search" class="js-ResultsSearch selectized"
@@ -256,7 +305,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
         :
         // sample subset category for Gender, Age Group, & Achievement
         <div class="option" data-selectable="" data-value="gender: Male">
-          <span class="321````value">Male</span>
+          <span class="value">Male</span>
           <span class="type type--gender">Gender</span>
         </div>
         // samples after typing VM, which automatically gets highlighted
@@ -311,6 +360,9 @@ async function filterPositions(
 
 /**
 *  This removes any category filter to complement the above filterPositions within filterCategory
+*    @param {Page} page - Puppeteer page object
+*    @param {string} category - Category to remove (for info only)
+*  @returns {Promise} Resolves when filter removed
 */
 /*
   <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
@@ -324,57 +376,37 @@ async function filterPositions(
 async function removeFilter(thisPage,category) {
   const expectedValue = '';  //    ...likewise with gender: Male/Female
   // This only resets the filter search, without impacting the sort order
-  // const selectPARENT = '.selectize-control.js-ResultsSearch';
-  // const selectBASE = selectPARENT+ '.selectize-input';      // more specific than in filterPositions
-  const selectBASE = '.selectize-input';
+  const selectBASE = '.selectize-input';    //same as for filterPositions
   const selectOUTPUT = selectBASE+' .item';
   const selectREMOVE = selectOUTPUT+' .remove';
   try {
     await thisPage.waitForSelector(selectOUTPUT);
     await thisPage.waitForSelector(selectREMOVE);
-    var elementHTML = await thisPage.evaluate((selectOUTPUT,selectREMOVE) => {
-      var html = document.querySelector(selectOUTPUT)?.outerHTML;
+    await thisPage.evaluate((selectOUTPUT,selectREMOVE) => {
+      // var html = document.querySelector(selectOUTPUT)?.outerHTML;
       document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
-      // document.querySelector(selectREMOVE).click();  // expect either X button will effect removal
-      return html;
+      // return html;
       console.log('Filter for category, '+category+' removed');
       // assume table update is instant, if expected data already queried on client browser
     }, selectOUTPUT,selectREMOVE);
-    console.log(elementHTML);
-    await thisPage.waitForFunction((selectBASE) => {    // verify gone
+    // console.log(elementHTML);
+    await thisPage.waitForFunction((selectBASE) => {    // verify No has-items
       var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
     },selectBASE);
-    console.log('Filter for category, '+category+' removed');
+    // console.log('Filter for category, '+category+' removed');
   } catch (err) {
     console.warn('WARNING: No filter for category, '+category+' to remove: '+err);
   }
 }
-// obsolete alternative 
-async function unfilterCategory(thisPage,category) {
-  const expectedValue = '';  //    ...likewise with gender: Male/Female
-  // This only resets the filter search, without impacting the sort order
-  const selectBASE = '.selectize-input';      // define same constants as in filterPositions
-  const selectOUTPUT = selectBASE+' .item';
-  // const selectREMOVE = selectOUTPUT+' .remove';
-  const selectREMOVE = selectOUTPUT+' a.remove';
-  let removes = await thisPage.$$(selectREMOVE);
-  if (removes.length > 0) await removes[0].click(); // click the first X (top one)
-  let selectedValue = await thisPage.$eval(
-    selectOUTPUT,elem => elem.dataset.value);  // Perhaps the .item field disappears?
-  if (selectedValue === expectedValue)
-    console.log('The filter option for '+category+' was successfully removed');
-  else {
-    // if neither click works, simply remove the class item completely to reset to virgin state
-    console.warn('WARNING: Expected blank category but got ',selectedValue);
-    await thisPage.waitForSelector(selectOUTPUT);
-    await thisPage.$eval(selectOUTPUT, elem => elem.remove());  // ..and then confirm it has gone!
-    let outerHTML = await thisPage.$eval(selectBASE, elem => elem.outerHTML);
-    console.log(outerHTML);
-  }
-  // WARNING: Consider continue (as above) only after number of rows differ
-}
 
+/**
+ *  Effects a filter of the results by category (agegroup/gender) and then remopves that filter
+ *    @param {Page} thisPage - Puppeteer page object containing results for an event
+ *    @param {string} matchRunner - Name & Surname to find in filtered table of runners 
+ *    @param {string} category - Category to filter (Age-group or Gender) 
+ *  @returns {number} category position via {Promise}
+ */
 async function filterCategory(
   thisPage,matchRunner,
   category,
@@ -400,8 +432,8 @@ async function filterCategory(
 
 /**
 * Called by GAS UrlFetch function, (via browser function to switch below)
-*   Example https://<GC service>.run.app?url=https://www.parkrun.org.uk/havant/results/638&rn=Dave+BUSH&ac=VM55-59&ag=
-* Returns two positions (in JSON format): Age-Category order and Age-Grade (%age) order (perhaps Gender later)
+*   Example https://<GC service>.run.app?url=https://www.parkrun.org.uk/havant/results/638&rn=Dave%20BUSH&ac=VM55-59&gc=Male
+* Returns 3 positions (in JSON format): Age & Gender Category filter after getting the Age-Grade (%age) order
 */
 exports.filterUrl = async (req,res) => {
   // Default parameters in case no ? and & parameters passed
@@ -416,8 +448,8 @@ exports.filterUrl = async (req,res) => {
   console.log('ageCat: '+ageCat);
   console.log('gcCat: '+genderCat);
   console.log('ageGrade: '+ageGrade);
-  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+ageCat+'"" \\'
-    +'-H "Athorization: bearer $(gcloud auth print-identity-token)" \\'
+  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'"" \\'
+    +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage = await loadUrl(thisUrl,true);
