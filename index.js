@@ -193,7 +193,6 @@ exports.getUrl = async (req,res) => {
 / ________________________________________________________________________
 */
 
-@param {list} names - list of runners by name
 /**
  *  Extracts runner names from results table on page
  *    @param {Page} thisPage - Puppeteer page object containing a table of results
