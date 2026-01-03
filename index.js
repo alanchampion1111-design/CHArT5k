@@ -96,7 +96,7 @@ exports.initBrowser = async (_,res) => {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        await cloudBrowser(7);  // Launched ok, but browser active in background
+        await cloudBrowser(30);  // Launched ok, but browser active in background
         res.status(200).send(thisBrowserWSEp);
       } catch (err) {
         console.error('ERROR: Failed to initialise browser:',err);
