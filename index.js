@@ -35,7 +35,7 @@ let initPromise;      // browser "finished" after initialised (although still ac
  *  @sideeffect leaves the browser connected and returns a presistent WS endpoint for re-use
  */
 let cloudBrowser = async (
-  sessionLimit = 5) =>
+  sessionLimit = 55) =>
 {
   browserTimeout = sessionLimit*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
@@ -381,19 +381,16 @@ async function removeFilter(thisPage,category) {
   try {
     await thisPage.waitForSelector(selectOUTPUT);
     await thisPage.waitForSelector(selectREMOVE);
-    await thisPage.evaluate((selectOUTPUT,selectREMOVE) => {
-      // var html = document.querySelector(selectOUTPUT)?.outerHTML;
+    await thisPage.evaluate((selectREMOVE) => {
       document.querySelectorAll(selectREMOVE).forEach(btn => btn.click());
-      // return html;
-      console.log('Filter for category, '+category+' removed');
       // assume table update is instant, if expected data already queried on client browser
-    }, selectOUTPUT,selectREMOVE);
+    }, selectREMOVE);
     // console.log(elementHTML);
     await thisPage.waitForFunction((selectBASE) => {    // verify No has-items
       var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
     },selectBASE);
-    // console.log('Filter for category, '+category+' removed');
+    console.log('Filter for category, '+category+' removed');
   } catch (err) {
     console.warn('WARNING: No filter for category, '+category+' to remove: '+err);
   }
