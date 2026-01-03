@@ -25,7 +25,7 @@ let thisPageId;       // re-use same page
 let browserTimeout;   // for browser session
 let browserTimer;
 const launchSECS = 45000;
-const pageSECS = 15000;   // minimum of 10 seconds between page accesses on parkrun site
+const pageSECS = 30000;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -96,7 +96,7 @@ exports.initBrowser = async (_,res) => {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        await cloudBrowser(30);  // Launched ok, but browser active in background
+        await cloudBrowser(60);  // Launched ok, but browser active in background
         res.status(200).send(thisBrowserWSEp);
       } catch (err) {
         console.error('ERROR: Failed to initialise browser:',err);
