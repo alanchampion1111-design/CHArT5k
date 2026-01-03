@@ -128,7 +128,7 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
     } else {
       console.log('Persistent browser found,',thisBrowserWSEp,'with ongoing timeout:',browserTimeout);
       var thisBrowser = await puppeteer
-        .connect({browserWSEndpoint: thisBrowserWSEp});     // actually reconnects 
+        .connect({browserWSEndpoint: thisBrowserWSEp, timeout: browserTimeout});     // actually reconnects 
       var thisPage = (await thisBrowser.pages())
         .find(page => page.target()._targetId === thisPageId);
       if (thisPage) {
