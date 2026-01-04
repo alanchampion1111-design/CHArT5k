@@ -180,13 +180,13 @@ exports.getUrl = async (req,res) => {
     exports.filterUrl
       -> loadUrl
       sortAgeGrade
-        waitForResultsReady
+        waitForResults
         sortPositions
         getRunnerNames
         getMatchName
         sortPositions (to unsort)
       filterCategory* (for agegroup & gender)
-        waitForResultsReady
+        waitForResults
         filterPositions
         getRunnerNames
         getMatchName
@@ -228,8 +228,8 @@ function getMatchName(names, name) {
  *    @param {Page} thiSPage - Puppeteer page object
  *  @returns {Promise} Resolves when results table is ready
  */
-async function waitForResultsReady(thisPage) {
-  await thisPage.waitForFunction(() =>
+async function waitForResults(thisPage) {
+  await thisPage.waitForFunction(() => {
     var tables = document.querySelectorAll('table.sortable');
     return tables.length >= 2;
   }, {timeout: 5000, polling: 1000});
@@ -273,7 +273,7 @@ async function sortPositions(
  */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
-    await waitForResultsReady(thisPage);  // sort options useless without the data
+    await waitForResults(thisPage);  // sort options useless without the data
     await sortPositions(thisPage,'agegrade-desc');
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+ageGrade+' runners found: '+runners.length);
@@ -412,7 +412,7 @@ async function filterCategory(
 {
   // Assumes default order of run-time position is preset on runner list (position-desc)
   try {
-    await waitForResultsReady(thisPage);  // filter options useless without the data
+    await waitForResults(thisPage);  // filter options useless without the data
     await filterPositions(thisPage,category,catClass);
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+category+' runners found: '+runners.length);
