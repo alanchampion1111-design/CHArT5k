@@ -25,7 +25,7 @@ let thisPageId;       // re-use same page
 let browserTimeout;   // for browser session
 let browserTimer;
 const launchSECS = 45000;
-const pageSECS = 30000;   // minimum of 10 seconds between page accesses on parkrun site
+const pageSECS = 5000;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -45,8 +45,9 @@ let cloudBrowser = async (
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--cert=./www.parkrun.org.uk.pem',
+      '--cert=./www.parkrun.org.uk.pem',  // Certificate running on UK site, independent of country of event?
       '--verbose',
+      '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
     ],
     timeout: launchSECS,       // max launch time
     // detached: true,         // ensure session with puppeteer persists after initial launch
@@ -223,14 +224,15 @@ function getMatchName(names, name) {
 }
 
 /**
- *  Waits for results table to appear on the opened page
- *    @param {Page} page - Puppeteer page object
+ *  Waits for the 2nd sortable results table to be populated
+ *    @param {Page} thiSPage - Puppeteer page object
  *  @returns {Promise} Resolves when results table is ready
  */
 async function waitForResultsReady(thisPage) {
   await thisPage.waitForFunction(() =>
-    document.querySelector('.Results-table')
-  );
+    var tables = document.querySelectorAll('table.sortable');
+    return tables.length >= 2;
+  }, {timeout: 5000, polling: 1000});
 }
   
 /**
