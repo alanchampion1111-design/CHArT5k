@@ -25,7 +25,7 @@ let thisPageId;       // re-use same page
 let browserTimeout;   // for browser session
 let browserTimer;
 const launchSECS = 45000;
-const pageSECS = 5000;   // minimum of 10 seconds between page accesses on parkrun site
+const pageSECS = 10000;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -141,8 +141,8 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
       console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',pageSECS);
       console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded'});
-      var content = await thisPage.content();    // always ensure page is fully loaded
-      var data = await thisPage.evaluate(() => window.parkrunResultsData);    // although may not be fully formaatted
+      await thisPage.waitForFunction(() => window.parkrunResultsData);  // although not fully formaatted?
+      var content = await thisPage.content();   // always ensure page is fully loaded
       return pageOnly ? thisPage : content;      // if content, then we are done, otherwise more to do!
     }
   } catch (err) {
