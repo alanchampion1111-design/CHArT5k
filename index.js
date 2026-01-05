@@ -114,13 +114,40 @@ exports.initBrowser = async (_,res) => {
   }
 }
 
+/** ______________________________________________________________________________________
+/
+  Functions heirarchy follows for this block used maintain 
+
+    exports.getrUrl
+      -> loadUrl
+
+    exports.filterUrl
+      -> loadUrl
+      sortAgeGrade
+        waitForResults
+        sortPositions
+        getRunnerNames
+        getMatchName
+        sortPositions (to unsort)
+      filterCategory* (for agegroup & gender)
+        waitForResults
+        filterPositions
+        getRunnerNames
+        getMatchName
+        removeCategory
+/ ________________________________________________________________________
+*/
+
 /**
  *  Loads URL in Puppeteer and waits for page load
  *    @param {Page} page - Puppeteer page object
  *    @param {string} url - URL to load
  *  @returns thisPage for detailed searchning or the HTML content via a {Promise} Resolves when page loaded
  */
-let loadUrl = async (thisUrl, pageOnly=false) => {
+async function loadUrl(thisUrl,
+  timeSecs = pageSECS,
+  pageOnly = false)
+{
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
     if (!thisBrowserWSEp) {
@@ -133,17 +160,16 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
       var thisPage = (await thisBrowser.pages())
         .find(page => page.target()._targetId === thisPageId);
       if (thisPage) {
-        await thisPage.setDefaultTimeout(pageSECS);
+        await thisPage.setDefaultTimeout(timeSecs);
       } else {
-        console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout', pageSECS);
+        console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout', timeSecs);
         throw new Error('Persistent page NOT found!');
       }
-      console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',pageSECS);
+      console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',timeSecs);
       console.log('Loading page with URL,',thisUrl);
-      await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded'});
-
+      await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeSecs});
       var content = await thisPage.content();   // always ensure page is fully loaded
-      return pageOnly ? thisPage : content;      // if content, then we are done, otherwise more to do!
+      return pageOnly ? thisPage : content;     // if content, then we are done, otherwise more to do!
     }
   } catch (err) {
     console.error('ERROR: Failed to retrieve page:',err);
@@ -173,26 +199,6 @@ exports.getUrl = async (req,res) => {
     // await thisBrowser.disconnect(); 
   }
 }
-
-/** ______________________________________________________________________________________
-/
-  Functions hirarchy follows for this block used maintain 
-    exports.filterUrl
-      -> loadUrl
-      sortAgeGrade
-        waitForResults
-        sortPositions
-        getRunnerNames
-        getMatchName
-        sortPositions (to unsort)
-      filterCategory* (for agegroup & gender)
-        waitForResults
-        filterPositions
-        getRunnerNames
-        getMatchName
-        resopmoveCategory
-/ ________________________________________________________________________
-*/
 
 /**
  *  Extracts runner names from results table on page
@@ -235,13 +241,15 @@ function getMatchName(names, name) {
     <tbody class="js-ResultsTbody">
       <tr class="Results-table-row" ...
 */
-async function waitForResults(thisPage) {
+async function waitForResults(thisPage
+  timeSecs = pageSECS)
+{
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
   //  { visible: true, timeout: 5000 });
   await thisPage.waitForFunction(() => {
     let elem = document.querySelector('.js-ResultsTbody .Results-table-row');
     return elem && elem.offsetWidth > 0 && elem.offsetHeight > 0;
-  }, { timeout: 5000 });
+  }, {timeout: timeSecs});
 }
   
 /**
@@ -459,7 +467,7 @@ exports.filterUrl = async (req,res) => {
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
-  var thisPage = await loadUrl(thisUrl,true);
+  var thisPage = await loadUrl(thisUrl,12,true);
   try {  // Get 2 (or more) positions in series
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
     let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
