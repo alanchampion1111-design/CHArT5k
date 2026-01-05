@@ -241,7 +241,8 @@ function getMatchName(names, name) {
     <tbody class="js-ResultsTbody">
       <tr class="Results-table-row" ...
 */
-async function waitForResults(thisPage
+async function waitForResults(
+  thisPage,
   timeSecs = pageSECS)
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
