@@ -68,9 +68,10 @@ const templateNameCELL = "J1";          // This cell identifes the seed template
 const templateNAME = allRunnersSHEET    // The seed template may be readily reconfigured
   .getRange(templateNameCELL)     // See the note on Runners!J1 cell
   .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
-const numBlankROWS = 10;          // Regular catch-up of multiple results by those permitted
+const numBlankROWS = 5;          // Regular catch-up of multiple results by those permitted
 const parkrunnerIdCOLUMN = 10;    // in column L on Runners sheet
 const runnersStartROW = 3;      // start after title & header rows (2)
+const resultsStartROW = 3;      // start after title & header rows (2)
 
 /**
  * Ensures a specified number of blank rows exist at the end of the active sheet.
@@ -239,7 +240,7 @@ function CreateRunnerResultsSheet(
  *    3. Protect that blank range for specific (editor) runners only to add results
  */
 function ReprotectEachRunnerResultsSheets() {
-  const runnersRANGE = "A"+runnersStartROW+":B";
+  const runnersRANGE = "A"+resultsStartROW+":B";
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var runnerFullNames = allRunnersSHEET.getRange(runnersRANGE)
     .getValues().filter(function(value) {
@@ -496,24 +497,38 @@ function CleanFormatforPastedRunResults(
 /   The following definitions and functions automate the addition of a new
 /   result by securely connecting to the parkrun site for importing the
 /   latest result, mimicking a manual extract to extract copy and paste.
-/   The heirarchy of functions are:
 /
-/       ImportLatestResultForEachRunner
+/   There are two use-cases, where the heirarchy of function calls are:
+/
+/   1.  ImportLatestResultForEachRunner (optional date)
 /         OpenChromeBrowser ->
-//        Loop for each runner...
-/           >CopyLatestResultForRunner ->
-/             GetParkrunnerResultsPage
-/               AccessPage
-//          When new result...
+//        Loop for each member runner...
+/           >CopyLatestResultForRunner (or dated result)->
+/             >GetRunnerResultsPage
+/               >AccessPage
+/             GetResultRow
+//          When latest is a new result...
 /             >PasteLatestResultForRunner ->
 //              Loop for each cell...
 /                 CleanValue (extracts links)
 /               FormatDate
 /               ApplyLinks
-/             >AppendPositionsForRunner (with results link) ->
+/             >AppendPositionsForRunnerResult (via Results link) ->
 /               ExtendRange
 /               >AssessPositions
 /               IncludePositions
+/         >CloseChromeBrowser
+/
+/   2.  CatchupPositionsForEachRunner
+/         OpenChromeBrowser ->
+//        Loop for each member runner...
+//          SyncResultsPositionsForRunner
+//            Loop for each Parkrun event...
+//              When event positions not already grafted...
+/                 AppendPositionsForRunnerResult ->
+/                   ConstructParkrunResultUrl
+/                   >AssessPositions
+/                   IncludePositions
 /         >CloseChromeBrowser
 /
 /  -------------------------------------------------------------------------
@@ -528,21 +543,23 @@ function CleanFormatforPastedRunResults(
  */
 
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';    // Google Cloud service in operation
-const sampleURL = 'https://www.example.com';  // default test
+// const sampleURL = 'https://www.example.com';  // default test
+const sampleURL = 'https://www.parkrun.org.uk/colchestercastle/results/116';
+var debug = false;      // reduce logging unless true
 
 async function OpenChromeBrowser() {
   const initBrowserURL = browserURL+'/initBrowser';
   try {
     var response = await UrlFetchApp.fetch(initBrowserURL);
-    Logger.log(response.getContentText());
+    Logger.log('Session: '+response.getContentText());
   } catch (err) {
     Logger.log(err);
   }
 }
 
 async function AccessPage(
-  thisUrl = sampleURL
-) {
+  thisUrl = sampleURL)
+{
   let getBrowserURL = browserURL+'/getUrl?url='+thisUrl;
   try {
     var response = await UrlFetchApp.fetch(getBrowserURL,
@@ -563,19 +580,22 @@ async function CloseChromeBrowser() {
   const stopBrowserURL = browserURL+'/stopBrowser';
   try {
     var response = await UrlFetchApp.fetch(stopBrowserURL);
-  	Logger.log(response.getContentText());
+  	Logger.log('Sesssion ended. '+response.getContentText());
   } catch (err) {
     Logger.log(err);
   }
 }
 
-const parkrunURL = 'https://www.parkrun.org.uk';
-const parkrunnerURL = parkrunURL+'/parkrunner/';
+// Although driven from UK site, specific results may be 
+const parkrunURL = 'https://www.parkrun.org.uk/';
+const parkrunnerURL = parkrunURL+'parkrunner/';
+const allForONE = '/all/';
+const oneForALL = '/results/';
 
-function GetParkrunnerResultsPage(
-  parkrunnerId = '777764')    // default useful for testing
+function GetRunnerResultsPage(
+  parkrunnerId = '1213963')    // default useful for testing
 {
-  thisParkrunnerURL = parkrunnerURL+parkrunnerId +'/all/';
+  thisParkrunnerURL = parkrunnerURL+parkrunnerId +allForONE;
   return AccessPage(thisParkrunnerURL)
   .then (htmlContent => {  // ensures htmlContent is not a Promise
     return htmlContent;
@@ -587,19 +607,36 @@ function GetParkrunnerResultsPage(
 }
 
 /**
- * Copies the single latest result for a given parkrunner ID from parkrun.org.uk
- *    @param {string} parkrunnerId - The ID of the parkrunner (default: "777764")
+ *  Gets the latest result or a dated result if a date is specified (dd/mm/yyyy)
+ * 
+ */
+function GetResultRow(
+  bodyRows,
+  eventDate = undefined)  // default to first row
+{
+  const latestROW = 0;  // only consider 1st row as single latest result
+  var index = (eventDate)
+    ? bodyRows.findIndex(row => row.includes(`>${eventDate}<`))
+    : latestROW;
+  return bodyRows[index];
+}
+
+/**
+ * Copies the single latest result for a given parkrunner ID from Parkrun site
+ *    @param {string} parkrunnerId - The ID of the parkrunner (default: "21283")
+ *    @eventDate (string) = date in form dd/mm/yyyy (assumes UK format setting in the browser)
  *  @returns {array|null} - represents the latest result (or null if none)
  */
 async function CopyLatestResultForRunner(
-  parkrunnerId = "777764")
+  parkrunnerId = "21283",
+  eventDate = undefined)  // by default.the latest; otherwise wind the clock back!
 {
   const allResultsTITLE = "All  Results";    // 3rd table with All Results
   var headerStart = "<thead><tr><th>Event</th><th>Run Date</th><th>Run Number</th><th>Pos</th>";
   const allHEADER = headerStart+"<th>Time</th><th>Age<br/>Grade</th><th>PB?</th></tr></thead>";
   // WARNING: Row does not (yet) show Gender position,
   //          nor positions for Age-Category or Age-Grade (%age)
-  return GetParkrunnerResultsPage(parkrunnerId)
+  return GetRunnerResultsPage(parkrunnerId)
   .then (allResults => {   // ensures allResults is not a Promise
     if (allResults) {
       allResults = allResults
@@ -607,21 +644,20 @@ async function CopyLatestResultForRunner(
           .indexOf(allResultsTITLE))  // trim before "All  Results"
         .split('#comments')[0];      // trim after #comments
       if (allResults) {
-        // Logger.log('All Results table: '+allResults); 
+        if (debug) Logger.log('All Results table: '+allResults); 
         var headerRow = allResults.match(/<thead>.*?<\/thead>/s);
         if (headerRow && headerRow.length>0) {  
-          // Logger.log('Header row: '+headerRow[0]);  // TODO: columns may change - WARN if so?
+          if (debug) Logger.log('Header row: '+headerRow[0]);  // TODO: columns may change - WARN if so?
           var bodyContent = allResults.match(/<tbody>.*?<\/tbody>/s)[0];
           var bodyRows = bodyContent.match(/<tr[^>]*>.*?<\/tr>/gs);
           if (bodyRows && bodyRows.length>0) {
-            const latestROW = 0;  // only consider 1st row as single latest result
-            var resultRow = bodyRows[latestROW];
+            resultRow = GetResultRow(bodyRows,eventDate);  // single result, default to latest
             var cells = resultRow.match(/<td>.*?<\/td>/gs);
             if (cells) {
               var values = cells.map(function(cell) {
                 return cell.replace(/<td>|<\/td>/g,"").trim();
               });
-              Logger.log('Cells parsed as '+cells+' for runner, '+parkrunnerId+', and ready for pasting');
+              if (debug) Logger.log('Cells parsed as '+cells+' for runner, '+parkrunnerId+', and ready for pasting');
               return values;
             } else {
               Logger.log('WARNING: No cells found in row, '+resultROW+' for runner, '+parkrunnerId);
@@ -660,7 +696,7 @@ async function CopyLatestResultForRunner(
   latestResult,         // assumed a single row to be selected
   runnerName = "Alan")
 {
-  let hyperLinks = [];
+  let hyperLinks = [];  // Preserves the links from the runner's Parkrun results 
 
   /**
    *  Clean (each) cell, perhaps double clean if necessary)
@@ -733,15 +769,15 @@ async function CopyLatestResultForRunner(
         }
       });
     } catch (error) {
-      Logger.warn('WARNING: Unable to add hyperlinks correctly to latest result for runner, '+runnerName+'...\n'+error.message);
+      Logger.log('ERROR: Unable to add hyperlinks correctly to latest result for runner, '+runnerName+'...\n'+error);
     }
     var pastedResult = resultsSheet.getRange(insertRow,1,1,latestResult.length)
       .setRichTextValues([latestResult]); // append single result row only (at column A)
-    // SpreadsheetApp.flush();   // ensure values are visible for retrieving results = no effect
+    SpreadsheetApp.flush();   // ensure values are visible for retrieving results = no effect
     return pastedResult;
   }
 
-  // Logger.log('Consider pasting latest result into runner sheet for '+runnerName+'...');
+  if (debug) Logger.log('Consider pasting latest result into runner sheet for '+runnerName+'...');
   const locationINDEX = 0;  // column A
   const dateINDEX = 1;      // column B
   const previousROWS = 15;  // previous results may include non-parkrunner events
@@ -755,20 +791,20 @@ async function CopyLatestResultForRunner(
   // This takes account of some runners who run elsewhere (and captured manually) since their last recorded parkrun
   var previousResults = resultsSheet.getDataRange().getDisplayValues().slice(2).slice(-previousROWS);
   if (previousResults.length < 1) {
-    Logger.warn('WARNING: The template for new runner, '+runnerName+' is expected to include a (phantom?) formatted result');
-    Logger.error('ERROR: No previous result for runner, '+runnerName+' (with map formulae?) to be able to match new result');
+    Logger.log('WARNING: The template for new runner, '+runnerName+' is expected to include a (phantom?) formatted result');
+    Logger.log('ERROR: No previous result for runner, '+runnerName+' (with map formulae?) to be able to match new result');
     return null;
   }
   var matchingResults = previousResults.map(function(row) {
     return row[locationINDEX]+'&'+row[dateINDEX];
   });
   if (matchingResults.includes(thisLocation+'&'+thisDate)) {
-    Logger.log('Previously pasted result at '+thisLocation+' on '+thisDate+' for runner, '+runnerName);
+    if (debug) Logger.log('Previously pasted result at '+thisLocation+' on '+thisDate+' for runner, '+runnerName);
     return null;    // null range if not a new result
   } else {
     var resultsLink = hyperLinks[dateINDEX];  // Retain the link to the event results before consumed by the sheet
     var pastedResult = ApplyLinks(latestResult,resultsSheet,runnerName);
-    Logger.log('Newly pasted result at '+thisLocation+' on '+thisDate+' for runner, '+runnerName);
+    Logger.log('New result at '+thisLocation+' on '+thisDate+' added for runner, '+runnerName);
     // WARNING: Do NOT rely on any hyperlink being stored on the sheet (yet)
     return {
       resultRange: pastedResult,
@@ -799,7 +835,7 @@ async function AssessPositions(thisUrl,matchRunner,ageCat,genderCat) {
       //      AND/OR WHEN a single CPU is specified for the run
       // Therefore, allow worst case timing for all, as if serial
       {muteHttpExceptions:true,timeout:40000});
-    Logger.log(positions.getContentText());
+    Logger.log('Runner: '+matchRunner+'\t'+positions.getContentText());
     var posns = JSON.parse(positions);
     return [posns.acPosition,posns.agPosition,posns.gcPosition];
   } catch (err) {
@@ -841,96 +877,206 @@ function ExtendRange(resultRange,numRows,numCols) {
     .setValue(null);    // required to prevent FALSE if not "PB" in col G
   // resultRange.getCell(resultRange.getNumRows(),AgeCatCOL)
   //  .setValue(null);  // no conflict in derivation from event date in col B and runner's DoB
-  Logger.log('Extended range of results by '+numRows+' rows and '+numCols+' columns');
-  // resultRange implicitly includes the derived Age-Category in col L (assumes MAP function in 1st result)
-  var ageCatCell = resultRange.getCell(1,AgeCatCOL);
-  var ageCatCellRef = ageCatCell.getA1Notation();
-  var ageCat = ageCatCell.getValue();
-  Logger.log('Age-Category is '+ageCat+' in new runner row at cell, '+ageCatCellRef);
+  if (debug) Logger.log('Extended range of results by '+numRows+' rows and '+numCols+' columns');
+  // resultRange implicitly includes  derived Age-Category in col L (assumes MAP function in 1st result)
+  let ageCatCell = resultRange.getCell(1,AgeCatCOL);
+  let ageCatCellRef = ageCatCell.getA1Notation();
+  let ageCat = ageCatCell.getValue();
+  if (debug) Logger.log('Age-Category is '+ageCat+' in new runner row at cell, '+ageCatCellRef);
   return resultRange;
+}
+
+function ConstructParkrunResultsUrl(eventDateCell,eventLocation,eventInstance) {
+  var resultsLink;
+  const eventDate = eventDateCell.getDisplayValue;
+  eventDateCell.activate();   // hyperlink may surface when cell selected?
+  let richText = eventDateCell.getRichTextValue();
+  if (richText) {
+    resultsLink = richText.getLinkUrl();
+  } else {
+    // resultsLink = eventDateCell.hyperlink();  // TODO: Pending Google simplifying?
+    eventLocation = eventLocation.toLowerCase()
+      .replace(/ /g,"")
+      .replace(/I.O.W./,"");
+    resultsLink = parkrunURL+eventLocation+oneForALL+eventInstance;
+    if (debug) Logger.log('WARNING: Reconstructed URL ('+resultsLink+') for event on '+eventDate+' since irretrievable from the Date cell');
+  }
+  resultsLink = (resultsLink.includes('parkrun')) ? resultsLink : null;
+  return resultsLink;
 }
 
 /**
  * Appends detailed positions to an individual runner's sheet beyond the current range
+ *  ...used initially where region needs etxended OR later on catch up when already so
  */
-async function AppendPositionsForRunner(
+async function AppendPositionsForRunnerResult(
   runnerName,surname,genderCat,
-  resultRange,resultsLink)
+  resultRange,
+  resultsLink = undefined)      // Catch-up use-case reconstructs each event results URL
 {
-  const eventCOL = 1;
-  const dateCOL = 2;
-  const AgeCatCOL = 12;      // column L
-  const PBtoAgeCatNumCOLS = 5;   // cols H..L for I..K positions between derived cols, H & L
-  var runnerFullName = runnerName+' '+surname;
-  var eventDateCell = resultRange.getCell(1,dateCOL);
-  var eventDate = eventDateCell.getDisplayValue();
-  var eventLocation = resultRange.getCell(1,eventCOL).getValue();
-  Logger.log('New date is '+eventDate+' at '+eventLocation+' for runner, '+runnerName);
-  var extResultRange = ExtendRange(resultRange,0,PBtoAgeCatNumCOLS);  // extends to include H..K
-  var ageCat = extResultRange.getCell(1,AgeCatCOL).getValue();  // derived from Date - DoB 
-  Logger.log('Age-Category is '+ageCat+' for runner, '+runnerName);
-  // const genderCat is fixed per runner from the full Runners sheet
-  // WARNING: Expected resultsLink not (yet) accessible from the extended range!!
-  // var resultsLink = eventDateCell.getRichTextValue().getLinkUrl();  // behind Date (in col B)
-  Logger.log('Link to '+eventLocation+' latest results: '+resultsLink);
-  return AssessPositions(resultsLink,runnerFullName,ageCat,genderCat).then(extraPosns => {
-    if (extraPosns.length === 3) {
-      IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
-      Logger.log('Positions for Gender & Age Category, plus Age-Grade appended to latest result in runner sheet, '+runnerName);
-    } else {
-      Logger.error('ERROR: Unable to append positions for latest result in runner sheet, '+runnerName);
+  const eventCOL = 1;           // column A is the event location
+  const dateCOL = 2;            // column B is the date of event
+  const runNumCOL = 3;          // column C is the instance # at event
+  let runNumber = resultRange.getCell(1,runNumCOL).getValue();
+  if (!runNumber) return false;   // Skipping any non-Parkrun instance since no positions
+  else {
+    const genderPosnCOL = 9;      // column I is the Gender position (if present already done)
+    const ageCatPosCOL = 10;      // column J is the Age-Category position
+    const ageGradePosCOL = 11;    // column K is the Age-Grade (%age) position
+    const ageCatCOL = 12;         // column L is the Age Category on the date (derived from DoB)
+    const PBtoAgeCatNumCOLS = 5;  // cols H..L for I..K positions between derived cols, H & L
+    const runnerFullName = runnerName+' '+surname;
+    let eventLocation = resultRange.getCell(1,eventCOL).getValue();
+    let eventDateCell = resultRange.getCell(1,dateCOL);
+    let extResultRange = (resultRange.getNumColumns() < ageCatCOL) 
+      ? ExtendRange(resultRange,0,PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
+      : resultRange;  // Result row range previously extended (for Catch-up use-case)
+    let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
+    const genderCategory = (ageCategory[1] === 'M') ? 'Male' : 'Female'; // e.g. JM10 => Male
+    let genderPositionKnown = extResultRange.getCell(1,genderPosnCOL).getValue();  
+    if (genderPositionKnown) return false;  // Skipping since extra position(s) already on the sheet
+    else {
+      try {
+        if (!resultsLink) {   // expected now visible on sheet from regular update
+          resultsLink = ConstructParkrunResultsUrl(eventDateCell,eventLocation,runNumber); // behind Date (in col B)
+          if (!resultsLink) return false;   // skipping freedom runs or if already caught up
+        }
+        if (debug) Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
+        let extraPosns = await AssessPositions(resultsLink,runnerFullName,
+          ageCategory,genderCategory);
+        if (extraPosns.length === 3) {
+          IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
+          return true;
+        } else {
+          if (debug) Logger.log('ERROR: Unable to append positions for latest result in runner sheet, '+runnerName);
+          return false;
+        }
+      } catch (err) {
+        if (debug) Logger.log('ERROR: While appending positions: '+err);
+        return false; // or throw error
+
+      } finally {
+        SpreadsheetApp.flush();   // ensure each page is updated before continuing
+        Utilities.sleep(resultsLink ? 11000 : (debug ? 500 : 0));
+      }
     }
-  });
+  }
 }
+
 /**
- * Imports the latest results for each of our runners from parkrun.org.uk.
+ *  Imports the latest results for each of our runners from Parkrun site
+ *  based on pe-defined groups of runner
  */
-function ImportLatestResultForEachRunner() {
-  OpenChromeBrowser().then(() => {   // Browser must have launched beforehand...
+function ImportLatestResultForEachRunner(
+  // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
+  eventDate = undefined)  // default to latest date - modify manually here otherwise
+{
+  return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
     var runners = allRunnersSHEET.getRange(
       "A"+runnersStartROW+":C"
     ).getValues().filter(String);
     // Process each runner in parallel BEFORE closing after ALL runners done!
-    Promise.all(runners.map(function(runner,index) {
-    // runners.forEach(function(runner,index) {   // risky since all in parallel
+    return Promise.all(runners.map(function(runner,index) {
       var runnerName = runner[0];     // col A
       var runnerSurname = runner[1];  // col B
       var runnerGender = runner[2];   // col C
       var parkrunnerId = allRunnersSHEET.getRange(
         runnersStartROW+index,parkrunnerIdCOLUMN).getValue();
-      Logger.log('Parkrunner ID: '+parkrunnerId);
+      if (debug) Logger.log('Parkrunner ID: '+parkrunnerId);
       if (isNaN(parkrunnerId)) {
         Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
-        return; // since continue is n/a within forEach
+        return Promise.resolve();
       }
       // Ensure ALL functions complete by returning the Promise chain
-      return CopyLatestResultForRunner(parkrunnerId).then(latestResult => {
+      return CopyLatestResultForRunner(parkrunnerId,eventDate).then(latestResult => {
         if (latestResult) {
           return PasteLatestResultForRunner(latestResult,runnerName).then(result => {
             if (result && result.resultRange && result.resultsLink) {
-              return AppendPositionsForRunner(runnerName,runnerSurname,runnerGender,
+              if (debug) Logger.log('Appending latest result to runner sheet, '+runnerName);
+              return AppendPositionsForRunnerResult(runnerName,runnerSurname,runnerGender,
                 result.resultRange,result.resultsLink);
-              Logger.log('Latest result appended to runner sheet, '+runnerName);
             } else {
-              Logger.log('No later result needs appended for runner, '+runnerName);
+              if (debug) Logger.log('No later result needs appended for runner, '+runnerName);
             }
           });
         } else {
           Logger.log('WARNING: No results found for runner, '+runnerName);
         }
       });
-    })).then(() => {
-      return CloseChromeBrowser().then(() => {}); // Ensure all logs complete for each runner
-    });
+    }))
+  })
+  .catch(error =>
+    Logger.log('ERROR: '+error)
+  )
+  .finally(() =>
+    CloseChromeBrowser()
+  );
+}
+
+/**
+ *  Syncs extra positions for each result for the specified runner.
+ *    @param {string} runnerName - The name of the runner (default: 'Alan')
+ */
+async function SyncResultsPositionsForRunner(
+  runnerName = 'Micah')    // default test
+{
+  const runnerNameCELL = 'A1';
+  const ageCatCELL = 'L3';  //runner may be older since 1st run but gender fixed
+  const dateINDEX = 1; // column B
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let resultsSheet = spreadsheet.getSheetByName(runnerName);
+  let runnerFullName = resultsSheet.getRange(runnerNameCELL).getValue();
+  let [runnerNameFirst,runnerSurname] = runnerFullName.split(' ');
+  let ageCat = resultsSheet.getRange(ageCatCELL).getValue(); // e.g. For VM55-59 (may vary)...
+  const runnerGender = (ageCat[1] === 'M') ? 'Male' : 'Female';  // ...take M as Male (fixed)
+  var numCols = resultsSheet.getLastColumn();
+  let resultRange = resultsSheet.getRange(resultsStartROW,1,1,numCols);
+  let promises = [];
+  while (resultRange.getRow() <= resultsSheet.getLastRow()) {
+    promises.push(AppendPositionsForRunnerResult(runnerNameFirst,runnerSurname,runnerGender,resultRange));
+    resultRange = resultRange.offset(1,0);
+  }
+  return Promise.all(promises).then(results => {
+    let updatesApplied = results.filter(Boolean).length;
+    let totalEvents = results.length;
+    Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+
+      updatesApplied+' (out of '+totalEvents+' events)');
   });
+}
+
+/**
+ * Catch up retrospectively on Positions for each runner from Parkrun site
+ */
+function CatchUpResultsPositionsForEachRunner() {
+  return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
+    let runners = allRunnersSHEET.getRange(
+      "A"+runnersStartROW+":A"
+    ).getValues().filter(String);
+    // Process each runner in parallel BEFORE closing after ALL runners done!
+    return Promise.all(runners.map(function(runnerName,index) {
+      let parkrunnerId = allRunnersSHEET.getRange(
+        runnersStartROW+index,parkrunnerIdCOLUMN).getValue();
+      if (debug) Logger.log('Parkrunner ID: '+parkrunnerId);
+      if (isNaN(parkrunnerId)) {
+        Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
+        return Promise.resolve(); // return a resolved promise
+      }
+      // Ensure ALL functions complete by returning the Promise chain
+      return SyncResultsPositionsForRunner(runnerName);
+    }))
+  })
+  .catch(error => 
+    Logger.log('ERROR: '+error)
+  )
+  .finally(() =>
+    CloseChromeBrowser()
+  );
 }
 
 /* ---------------------------------------------------------------------------
 /
 /   The following definitions and functions are used to support the automatic
-/   creation of comparison charts /**
- * Imports the latest results for each of our runners from parkrun.org.uk.
- based on pe-defined groups of runner,
+/   creation of comparison charts
 /
 / ---------------------------------------------------------------------------
 */
@@ -1266,8 +1412,7 @@ function GeneratePerformanceChartInSheet(
   if (!runnersDatedPerfs) return null;
   var groupPerfsRange = CopyRunnersPerformancesToSheet(perfSheet,runners,
     runnersDatedPerfs,perfChartRow);
-  if (!groupPerfsRange)
-return null;
+  if (!groupPerfsRange) return null;
   var perfChart = EmbedRunnersPerformancesChartInSheet(
     perfSheet,chartTitle,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,
