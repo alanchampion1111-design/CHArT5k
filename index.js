@@ -87,7 +87,6 @@ let cloudBrowser = async (
   }
 }
 
-
 /**
  *  Initializes the browser and returns the WebSocket endpoint.
  *    @returns {Promise<void>} before continuing
@@ -469,7 +468,7 @@ exports.filterUrl = async (req,res) => {
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
-  var thisPage = await loadUrl(thisUrl,2,true);    // less than default of 5? or 10?
+  var thisPage = await loadUrl(thisUrl,8,true);    // less than default 10?   Consider looping on 10 results only?
   try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
     let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
