@@ -236,8 +236,12 @@ function getMatchName(names, name) {
       <tr class="Results-table-row" ...
 */
 async function waitForResults(thisPage) {
-  await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
-    { visible: true, timeout: 5000 });
+  // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
+  //  { visible: true, timeout: 5000 });
+  await thisPage.waitForFunction(() => {
+    let elem = document.querySelector('.js-ResultsTbody .Results-table-row');
+    return elem && elem.offsetWidth > 0 && elem.offsetHeight > 0;
+  }, { timeout: 5000 });
 }
   
 /**
