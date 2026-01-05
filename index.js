@@ -167,7 +167,6 @@ async function loadUrl(thisUrl,
         throw new Error('Persistent page NOT found!');
       }
       console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',timeSecs,'seconds');
-        throw new Error('Persistent page NOT found!');
       console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
       var content = await thisPage.content();   // always ensure page is fully loaded
