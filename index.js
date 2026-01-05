@@ -24,8 +24,8 @@ const parkrunnerURL = parkrunURL+'/parkrunner/';
 let thisPageId;       // re-use same page      
 let browserTimeout;   // for browser session
 let browserTimer;
-const launchSECS = 45000;
-const pageSECS = 10000;   // minimum of 10 seconds between page accesses on parkrun site
+const launchSECS = 45;
+const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -49,7 +49,7 @@ let cloudBrowser = async (
       '--verbose',
       '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
     ],
-    timeout: launchSECS,       // max launch time
+    timeout: launchSECS*1000,       // max launch time
     // detached: true,         // ensure session with puppeteer persists after initial launch
     // ignoreHTTPSErrors: true
   });
@@ -74,7 +74,7 @@ let cloudBrowser = async (
     if (thisPage) {
       thisPageId = await thisPage.target()._targetId;
       console.log('Retained page ID,',thisPageId);
-      thisPage.setDefaultTimeout(pageSECS);  // Set the timeout for loading the page
+      thisPage.setDefaultTimeout(pageSECS*1000);  // Set the timeout for loading the page
       await thisPage.setUserAgent(userAgent);
       await thisPage.goto('about:blank',{waitUntil: 'domcontentloaded'});    // Verify the browser is ready
       var content = await thisPage.content();    // always ensure page is fully loaded
@@ -150,6 +150,7 @@ async function loadUrl(thisUrl,
 {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
+    var timeMax = timeSecs*1000;
     if (!thisBrowserWSEp) {
       console.error('ERROR: Persistent browser NOT found:',thisBrowserWSEp);
       throw new Error('Persistent browser NOT found!');
@@ -160,14 +161,15 @@ async function loadUrl(thisUrl,
       var thisPage = (await thisBrowser.pages())
         .find(page => page.target()._targetId === thisPageId);
       if (thisPage) {
-        await thisPage.setDefaultTimeout(timeSecs);
+        await thisPage.setDefaultTimeout(timeMax);
       } else {
-        console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout', timeSecs);
+        console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout,',timeSecs,'seconds');
         throw new Error('Persistent page NOT found!');
       }
-      console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',timeSecs);
+      console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',timeSecs,'seconds');
+        throw new Error('Persistent page NOT found!');
       console.log('Loading page with URL,',thisUrl);
-      await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeSecs});
+      await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
       var content = await thisPage.content();   // always ensure page is fully loaded
       return pageOnly ? thisPage : content;     // if content, then we are done, otherwise more to do!
     }
@@ -246,11 +248,11 @@ async function waitForResults(
   timeSecs = pageSECS)
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
-  //  { visible: true, timeout: 5000 });
+  //  { visible: true, timeout: timeSecs*1000});
   await thisPage.waitForFunction(() => {
     let elem = document.querySelector('.js-ResultsTbody .Results-table-row');
     return elem && elem.offsetWidth > 0 && elem.offsetHeight > 0;
-  }, {timeout: timeSecs});
+  }, {timeout: timeSecs*1000});
 }
   
 /**
@@ -554,7 +556,7 @@ exports.acceptCookies = async (_,res) => {
         '--cert=./www.parkrun.org.uk.pem',
         '--verbose',
       ],
-      timeout: launchSECS,       // max launch time
+      timeout: launchSECS*1000,       // max launch time
     });
     let thisPage = await thisBrowser.newPage();
     try {
