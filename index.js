@@ -141,7 +141,7 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
       console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',pageSECS);
       console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded'});
-      // await thisPage.waitForFunction(() => window.parkrunResultsData);  // although not fully formaatted?
+
       var content = await thisPage.content();   // always ensure page is fully loaded
       return pageOnly ? thisPage : content;      // if content, then we are done, otherwise more to do!
     }
@@ -224,15 +224,20 @@ function getMatchName(names, name) {
 }
 
 /**
- *  Waits for the 2nd sortable results table to be populated
+ *  Waits for the full results table to be populated
  *    @param {Page} thiSPage - Puppeteer page object
  *  @returns {Promise} Resolves when results table is ready
  */
+
+/*
+  <table class="Results-table Results-table--compact js-ResultsTable">
+    <thead>...</thead>
+    <tbody class="js-ResultsTbody">
+      <tr class="Results-table-row" ...
+*/
 async function waitForResults(thisPage) {
-  await thisPage.waitForFunction(() => {
-    var tables = document.querySelectorAll('table.sortable');
-    return tables.length >= 2;
-  }, {timeout: 5000, polling: 1000});
+  await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
+    { visible: true, timeout: 5000 });
 }
   
 /**
