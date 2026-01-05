@@ -141,7 +141,7 @@ let loadUrl = async (thisUrl, pageOnly=false) => {
       console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',pageSECS);
       console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded'});
-      await thisPage.waitForFunction(() => window.parkrunResultsData);  // although not fully formaatted?
+      // await thisPage.waitForFunction(() => window.parkrunResultsData);  // although not fully formaatted?
       var content = await thisPage.content();   // always ensure page is fully loaded
       return pageOnly ? thisPage : content;      // if content, then we are done, otherwise more to do!
     }
