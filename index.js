@@ -35,9 +35,9 @@ let initPromise;      // browser "finished" after initialised (although still ac
  *  @sideeffect leaves the browser connected and returns a presistent WS endpoint for re-use
  */
 let cloudBrowser = async (
-  sessionLimit = 55) =>
+  sessionMins = 55) =>
 {
-  browserTimeout = sessionLimit*60*1000;
+  browserTimeout = sessionMins*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
     headless: true,
     executablePath: '/usr/bin/google-chrome',
