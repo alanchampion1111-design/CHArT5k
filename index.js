@@ -469,8 +469,8 @@ exports.filterUrl = async (req,res) => {
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
-  var thisPage = await loadUrl(thisUrl,12,true);
-  try {  // Get 2 (or more) positions in series
+  var thisPage = await loadUrl(thisUrl,3,true);    // less than default of 5? or 10?
+  try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
     let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
     // 2. Filter by Age-Category to get ageCat position of matchRunner
