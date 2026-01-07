@@ -45,7 +45,7 @@ let cloudBrowser = async (
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--cert=./www.parkrun.org.uk.pem',  // Certificate running on UK site, independent of country of event?
+      '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem',  // Certificate accessing files on UK, NL & DE
       '--verbose',
       '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
     ],
