@@ -1,0 +1,32 @@
+{
+  "timeZone": "Europe/Paris",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": ["https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/spreadsheets"],
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [{
+      "menuName": "Re-protect results for each runner",
+      "functionName": "ReprotectEachRunnerResultsSheets",
+      "defaultShortcut": "Ctrl+Alt+Shift+7"
+    }, {
+      "menuName": "Import latest result for each runner",
+      "functionName": "ImportLatestResultForEachRunner",
+      "defaultShortcut": "Ctrl+Alt+Shift+9"
+    }, {
+      "menuName": "Generate charts from Groups",
+      "functionName": "GenerateChartsFromGroupsSheet",
+      "defaultShortcut": "Ctrl+Alt+Shift+0"
+    }, {
+      "menuName": "Set legend colours for Groups",
+      "functionName": "SetLegendCellColoursOnSheet",
+      "defaultShortcut": "Ctrl+Alt+Shift+4"
+    }, {
+      "menuName": "Scroll Beyond Last Result",
+      "functionName": "ScrollBeyondLastResult"
+    }]
+  }
+}
