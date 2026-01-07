@@ -551,7 +551,7 @@ exports.acceptCookies = async (_,res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--cert=./www.parkrun.org.uk.pem',
+        '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem',
         '--verbose',
       ],
       timeout: launchSECS*1000,       // max launch time
