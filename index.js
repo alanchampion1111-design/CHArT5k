@@ -357,8 +357,8 @@ async function filterPositions(
   await thisPage.keyboard.press('Enter');        //  3. Press Enter to select matching pull-down...
   // var elem = await thisPage.$(selectBASE);       
   // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74
-  await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists
-    {visible: true,timeout: 5000});              //     ... with table mods also expected?
+  await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
+    {visible: true,timeout: 10000});              //     ... takes longer in NL browser (than UK)
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
     selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
