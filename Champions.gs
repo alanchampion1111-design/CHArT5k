@@ -26,14 +26,27 @@
  * @scope https://www.googleapis.com/auth/script.scriptapp
  */
 
-
 const resultTABLE = "Event"   // For any Runner Event results sheet
 const eventHeaderCELL = "A2"; //  where the header row is below the Runner name title
 const firstResultCELL = "A3"; //  and at least one Result has been cleanly entered
 const firstResultROW = 3;     //  where new Results MUST be below this first result
-const scrollCOLUMN = 12;      // Scroll down when selecting column M beyond the table
-const pasteCOLUMN = 1;        // Paste Event result starting in 1st column (A)
-const timeCOLUMN = 5;         // Event result time is in the 5th column (E)
+const scrollCOL = 12;      // Scroll down when selecting column M beyond the table
+const pasteCOL = 1;        // Paste Event result starting in 1st column (A)
+const timeCOL = 5;         // Event result time is in the 5th column (E)
+
+// 
+const allRunnersSHEET =           // The Runners sheet drives the creation of results sheets
+  SpreadsheetApp.getActiveSpreadsheet()   // ...for new runners by those permitted
+    .getSheetByName("Runners");
+const templateNameCELL = "J1";          // This cell identifes the seed template (e.g. Keren)
+const templateNAME = allRunnersSHEET    // The seed template may be readily reconfigured
+  .getRange(templateNameCELL)     // See the note on Runners!J1 cell
+  .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
+const parkrunnerIdCOL = 10;       // in column J on Runners sheet
+const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
+const runnersStartROW = 3;        // start after title & header rows (2)
+const resultsStartROW = 3;      // start after title & header rows (2)
+const numBlankROWS = 5;          // Regular catch-up of multiple results by those permitted
 
 // Junior parkrun thresholds?
 const min2kmTIME = 6;         // Minimum time for 2km in minutes (after repair)
@@ -64,18 +77,6 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /
 /  ---------------------------------------------------------------------------
 */
-
-const allRunnersSHEET =           // The Runners sheet drives the creation of results sheets
-  SpreadsheetApp.getActiveSpreadsheet()   // ...for new runners by those permitted
-    .getSheetByName("Runners");
-const templateNameCELL = "J1";          // This cell identifes the seed template (e.g. Keren)
-const templateNAME = allRunnersSHEET    // The seed template may be readily reconfigured
-  .getRange(templateNameCELL)     // See the note on Runners!J1 cell
-  .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
-const numBlankROWS = 5;          // Regular catch-up of multiple results by those permitted
-const parkrunnerIdCOLUMN = 10;    // in column L on Runners sheet
-const runnersStartROW = 3;      // start after title & header rows (2)
-const resultsStartROW = 3;      // start after title & header rows (2)
 
 /**
  * Ensures a specified number of blank rows exist at the end of the active sheet.
@@ -152,7 +153,7 @@ function GetResultsAddersForRunner(runnerName) {
     Logger.log("Individual runner, "+runnerName+" not found within the Runners sheet table");
     return [];
   }
-  var addersCell = allRunnersSHEET.getRange(addersCOLUMN+(indexRow+3));
+  var addersCell = allRunnersSHEET.getRange(addersCOLUMN+(indexRow+runnersStartROW));
   var adders = addersCell.getValue().split(",");
   adders = adders.map(adder => adder.trim());
   Logger.log("Results on " + runnerName + "'s result sheet may be added by "
@@ -244,7 +245,7 @@ function CreateRunnerResultsSheet(
  *    3. Protect that blank range for specific (editor) runners only to add results
  */
 function ReprotectEachRunnerResultsSheets() {
-  const runnersRANGE = "A"+resultsStartROW+":B";
+  const runnersRANGE = runnerNameCOLUMN+resultsStartROW+":"+runnerSurameCOLUMN;
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var runnerFullNames = allRunnersSHEET.getRange(runnersRANGE)
     .getValues().filter(function(value) {
@@ -258,9 +259,9 @@ function ReprotectEachRunnerResultsSheets() {
     var runnerName = runnerFullName[0];
     var resultsSheet = spreadsheet.getSheetByName(runnerName);
     if (!resultsSheet) {
-      var thisRow = index+runners1stROW;
+      var thisRow = index+runnersStartROW;
       var parkrunnerId = allRunnersSHEET.getRange(
-        thisRow,parkrunnerIdCOLUMN).getValue();
+        thisRow,parkrunnerIdCOL).getValue();
       resultsSheet = CreateRunnerResultsSheet(runnerFullName,parkrunnerId);
       if (!resultsSheet) return;
     } 
@@ -305,12 +306,12 @@ function ScrollBeyondLastResult() {
   // Find an empty row from the bottom of the table since more efficient
   var i = lastRow;
   for (; i>firstResultROW; i--) 
-    if (sheet.getRange(i,pasteCOLUMN).getValue()) break;
+    if (sheet.getRange(i,pasteCOL).getValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
   if (i == lastRow)       
     sheet.appendRow([""]);
   // Always select the row below the last result
-  sheet.getRange(i+1,pasteCOLUMN).activate();
+  sheet.getRange(i+1,pasteCOL).activate();
 }
 
 /**
@@ -333,7 +334,7 @@ function onSelectionChange(e) {
   if (sheet.getRange(firstResultCELL).getValue() === "") return;
   // Only effective when selecting a cell just to the right of the table
   // assuming a down-arrow image is on the right of that Event result header
-  if (range.getColumn() === scrollCOLUMN)
+  if (range.getColumn() === scrollCOL)
     ScrollBeyondLastResult();
 }
 
@@ -430,10 +431,10 @@ function TranslateDurationFromHoursToMinutes(time) {
  * Repairs duration times in a specified column of a range,
  *  translating each value from hh:mm to 00:mm:ss (i.e. 60 times faster!)
  *    @param {Range} - The range containing the duration times to repair
- *    @param {number} [timeCol=timeCOLUMN] - Column containing the duration times
+ *    @param {number} [timeCol=timeCOL] - Column containing the duration times
  */
 function RepairDurationTimesInRangeColumn(range,
-  timeCol = timeCOLUMN)
+  timeCol = timeCOL)
 {
   var firstRow = range.getRow();
   var numRows = range.getNumRows();
@@ -483,7 +484,7 @@ function CleanFormatforPastedRunResults(
       SpreadsheetApp.getUi().alert('Error','Ensure that there is a precedent clean result immediately above the newly pasted result(s) to be cleaned (assuming that earlier result is below the runner title & header rows)',SpreadsheetApp.getUi().ButtonSet.OK);
       return;
     }
-    var pastedValue = sheet.getRange(firstRow,pasteCOLUMN).getValue();  
+    var pastedValue = sheet.getRange(firstRow,pasteCOL).getValue();  
     if (!pastedValue) {
       SpreadsheetApp.getUi().alert('Error','Ensure that the result(s) have been copied from the All Results table'+
         '(with the Event Name and PB?) and that the pasted result(s) to be cleaned remain selected',
@@ -491,12 +492,12 @@ function CleanFormatforPastedRunResults(
       return;
     }
     var pastedColumn = pastedResults.getColumn();
-    if (pastedColumn !== pasteCOLUMN) {
+    if (pastedColumn !== pasteCOL) {
       SpreadsheetApp.getUi().alert('Error','Ensure that the result(s) have been pasted into the first column (A) and that they remain selected',
         SpreadsheetApp.getUi().ButtonSet.OK);
       return;   
     }
-    var firstTimeString = sheet.getRange(firstRow,timeCOLUMN).getDisplayValue();
+    var firstTimeString = sheet.getRange(firstRow,timeCOL).getDisplayValue();
     var firstElapsedTime = convertHoursToMinutes(firstTimeString);
     if (firstElapsedTime < min5kmTIME) {
       SpreadsheetApp.getUi().alert('Error', 'Elapsed time (after repair) expected to exceed world record for 5km',
@@ -507,7 +508,7 @@ function CleanFormatforPastedRunResults(
   ClearBordersOnRange(pastedResults);
   ApplyFormatFromRowAboveOnRange(pastedResults);
   ApplyFormulaFromRowAboveBeyondRange(pastedResults);
-  RepairDurationTimesInRangeColumn(pastedResults,timeCOLUMN);
+  RepairDurationTimesInRangeColumn(pastedResults,timeCOL);
 }
 
 /* --------------------------------------------------------------------------
@@ -569,13 +570,16 @@ function CleanFormatforPastedRunResults(
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';    // Google Cloud service in operation
 // const sampleURL = 'https://www.example.com';  // default test
 const sampleURL = 'https://www.parkrun.org.uk/colchestercastle/results/116';
-const debug = true;      // WARNING: debug if true may slow down performance and may skip runners!!
+const debug = true;   // WARNING: debug if true may slow down performance and may skip runners!!
+var browserSession;   // Shared by threaded/recursed processes for up to 30 minutes because browser lingers
 
 async function OpenChromeBrowser() {
   const initBrowserURL = browserURL+'/initBrowser';
   try {
     var response = await UrlFetchApp.fetch(initBrowserURL);
-    Logger.log('Session: '+response.getContentText());
+    browserSession = response.getContentText();   // WS Endpoint lingers for upto 30 minutes
+    Utilities.sleep(1000); // in case image not cached, avoids Error: Requesting main frame too early!
+    Logger.log('Session: '+browserSession);
   } catch (err) {
     Logger.log(err);
   }
@@ -605,6 +609,7 @@ async function CloseChromeBrowser() {
   try {
     var response = await UrlFetchApp.fetch(stopBrowserURL);
   	Logger.log('Session ended. '+response.getContentText());
+    browserSession = undefined;
   } catch (err) {
     Logger.log(err);
   }
@@ -675,16 +680,21 @@ async function CopyResultForRunner(
           var bodyContent = allResults.match(/<tbody>.*?<\/tbody>/s)[0];
           var bodyRows = bodyContent.match(/<tr[^>]*>.*?<\/tr>/gs);
           if (bodyRows && bodyRows.length>0) {
-            resultRow = GetResultRow(bodyRows,eventDate);  // single result, default to latest
-            var cells = resultRow.match(/<td>.*?<\/td>/gs);
-            if (cells) {
-              var values = cells.map(function(cell) {
-                return cell.replace(/<td>|<\/td>/g,"").trim();
-              });
-              // if (debug) Logger.log('Cells parsed as '+cells+' for runner, '+parkrunnerId+', and ready for pasting');
-              return values;
+            var resultRow = GetResultRow(bodyRows,eventDate);  // single result, default to latest
+            if (resultRow) {
+              var cells = resultRow.match(/<td>.*?<\/td>/gs);
+              if (cells) {
+                var values = cells.map(function(cell) {
+                  return cell.replace(/<td>|<\/td>/g,"").trim();
+                });
+                // if (debug) Logger.log('Cells parsed as '+cells+' for runner, '+parkrunnerId+', and ready for pasting');
+                return values;
+              } else {
+                Logger.log('WARNING: No cells found in row, '+resultROW+' for runner, '+parkrunnerId);
+                return null;
+              }
             } else {
-              Logger.log('WARNING: No cells found in row, '+resultROW+' for runner, '+parkrunnerId);
+              Logger.log('Unable to find result for runner,'+parkrunnerId);
               return null;
             }
           } else {
@@ -857,7 +867,7 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat) {
       //      WHEN re-using the same page is detected,
       //      AND/OR WHEN a single CPU is specified for the run
       // Therefore, allow worst case timing for all, as if serial
-      {muteHttpExceptions:true,timeout:3000000});
+      {muteHttpExceptions:true,timeout:12000});
     Logger.log('Runner: '+matchRunner+'\t'+positions.getContentText());
     var posns = JSON.parse(positions);
     return [posns.acPosition,posns.agPosition,posns.gcPosition];
@@ -875,7 +885,7 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat) {
  *  @param {string} gcPosn (replacing redundant run #)
  */                                                 
 function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
-  // WARNING: resultRange must be a sheetrange to update cell values
+  // WARNING: resultRange normally a sheetrange to update cell values
   const GenderPosnCOL = 9;      // column I (new column extension)
   const AgeCatPosnCOL = 10;     // column J (previously done manually)
   const AgeGradePosnCOL = 11;   // column K (new column extension)
@@ -953,7 +963,7 @@ function ConstructResultsUrl(eventDateCell,eventLocation,eventInstance) {
       ? parkrunURL.replace('org\.uk',locationUrlMap[eventLocation])
       : parkrunURL;
     resultsLink = parkrunDomain+eventLocation+oneForALL+eventInstance;
-    if (debug) Logger.log('WARNING: Reconstructed URL ('+resultsLink+') for event on '+eventDate+' since irretrievable from the Date cell');
+    //if (debug) Logger.log('WARNING: Reconstructed URL ('+resultsLink+') for event on '+eventDate+' since irretrievable from the Date cell');  // TODO: create hyperlinks instead of rich text when applying links
   }
   resultsLink = (resultsLink.includes('parkrun')) ? resultsLink : null;
   return resultsLink;
@@ -996,7 +1006,7 @@ async function AppendPositionsForResult(
         if (debug) Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
         let extraPosns = await AssessPositions(runnerFullName,resultsLink,
           ageCategory,genderCategory);
-        if (extraPosns.length === 3) {
+        if (extraPosns && extraPosns.length === 3) {
           IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
           return true;
         } else {
@@ -1019,17 +1029,17 @@ async function AppendPositionsForResult(
  */
 function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
-  eventDate = '01/01/2026')  // default to latest date - modify manually here otherwise
+  eventDate = undefined)  // undefined means latest date - return to this stateotherwise
 {
   return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
     var runners = allRunnersSHEET.getRange(
-      "A"+runnersStartROW+":B"
+      runnerNameCOLUMN+runnersStartROW+":"+runnerSurameCOLUMN
     ).getValues().filter(String);
     // Process each runner in parallel BEFORE closing after ALL runners done!
     return Promise.all(runners.map(function(runner,index) {
       var runnerName = runner[0];     // col A
       var parkrunnerId = allRunnersSHEET.getRange(
-        runnersStartROW+index,parkrunnerIdCOLUMN).getValue();
+        runnersStartROW+index,parkrunnerIdCOL).getValue();
       if (debug) Logger.log('Parkrunner ID: '+parkrunnerId);
       if (isNaN(parkrunnerId)) {
         Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
@@ -1097,7 +1107,7 @@ async function SyncPositionsPerRunner(
   let resultsSheet = spreadsheet.getSheetByName(runnerName);
   let runnerFullName = resultsSheet.getRange(runnerNameCELL).getValue();
   var resultRange = FirstMatchRange(resultsSheet,genderPosnCOL,"");  // 1st with unknown Gender posn
-  var moreBatches = "";
+  var moreBatches = false;
   if (resultRange) {   //skip this runner if all positions known
     // WARNING: Limit batch of results to catch up (recursively) because 6 mins max per App script!
     let lastResultRow = resultsSheet.getLastRow();
@@ -1114,22 +1124,27 @@ async function SyncPositionsPerRunner(
           resultRange = resultRange.offset(1,0);  // continue adding to the batch
       }
     }
-    moreBatches = (resultRange.getLastRow() != lastResultRow) ? ' more batches needed to catch up' : '';
+    moreBatches = (resultRange.getLastRow() != lastResultRow);
     return Promise.all(promises).then(results => {
       let updatesApplied = results.filter(Boolean).length;
       let totalEvents = results.length;
+      let morePositions = (moreBatches) ? ' and more positions needed to catch up' : '';
       Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
-        +' (out of '+totalEvents+' in this batch)'+moreBatches);
+        +' (out of '+totalEvents+' in this batch)'+morePositions);
     });
   } else {
     Logger.log('Runner: '+runnerFullName+'\tNo (more) blank positions to catch up');
   }
-  return (moreBatches);
+  return moreBatches;
 }
 
 const threadBatchFN = recurseBatchFN ='BatchPositionsForRunners';  // threaded & potentially recursed
 const lockINDEX = 'lockIndex';
-const allSTATUS = 'allStatus';
+const browserWSEP = 'browserInstance';    // re-use same broser for threaded processes
+const runnerNameCOLUMN = "A";     // Runners name in Column A 
+const runnerSurnameCOLUMN = "B";  // Runners surname in Column B 
+const hasResultsCOLUMN = "K";     // Runner's sheet exists with results (D3:D), and a Parkrunner Id (in col J)
+const hasPosnsCOLUMN = "L";       // Runner's sheet (if exists) has Positions up-to-date (I3:I) based on GenderPosn
 
 function CleanupBatch(
   thisScript = threadBatchFN) 
@@ -1141,19 +1156,50 @@ function CleanupBatch(
     }
   });
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
-  PropertiesService.getScriptProperties().deleteProperty(allSTATUS);
+  PropertiesService.getScriptProperties().deleteProperty(browserWSEP);
   Utilities.sleep(2000); // Allowing time for triggers & property reset
   CloseChromeBrowser();
   // if (debug)
     Logger.log('Cleared batch status (including triggered scripts) and closed browser');
 }
 
-function RunnerDone(thisIndex) {
-  let allStatus = JSON.parse(PropertiesService.getScriptProperties().getProperty(allSTATUS));
-  allStatus[thisIndex] = true;
-  let statusForm = JSON.stringify(allStatus,null,2);    // pretty form
-  PropertiesService.getScriptProperties().setProperty(allSTATUS,statusForm);
-  Utilities.sleep(1000); // In case final check *for all runners) might miss this update
+/**
+ * Returns the equivalent column by number given a letter - e.g. L means 12
+ *    @param {string} letter - column letter (A-Z)
+ *  @returns {number} column number
+ */
+function Column(letter='A') {
+  return letter.charCodeAt(0)-64;
+}
+
+/**
+ * Set this status of the runner in their results row
+ *    @param {runnerIndex} indicates the runner to be marked as Positions all done
+ *  @returns whether or not all the runners Status is complete 
+ */
+function AllPositionsDone(allStatus) {
+  var allDone = allStatus.every(x=>x);   // since status already a flattened array
+  if (debug) Logger.log('Finished: '+allDone);
+  return allDone;
+}
+
+/**
+ * Set this status of the runner in their results row
+ *    @param {runnerIndex} indicates the runner to be marked as Positions all done
+ *  @returns all of the runners Status is complete 
+ */
+function MarkRunnerPositionsDone(runnerIndex = 0) {
+  var runnerStatusRANGE = allRunnersSHEET.getRange(hasPosnsCOLUMN+runnersStartROW+":"+hasPosnsCOLUMN);
+  runnerStatusRANGE.getCell(runnerIndex+1,1).setValue(true);
+  let runnersStatus = runnerStatusRANGE.getValues().map(x => x[0]);
+  if (debug) {
+    let changedStati = runnersStatus.map((status,index) =>
+      ({index,status,changed: index === runnerIndex
+      })
+    );
+    Logger.log(JSON.stringify(changedStati,null,2)); // pretty form
+  }
+  return runnersStatus;
 }
 
 /**
@@ -1162,7 +1208,9 @@ function RunnerDone(thisIndex) {
 function UnlockCallerForwarded() {
   var lock = LockService.getScriptLock();
   let thisRunnerNameId = PropertiesService.getScriptProperties().getProperty(lockINDEX);
-  Utilities.sleep(1000); // In case final check *for all runners) might miss this update
+  browserSession = PropertiesService.getScriptProperties().getProperty(browserWSEP);
+  // Utilities.sleep(1000); // In case final check (for all runners) might miss this update
+  Logger.log('Re-using browser, '+browserSession+' for unique runner, '+thisRunnerNameId);
   lock.releaseLock();   // The lock itself is unique (and unnamed) for this node service
   return thisRunnerNameId;
 }
@@ -1173,14 +1221,15 @@ function UnlockCallerForwarded() {
 function LockCallerForwardsTo(thisFunction,withReason,thisRunnerNameId) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(8000);  // max time before parallel threads may continue
+    lock.waitLock(12000);  // max time before parallel threads may continue
     PropertiesService.getScriptProperties().setProperty(lockINDEX,thisRunnerNameId);
+    PropertiesService.getScriptProperties().setProperty(browserWSEP,browserSession);
     ScriptApp.newTrigger(thisFunction)
       .timeBased()
-      .after(300)
+      .after(1000)
       .create();
   } catch(err) {
-    Logger.log('Timeout on '+thisFunction+', '+withReason+' forunique runner, '+thisRunnerNameId+':\n'+err);
+    Logger.log('Timeout on '+thisFunction+', '+withReason+' for unique runner, '+thisRunnerNameId+':\n'+err);
   }
 }
 
@@ -1192,18 +1241,16 @@ function BatchPositionsForRunners(/*runnerNameId*/) {
   const runnerNameId = UnlockCallerForwarded();
 // begin
   let [runnerName,runnerIndex] = runnerNameId.split('_');
-  // runnerIndex = parseInt(runnerIndex);
-  // if (debug)
+  runnerIndex = parseInt(runnerIndex);   // ensure a number 
+  if (debug)
     Logger.log('Runner: '+runnerName+' ['+runnerIndex+']\tSyncing positions...');
-  return SyncPositionsPerRunner(runnerName).then((moreToDo) => {  
+  return SyncPositionsPerRunner(runnerName).then((moreToDo) => { 
+    if (debug) Logger.log('More to sync for runner: '+runnerName+' ['+runnerIndex+']');
     if (moreToDo) {
       LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);
     } else {
-      RunnerDone(runnerNameId);
-      let runnersStatus = JSON.parse(
-        PropertiesService.getScriptProperties().getProperty(allSTATUS)
-      );
-      if (Object.keys(runnersStatus).every(x=>x)) {
+      let runnersStatus = MarkRunnerPositionsDone(runnerIndex);
+      if (AllPositionsDone(runnersStatus)) {
         CleanupBatch(threadBatchFN);
         return;
       }
@@ -1213,7 +1260,7 @@ function BatchPositionsForRunners(/*runnerNameId*/) {
     Logger.log('ERROR: Failed to trigger recursed batches: '+err)
   )
   .finally(() =>
-    // CloseChromeBrowser() // NOT yet until status for every runner completed 
+    // CloseChromeBrowser() // NOT yet until status for every
     Logger.log('No closure of browser unless all runners done')
   );
 }
@@ -1223,42 +1270,41 @@ function BatchPositionsForRunners(/*runnerNameId*/) {
  * in parallel, where batching also may be necessary to avoid exceeding 6 seconds max per set.
  */
 function CatchUpAllPositions() {
+  let runnersStatus = [];
   return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
-    let runners = allRunnersSHEET.getRange("A"+runnersStartROW+":A")
-      .getValues().filter(String);
-    let runnersRange = allRunnersSHEET.getRange("A"+runnersStartROW+":Y");  // last col is Y
-    // Ensure ALL threads use the same status so that closure is when done for ALL runners 
-    var runnersStatus = {};
-    runners.forEach((runnerName,runnerIndex) => {
-      let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
-      if (debug) {
-        let parkrunnerId = runnersRange.offset(runnerIndex,parkrunnerIdCOLUMN-1).getValue();
-        // Logger.log('Parkrunner ID: '+parkrunnerId); // assume ?? if invalid
-      }
-      const allOkayINDEX = 26;    // assumes a tick in column AA means runner sheet is ready 
-      if (runnersRange.offset(runnerIndex,allOkayINDEX).getValue())   // has at least one result
-        runnersStatus[runnerNameId] = false;                        // discard runner otherwise
-    });
-    let statusForm = JSON.stringify(runnersStatus,null,2);  // looks pretty
-    Logger.log('Initial status:\n'+statusForm);
-    PropertiesService.getScriptProperties().setProperty(allSTATUS,statusForm);
-    Utilities.sleep(1000); // Instead of locking around setting initial status
+    let runners = allRunnersSHEET.getRange(runnerNameCOLUMN+runnersStartROW+":"+runnerNameCOLUMN)
+      .getValues().map(x => x[0]).filter(String);
+    var runnersResults = allRunnersSHEET.getRange(hasResultsCOLUMN+runnersStartROW+":"+hasResultsCOLUMN)
+      .getValues().map(x => x[0]);
+    // Ensure ALL threads use the same status so that closure is when done for ALL runners
+    runnersStatus = allRunnersSHEET.getRange(hasPosnsCOLUMN+runnersStartROW+":"+hasPosnsCOLUMN)
+      .getValues().map(x => x[0]);
     // Thread process for each valid runner in parallel, with a non-conflicting delay 
-    Object.keys(runnersStatus).forEach(runnerNameId => {
-      var runnerHasResults = !JSON.parse(runnersStatus[runnerNameId]);
-      if (runnerHasResults) {   //  unless already marked as done! (to be doubly safe)
-        LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
-        Utilities.sleep(10000); // delay between runner threads (longer than the lock timeout)
-      }
+    runners.forEach((runnerName,runnerIndex) => {
+      if (runnersResults[runnerIndex]) {    // if runner has at least one result
+        if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
+          let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
+          if (debug) Logger.log('Threading runner: '+runnerName+'\t['+runnerIndex+']');
+          LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
+          Utilities.sleep(11000); // delay between activating runner threads in parallel
+        }
+        else
+          Logger.log('Positions up-to-date for runner: '+runnerName+'\t['+runnerIndex+']');
+      } else {
+        runnersStatus = MarkRunnerPositionsDone(runnerIndex);   // avoids impact on not finishing
+      }                                         // ...discard runner otherwise
     });
   })
   .catch(err => 
     Logger.log('ERROR: Failed to trigger threaded batches: '+err)
   )
-  .finally(() =>
-    // CloseChromeBrowser() // NOT yet until status for every runner completed 
-    Logger.log('No closure of browser until all runners done')
-  );
+  .finally(() => {
+    if (AllPositionsDone(runnersStatus)) {
+      CleanupBatch(threadBatchFN);
+      return;
+    }
+    else Logger.log('No closure of browser until all runners done')
+  });
 }
 
 /* ---------------------------------------------------------------------------
