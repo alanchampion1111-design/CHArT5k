@@ -352,11 +352,13 @@ async function filterPositions(
   const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
-  const buttonEnter = String.fromCharCode(13);   // In UK, 'Enter' works but the key name differs per language! 
+  const catOPTION = '.option[data-selectable]';
   await thisPage.waitForSelector(selectINPUT);
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
-  await thisPage.keyboard.press(buttonEnter);    //  3. Press Enter/Return key to select matching pull-down...
+  await thisPage.waitForSelector(catOPTION);
+  await thisPage.click(catOPTION);               //  3. Click on the typed selection matching a displayed option
+  // await thisPage.keyboard.press('Enter');     //  3b. Press Enter key works in UK (or US?) - not NL or DE
   // var elem = await thisPage.$(selectBASE);       
   // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74
   await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
