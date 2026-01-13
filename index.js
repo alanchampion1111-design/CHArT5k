@@ -352,7 +352,7 @@ async function filterPositions(
   const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
-  const buttonEnter = '\r';                      // In UK, 'Enter' works but the key name differs per language! 
+  const buttonEnter = String.fromCharCode(13);   // In UK, 'Enter' works but the key name differs per language! 
   await thisPage.waitForSelector(selectINPUT);
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
