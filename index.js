@@ -352,14 +352,15 @@ async function filterPositions(
   const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
+  const buttonEnter = '\r';                      // In UK, 'Enter' works but the key name differs per language! 
   await thisPage.waitForSelector(selectINPUT);
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
-  await thisPage.keyboard.press('Enter');        //  3. Press Enter to select matching pull-down...
+  await thisPage.keyboard.press(buttonEnter);    //  3. Press Enter/Return key to select matching pull-down...
   // var elem = await thisPage.$(selectBASE);       
   // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74
   await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
-    {visible: true,timeout: 10000});              //     ... takes longer in NL browser (than UK)
+    {visible: true,timeout: 10000});             //     ... may take longer in NL domain server (than UK)
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
     selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
