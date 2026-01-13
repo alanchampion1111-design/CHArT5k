@@ -244,7 +244,7 @@ function getMatchName(names, name) {
 */
 async function waitForResults(
   thisPage,
-  timeSecs = pageSECS)
+  timeSecs = loadSECS)
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
   //  { visible: true, timeout: timeSecs*1000});
