@@ -25,6 +25,7 @@ let thisPageId;       // re-use same page
 let browserTimeout;   // for browser session
 let browserTimer;
 const launchSECS = 45;
+const loadSECS = 13;  // max time to load page
 const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
@@ -74,7 +75,7 @@ let cloudBrowser = async (
     if (thisPage) {
       thisPageId = await thisPage.target()._targetId;
       console.log('Retained page ID,',thisPageId);
-      thisPage.setDefaultTimeout(pageSECS*1000);  // Set the timeout for loading the page
+      thisPage.setDefaultTimeout(loadSECS*1000);  // Set the timeout for loading the page
       await thisPage.setUserAgent(userAgent);
       await thisPage.goto('about:blank',{waitUntil: 'domcontentloaded'});    // Verify the browser is ready
       var content = await thisPage.content();    // always ensure page is fully loaded
