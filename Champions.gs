@@ -15,8 +15,8 @@
 /       (ImportResultForEachRunner - Ctrl+Alt+Shift+9)
 /   5.  Generate charts from Groups
 /       (GenerateChartsFromGroups - Ctrl+Alt+Shift+2)
-/ 	6.  Set legend colours for Groups
-/       (SetLegendCellColoursOnSheet)
+/ 	6.  Colour legends for Groups
+/       (ColourLegendsOnSheet)
 /---------------------------------------------------------------------------------------
  */
 
@@ -32,7 +32,7 @@ const resultTABLE = "Event"   // For any Runner Event results sheet
 const eventHeaderCELL = "A2"; //  where the header row is below the Runner name title
 const firstResultCELL = "A3"; //  and at least one Result has been cleanly entered
 const firstResultROW = 3;     //  where new Results MUST be below this first result
-const scrollCOL = 12;      // Scroll down when selecting column M beyond the table
+const scrollCOL = 13;      // Scroll down when selecting column M beyond the table
 const pasteCOL = 1;        // Paste Event result starting in 1st column (A)
 const timeCOL = 5;         // Event result time is in the 5th column (E)
 
@@ -272,8 +272,8 @@ function ReprotectEachRunnerResultsSheets() {
 
 function ScrollBeyondLastResult() {
   const functionNAME = "ScrollBeyondLastResult";
-  // Select the first empty row in preparation for pasting Event results
-  // Conveniently used to skip to the bottom of the table below the precedent result
+  // Select the first empty row in preparation for pasting a non-parkrun entry
+  // Conveniently used to skip to the bottom of the table below the latest result
   var sheet = SpreadsheetApp.getActiveSheet();
   Logger.log('Running '+functionNAME+' on sheet: '+sheet.getName());
   var lastRow = sheet.getLastRow();
@@ -290,7 +290,7 @@ function ScrollBeyondLastResult() {
 }
 
 /**
- * Sets up skipping to the bottom (on selecting L3 cell)
+ * Sets up skipping to the bottom (on selecting M3 cell)
  *  Instructions to set up (and execute?) the trigger:
  *    1. Go to the Apps Script (Macros) editor.
  *    2. Click on the clock icon (Triggers) in the left sidebar.
@@ -575,6 +575,7 @@ async function AccessPage(
       //      AND/OR WHEN a single CPU is specified for the run
       // Therefore, allow worst case timing for all, as if serial
       {muteHttpExceptions:true,timeout:30000});
+    Utilities.sleep(1000); // in case client-side table needs refresh (aside awaiting the fetch)
     return response.getContentText();
   } catch (err) {
     Logger.log(err,'within',thisUrl);
@@ -797,10 +798,16 @@ function AppendResultRow(
       .setFormulas([thisResult.slice(0,linksNUM)]);   // A3:C3 first row
     resultsSheet.getRange(insertRow,linksNUM+1,1,valsNUM)
       .setValues([thisResult.slice(linksNUM)]);       // D3:G3 first row    
-    var pastedRow = resultsSheet.getRange(insertRow,1,1,thisResult.length);
-    var resultsLink = pastedRow.getCell(1,dateLinkCOL).getRichTextValue().getLinkUrl();
-    Logger.log('Link to detailed results: '+resultsLink);
-    return pastedRow;
+    var pastedRowRange = resultsSheet.getRange(insertRow,1,1,thisResult.length);
+    var resultsLink = pastedRowRange
+      .getCell(1,dateLinkCOL).getRichTextValue().getLinkUrl();
+    Logger.log('Link to detailed results (deferred for batching later):\n'+resultsLink);
+    if (insertRow > resultsStartROW)
+      resultsSheet.getRange(insertRow,PBtickBoxCOL)   // column beyond paste
+        .clear({contentsOnly: true,
+          skipFilteredRows: true})    // complement to MAP prevents FALSE 
+        .insertCheckboxes();          // c/fwd tickbox restored
+    return pastedRowRange;
   } catch (err) {
     Logger.log('ERROR: Unable to add hyperlinks correctly to latest result for runner...\n'+err);
     return null;
@@ -880,8 +887,9 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat) {
     if (debug) Logger.log('Runner: '+matchRunner+'\t'+posnText);
     if (posnText.includes('Internal Server Error')) {
       browserSession = undefined; // restart the browser!
-      return OpenChromeBrowser().then(() => {
-        Utilities.sleep(5000);
+      return CloseChromeBrowser()
+      .then(() => {
+        OpenChromeBrowser()
       });
       return null;
     }
@@ -920,7 +928,7 @@ function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
 }
 
 /**
- * Extends the runner's result range, typically one result in a single row
+ * Extends the runner's result range passively, typically one result in a single row
  *  @param {Range} resultRange 
  *  @param {numeric} numRows 
  *  @param {string} agPosn
@@ -929,9 +937,6 @@ function ExtendRange(resultRange,numRows,numCols) {
   const AgeCatCOL = 12;   // column L is the age-category, derived from event date  (without conflict)
   // Two derived values are generated from a MAP function set for the first result in the table 
   resultRange = resultRange.offset(0,0,resultRange.getNumRows()+numRows,resultRange.getNumColumns()+numCols);
-  resultRange.getCell(resultRange.getNumRows(),PBtickBoxCOL)
-    .setValue(null)    // required for MAP formula to prevent explicit FALSE in col G * col H not "PB"
-    .insertCheckboxes();
   // resultRange.getCell(resultRange.getNumRows(),AgeCatCOL)
   //  .setValue(null);  // no conflict in derivation from event date in col B and runner's DoB
   if (debug) Logger.log('Extended range of results by '+numRows+' rows and '+numCols+' columns');
@@ -1042,7 +1047,7 @@ async function AppendPositionsForResult(runnerFullName,resultRange) {
     let eventDateCell = resultRange.getCell(1,dateCOL);
     let extResultRange = (resultRange.getNumColumns() < ageCatCOL) 
       ? ExtendRange(resultRange,0,PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
-      : resultRange;  // Result row range previously extended (for Catch-up use-case)
+      : resultRange;             // Result row range previously extended (for Catch-up use-case)
     let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
     let genderPositionKnown = extResultRange.getCell(1,genderPosnCOL).getValue();  
     if (genderPositionKnown) return false;  // Skipping since extra position(s) already on the sheet
@@ -1065,7 +1070,7 @@ async function AppendPositionsForResult(runnerFullName,resultRange) {
         Logger.log('ERROR: While appending positions for runner, '+runnerFullName+': '+err);
         return false; // or throw error
       } finally {
-        Utilities.sleep(3000);
+        Utilities.sleep(2000);
       }
     }
   }
@@ -1136,10 +1141,6 @@ function PasteAllResultsForRunner(
     thisResult[dateINDEX] = FormatDate(thisResult[dateINDEX],dateFORMAT);
     AppendResultRow(thisResult,resultsSheet);   // applies hyperLinks from Clean
   });
-  // Set derived column on the right of the results columns to be tick box
-  resultsSheetgetRange(runnersStartROW,PBtickBoxCOL,allResults.length,1)
-    .setValue(null)
-    .insertCheckboxes();
 }
 
 /**
@@ -1150,8 +1151,8 @@ function PasteAllResultsForRunner(
  * Assumes browser already opened
  */
 function ImportAllResultsForRunner(
-  parkrunnerId = '11306693',
-  runnerNameId = 'Tobias_17',
+  parkrunnerId = '11306668',
+  runnerNameId = 'Jonah_17',
   thisPage = undefined    // expected known when 'ALL' (since required to get name)
 ) {
   if (debug) Logger.log('Import All from '+parkrunnerId+'to results sheet, '+runnerNameId);
@@ -1243,6 +1244,9 @@ function CreateRunnerResultsSheet(
 /         ImportAllResultsForRunner
 /           CopyResultForRunner (ALL assumes Results Page preloaded)
 /           PasteAllResultsForRunner (chronologically)
+/             CleanValue
+/             FormatDate
+/             AppendResultRow
 /         LockCallerForwardsTo-> (triggers)
 /           BatchPositionsForRunner...
 /
@@ -1261,9 +1265,12 @@ function CreateRunnerResultsSheet(
 /         OpenChromeBrowser->
 /         >GetRunnerResults (to get the Results Page)
 /           AccessPage
-/         >ImportAllResultsForRunner
+/         >ImportAllResultsForRunner (assumes details on Runners sheet)
 /           CopyResultForRunner (ALL assumes Results Page preloaded)
 /           PasteAllResultsForRunner (chronologically)
+/             CleanValue
+/             FormatDate
+/             AppendResultRow
 /         LockCallerForwardsTo-> (triggers)
 /           BatchPositionsForRunner...
 /
@@ -1277,7 +1284,7 @@ function GetRunnerDetails(thisPage) {
     .replace(/<span.*?<\/span>/,'')
     .replace(/&nbsp;/g,'')
     .trim();
-  // if (debug) Logger.log ('Name: '+runnerFullName);
+  if (debug) Logger.log ('3b. Name: '+runnerFullName);
   const paraREGEXP = /<p>(.*?)<\/p>/s;
   let paraContent = (thisPage.match(paraREGEXP) || [])[1];
   // if (debug) Logger.log ('Paragraph: '+paraContent); 
@@ -1330,10 +1337,13 @@ function AddFirstMember(
       Logger.log('Forking new: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
     })
-    .catch(err =>
-      Logger.log('ERROR: Adding New Runner'+err))
+    .catch(err => {
+      Logger.log('ERROR: Adding New Runner'+err);
+      CloseChromeBrowser();
+    })
     .finally(() =>
-      CloseChromeBrowser());
+      // CloseChromeBrowser() // NOT yet until forked process is done!
+      Logger.log('No closure of browser unless all runners done'));
 }
 
 function TriggerRemote(firstFunction,spawnedSheetId,...args) {
@@ -1382,8 +1392,9 @@ function InstantiateFamilySpreadSheet(
 const addCASE = {
   title: 'Add Family Member',
   desc:  'This simply adds a new runner into the current Spreadsheet and captures all their results. '
-        +'On completion, the runner is identified by a row in the Runners sheet plus a separate sheet for '
-        +'the results of the new parkrun family member, based on their first name and the row index.',
+        +'The runner is identified by a row in the Runners sheet plus a separate sheet for '
+        +'the results of the new parkrun family member (based on their first name and the row index), '
+        +'where the detailed positions of those results will eventually appear.',
   action: 'Add',
   handler: 'DoAddFamilyMember'
 };
@@ -1462,10 +1473,13 @@ async function DoAddFamilyMember(form) {
       Logger.log('Added family member with their results: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
     })
-    .catch(err =>
-      Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err))
+    .catch(err => {
+      Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err);
+      CloseChromeBrowser();
+    })
     .finally(() =>
-      CloseChromeBrowser());
+      // CloseChromeBrowser() // NOT yet until forked process is done!
+      Logger.log('No closure of browser unless all runners done'));
 }
 
 /*
@@ -1537,10 +1551,13 @@ function DoSpawnNewFamily(form) {
       Logger.log('Spawned new family sheet to add 1st runner in: '+familyName+' ['+clubType+']');
       TriggerRemote('AddFirstMember',familySheetId);
     })
-    .catch(err =>
-      Logger.log('ERROR: Spawn New Family, '+familySheet+'\n'+err))
+    .catch(err => {
+      Logger.log('ERROR: Spawn New Family, '+familySheet+'\n'+err);
+      CloseChromeBrowser();
+    })
     .finally(() =>
-      CloseChromeBrowser());
+      // CloseChromeBrowser() // NOT yet until forked process is done!
+      Logger.log('No closure of browser unless all runners done'));
 }
 
 /**
@@ -2227,7 +2244,7 @@ return;
   return perfSheet;
 }
 
-function SetLegendCellColoursOnSheet(sheetName="Groups") {
+function ColourLegendsOnSheet(sheetName="Groups") {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
@@ -2286,7 +2303,7 @@ function onOpen() {
 }
 
 function PasteAboveRangeFormula() {
-  var sheet = SpreadsheetApp.getActive().getActiveSheet();
+  var sheet = SpreadsheetApp.getActiveSpread().getActiveSheet();
   var activeCells = sheet.getActiveRange();
   var aboveCells = sheet.getRange(
     activeCells.getRow()-1, 
@@ -2295,6 +2312,16 @@ function PasteAboveRangeFormula() {
     activeCells.getNumColumns()
   );
   aboveCells.copyTo(activeCells, SpreadsheetApp.CopyPasteType.PASTE_FORMULA);
+}
+
+function GetRelatedTabColor(
+  nameIndex = 'Alan_13')
+{
+  const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
+  let resultsSheet = spreadSheet.getSheetByName(nameIndex);
+  const colour = resultsSheet.getTabColor();
+  Logger.log('Colour: '+colour);
+  return colour || "#ffffff"; // default if no color
 }
 
 function DuplicateAboveRowFormula() {
