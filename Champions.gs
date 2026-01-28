@@ -1192,7 +1192,7 @@ function CreateRunnerResultsSheet(
     Logger.log('DoB: '+dob);
     Logger.log('Id: '+parkrunnerId);
   }
-  if (dob) {
+  if (gender && dob) {    // for new members except the first runner entry 
     rangeRow = allRunnersSHEET.appendRow(
       [...runnerNames,        // A..B
       gender,email,dob,       // C..E
@@ -1201,7 +1201,7 @@ function CreateRunnerResultsSheet(
     );
     runnerIndex = allRunnersSHEET.getLastRow()-runnersStartROW;
   } else {
-    // Assume details already on Runners Sheet from 
+    // Assume details already on Runners Sheet for first runner
   }
   // Create runner's results sheet if it doesn't exist
   let spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -1228,7 +1228,7 @@ function CreateRunnerResultsSheet(
     if (runnerIndex != 0) {
       let numCols = allRunnersSHEET.getLastColumn();
       allRunnersSHEET.getRange(rangeRow-1,1,1,numCols)
-        .copyFormatToRange(allRunnersSHEET, 1, numCols,rangeRow,rangeRow);
+        .copyFormatToRange(allRunnersSHEET,1,numCols,rangeRow,rangeRow);
     }
   return runnerNameId;    // name of the newly created sheet
 }
@@ -1262,12 +1262,11 @@ function CreateRunnerResultsSheet(
 /         GetRunnerDetails
 /         >InstantiateFamilySpreadSheet (with Family Name)
 /         CreateRunnerResultsSheet (with Name, form details but noresults)
-/         TriggerFunction => AddFirstMember (with arguments, Name & Form details)
+/         TriggerFunction => AddFirstMember (with Name & results page)
 /
-/   2b. AddFirstMember (as a member of new family/club)
+/   2b. AddFirstMember (as a member of new family/club) with Results Page
 /         OpenChromeBrowser->
-/         >GetRunnerResults (to get the Results Page)
-/           AccessPage
+/         >CreateRunnerResultsSheet (with Name)
 /         >ImportAllResultsForRunner (assumes details on Runners sheet)
 /           CopyResultForRunner (ALL assumes Results Page preloaded)
 /           PasteAllResultsForRunner (chronologically)
@@ -1304,34 +1303,28 @@ function GetRunnerDetails(thisPage) {
 /**
  * Adds the first Runner to the existing family with basic details
  *  1. Opens the browser session
- *  2. Gets the Results Page
+ *  2. Creates new Results Sheet for first runner 
  *  3. Imports all the results for the new Runner (without Positions)
  *  4. Triggers the Batch process to append positions
- * /   2b. AddFirstMember (as a member of new family/club)
-/         OpenChromeBrowser->
-/         GetRunnerResults (to get the Results Page)
-/           AccessPage
-/         >ImportAllResultsForRunner
-/           CopyResultForRunner (ALL assumes Results Page preloaded)
-/           PasteAllResultsForRunner (chronologically)
-/         LockCallerForwardsTo-> (triggers)
-/           BatchPositionsForRunner...
  */
 function AddFirstMember(
-  firstName,surname,gender,dob)
+  parkrunnerId,runnerFullName,resultsPage)
 {
+  if (debug) Logger.log('1. Full name: '+runnerFullName);
   OpenChromeBrowser()
-    .then((Form,resultsPage) => {
-      let nextIndex = 17; // count number of runners and add resultsStartROW
-      var runnerNameId = CreateRunnerResultsSheet(
+    .then(() => {
+      if (debug) Logger.log('2. First runner: '+parkrunnerId);
+      const firstINDEX = 0;
+      runnerNames = runnerFullName.split(' ');
+      return CreateRunnerResultsSheet(
         runnerNames,
-        Form.parkrunnerId,
-        Form.dob, // update existing row in Runners sheet or new next row if null
-        nextIndex   // runner index override
+        null,
+        parkrunnerId,
+        null,         // update existing row in Runners sheet or new next row if null
+        firstINDEX    // first runner
       );
-      return [Form,resultsPage,runnerNameId]; // follow through
     })
-    .then((Form,resultsPage,runnerNameId) => {
+    .then(runnerNameId => {
       ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage);
       return runnerNameId;    // only this thereafter
     })
@@ -1341,17 +1334,12 @@ function AddFirstMember(
       LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
     })
     .catch(err => {
-      Logger.log('ERROR: Adding New Runner'+err);
+      Logger.log('ERROR: Add First Member, '+parkrunnerId+'\n'+err);
       CloseChromeBrowser();
     })
     .finally(() =>
       // CloseChromeBrowser() // NOT yet until forked process is done!
-      Logger.log('No closure of browser unless all runners done'));
-}
-
-function TriggerRemote(firstFunction,spawnedSheetId,...args) {
-  const spawnedSheet = SpreadsheetApp.openById(spawnedSheetId);
-  this[firstFunction](spawnedSheet,...args);
+      Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
 function GetTemplateId(templateName) {
@@ -1364,7 +1352,7 @@ function GetTemplateId(templateName) {
 }
 
 const addCASE = {
-  title: 'Add Family Member',
+  title: 'Add Family / Club Member',
   desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
         +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the'
         +'results of that new parkrun family member (based on their first name and unique row index), '
@@ -1453,7 +1441,7 @@ async function DoAddFamilyMember(form) {
     })
     .finally(() =>
       // CloseChromeBrowser() // NOT yet until forked process is done!
-      Logger.log('No closure of browser unless all runners done'));
+      Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
 /*
@@ -1464,7 +1452,6 @@ async function DoAddFamilyMember(form) {
 /             AccessPage
 /         GetRunnerName
 /         >InstantiateFamilySpreadSheet (with Family Name)
-/           >CreateRunnerResultsSheet (with Name, form details but noresults)
 /         >TriggerFunction => AddFirstMember (with arguments, Name & Form details)
 */
 
@@ -1497,10 +1484,16 @@ function InstantiateFamilySpreadSheet(
   let ssNew = SpreadsheetApp.openById(familySheetId);
   // pass values here - alternative to pass by argument?
   let runnersSheet = ssNew.getSheetByName(runnersSheetNAME);
-  runnersSheet.getRange(runnersStartROW,1,1,5)        // cols A..E is 5 params
-    .setValues([[...runnerNames,gender,email,dob]]);  //  ... A..E only ensures MAP is not removed
-  runnersSheet.getCell(runnersStartROW,parkrunnerIdCOL).setValue(parkrunnerId);
+  runnersSheet.getRange(1,1).setValue(familySheetFile);   // conveniently file name in A1
+  runnersSheet.getRange(runnersStartROW,1,1,5)        // cols A..E ) 5 params
+    .setValues([[...runnerNames,gender,email,dob]]);  //  ...ensures MAP is not disturbed
+  runnersSheet.getRange(runnersStartROW,parkrunnerIdCOL).setValue(parkrunnerId);
   return [familySheetFile,familySheetId];
+}
+
+function TriggerRemote(firstFunction,spawnedSheetId,...args) {
+  let spawnedSheet = SpreadsheetApp.openById(spawnedSheetId);
+  spawnedSheet[firstFunction](...args);
 }
 
 const spawnCASE = {
@@ -1508,7 +1501,7 @@ const spawnCASE = {
   desc: 'This spawns a new family/club Spreadsheet that captures all results for that first '
         +'member. The surname of this first runner is used to name the new Spreadsheet in which '
         +'they will appear in the first row of the Runners sheet, with a separate sheet '
-        +'(\<first name\>_0) where the results of that first member will eventually appear '
+        +'(&lt;first name&gt;_0) where the results of that first member will eventually appear '
         +'via a background task.',
   action: 'Spawn',
   handler: 'DoSpawnNewFamily'
@@ -1548,19 +1541,20 @@ function DoSpawnNewFamily(
       let [runnerFullName,gender] = GetRunnerDetails(resultsPage);
       let runnerNames = runnerFullName.split(' ');
       if (debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
-      return InstantiateFamilySpreadSheet(
+      let familySheet = InstantiateFamilySpreadSheet(
         clubTYPE,
         runnerNames,gender,  // into cols A & B, C of 1st row of new Runners instance
-        email,dob,           // into cols.D & E (hidden for security, as also F..H)
+        email,dob,           // into cols.D & E (hidden for security, as also F..H);
         parkrunnerId);       // into col J (after derived age-category in col. I)
+        return [familySheet,runnerFullName,resultsPage];
     })
-    .then(familySheet => {    // after create new Spreadsheet file with new Runners instance
+    .then(([familySheet,runnerFullName,resultsPage]) => {    // after create new Spreadsheet file with new Runners instance
       let [familySheetFile,familySheetId] = familySheet;
       if (debug) Logger.log('4. Instantiate: '+familySheetFile);
       let [familyName,clubType] = familySheetFile.split(' '); 
       // get first name from 'Runners' sheet?
       Logger.log('Spawned new family sheet to add 1st runner in: '+familyName+' ['+clubType+']');
-      TriggerRemote('AddFirstMember',familySheetId);
+      TriggerRemote('AddFirstMember',familySheetId,parkrunnerId,runnerFullName,resultsPage);
     })
     .catch(err => {
       Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
@@ -1568,7 +1562,7 @@ function DoSpawnNewFamily(
     })
     .finally(() =>
       // CloseChromeBrowser() // NOT yet until forked process is done!
-      Logger.log('No closure of browser until spawned process completed'));
+      Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
 /**
@@ -1587,7 +1581,6 @@ function FirstMatchRange(resultsSheet,positionCol,positionValue) {
     .findIndex(([indexValue]) => indexValue === positionValue);  // e.g. ""
   return (matchIndex !== -1) ? resultsRange.offset(matchIndex,0,1,resultsRange.getNumColumns()) : null;
 }
-
 
 /**
  *  Syncs extra positions for each result for the specified runner.
@@ -1766,7 +1759,7 @@ function BatchPositionsForRunner(/*runnerNameId*/) {
   )
   .finally(() =>
     // CloseChromeBrowser() // NOT yet until status for every
-    Logger.log('No closure of browser unless all runners done')
+    Logger.log('Ordinarily, preserve browser session until completed')
   );
 }
 
@@ -1810,7 +1803,7 @@ function CatchUpAllPositions() {
       CleanupBatch(threadBatchFN);
       return;
     }
-    else Logger.log('No closure of browser until all positions updated.')
+    else Logger.log('Preserve browser session until all positions updated.')
   });
 }
 
