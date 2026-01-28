@@ -15,17 +15,20 @@
 /       (ImportResultForEachRunner - Ctrl+Alt+Shift+9)
 /   5.  Generate charts from Groups
 /       (GenerateChartsFromGroups - Ctrl+Alt+Shift+2)
-/ 	6.  Colour legends for Groups
-/       (ColourLegendsOnSheet)
+/ 	6.  Colour legends in Groups
+/       (ColourLegendsInGroups)
 /---------------------------------------------------------------------------------------
  */
 
 /**
  * @OnlyCurrentDoc
+ *  // Ensure authorisation granted via appscript.json
  * @scope https://www.googleapis.com/auth/script.external_request
  * @scope https://www.googleapis.com/auth/script.scriptapp
  * @scope https://www.googleapis.com/auth/spreadsheets
  * @scope https://www.googleapis.com/auth/script.container.ui
+ * @scope https://www.googleapis.com/auth/drive.readonly
+ * @scope https://www.googleapis.com/auth/drive
  */
 
 const resultTABLE = "Event"   // For any Runner Event results sheet
@@ -37,9 +40,10 @@ const pasteCOL = 1;        // Paste Event result starting in 1st column (A)
 const timeCOL = 5;         // Event result time is in the 5th column (E)
 
 // 
+const runnersSheetNAME = 'Runners';
 const allRunnersSHEET =           // The Runners sheet drives the creation of results sheets
   SpreadsheetApp.getActiveSpreadsheet()   // ...for new runners by those permitted
-    .getSheetByName("Runners");
+    .getSheetByName(runnersSheetNAME);
 const templateNameCELL = "J1";          // This cell identifes the seed template (e.g. Keren)
 const templateNAME = allRunnersSHEET    // The seed template may be readily reconfigured
   .getRange(templateNameCELL)     // See the note on Runners!J1 cell
@@ -49,6 +53,7 @@ const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or
 const runnersStartROW = 3;        // start after title & header rows (2)
 const resultsStartROW = 3;      // start after title & header rows (2)
 const numBlankROWS = 5;          // Regular catch-up of multiple results by those permitted
+const dateFORMAT = 'd-MMM-yy';    //consistent for backwards compatibility
 
 // Junior parkrun thresholds?
 const min2kmTIME = 6;         // Minimum time for 2km in minutes (after repair)
@@ -757,7 +762,7 @@ function CleanValue(cell) {
 /**
  *  Formats a date string into a specified format.
  *    @param {string} dateSource - Date string to format (DD/MM/YYYY expected) 
- *    @param {string} dateFormat - Output date format (e.g. "d-MMM-yyyy")
+ *    @param {string} dateFormat - Output date format (e.g. "d-MMM-yy")
  *  @returns {string} Formatted date string
  */
 function FormatDate(dateSource,dateFormat) {
@@ -828,7 +833,6 @@ function AppendResultRow(
   const locationINDEX = 0;  // column A
   const dateINDEX = 1;      // column B
   const previousROWS = 15;  // previous results may include non-parkrunner events
-  const dateFORMAT = 'd-MMM-yy';
   hyperLinks = [];   // discard any hyperLinks from duplicate results
   thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
   var thisDate = thisResult[dateINDEX] = FormatDate(thisResult[dateINDEX],dateFORMAT);
@@ -961,7 +965,7 @@ function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
   let richText = eventDateCell.getRichTextValue();
   if (richText) {   // WARNING: Only works for cells with HYPERLINK formaulae
     resultsLink = richText.getLinkUrl();
-  } else {   // Legacy for past results, the embedded URL was not retrievable!!
+  } else {   // Legacy complication for past results, the embedded URL was not retrievable!!
      const locationUrlMap = {
       'Nidda': 'com.de',
       'Kagerzoom': 'co.nl',
@@ -1133,7 +1137,6 @@ function PasteAllResultsForRunner(
   var resultsSheet = SpreadsheetApp.getActiveSpreadsheet()
     .getSheetByName(runnerNameId);
   const dateINDEX = 1; // column B
-  const dateFORMAT = 'd-MMM-yy';
   // Logger.log(typeof allResults)
   // Paste in reverse order from parkrun site => earliest result will be first
   allResults.reverse().forEach(thisResult => {
@@ -1308,7 +1311,7 @@ function GetRunnerDetails(thisPage) {
 /         OpenChromeBrowser->
 /         GetRunnerResults (to get the Results Page)
 /           AccessPage
-/         >ImportAllResultsForRunner calls Copy and PasteAll
+/         >ImportAllResultsForRunner
 /           CopyResultForRunner (ALL assumes Results Page preloaded)
 /           PasteAllResultsForRunner (chronologically)
 /         LockCallerForwardsTo-> (triggers)
@@ -1360,41 +1363,12 @@ function GetTemplateId(templateName) {
   }
 }
 
-const templateSHEET = 'FAMILY Template';
-const templateFOLDER ='Spawned';
-
-function InstantiateFamilySpreadSheet(
-  clubType = 'Parkrunners',   // or Clubrunners
-  runnerNames = ['Peter','WALLIS'],  // into cols A & B of 1st Runners row of new family Spreadsheet
-  gender = 'Male',    // for col C
-  email = '',         // for Col D
-  dob = undefined,    // for Col E (hidden for security, as also F..H)
-  parkrunnerId)       // for col J (after derived age-category in col. I)
-{
-  let targetFolder = DriveApp.getFoldersByName(templateFOLDER).next();
-  if (!targetFolder) {
-    targetFolder = DriveApp.createFolder(templateFOLDER);
-  }
-  let templateId = GetTemplateId(templateSHEET);
-  let templateFile = DriveApp.getFileById(templateId);
-  let familySheetFile = familyName+' '+clubType;
-  let newFamilySpreadsheet = templateFile.makeCopy(familySheetFile,targetFolder);
-  let familySheetId = newFamilySpreadsheet.getId();
-  let ssNew = SpreadsheetApp.openById(familySheetId);
-  // pass values here - alternative to pass by argument?
-  let runnersSheet = ssNew.getSheetByName('Runners');
-  runnersSheet.getRange(runnersStartROW,1,1,10)   // cols A..J ...
-    .setValues([...runnerNames,gender,email,dob,  //  ... A..E
-      null,null,null,null,parkrunnerId]);         //  ... F..I,J
-  return [familySheetFile,familySheetId];
-}
-
 const addCASE = {
   title: 'Add Family Member',
-  desc:  'This simply adds a new runner into the current Spreadsheet and captures all their results. '
-        +'The runner is identified by a row in the Runners sheet plus a separate sheet for '
-        +'the results of the new parkrun family member (based on their first name and the row index), '
-        +'where the detailed positions of those results will eventually appear.',
+  desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
+        +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the'
+        +'results of that new parkrun family member (based on their first name and unique row index), '
+        +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
   handler: 'DoAddFamilyMember'
 };
@@ -1493,12 +1467,49 @@ async function DoAddFamilyMember(form) {
 /           >CreateRunnerResultsSheet (with Name, form details but noresults)
 /         >TriggerFunction => AddFirstMember (with arguments, Name & Form details)
 */
+
+const templateSHEET = 'FAMILY Template';
+const templateFOLDER ='Spawned';
+const clubTYPE = 'Parkrunners';   // or 'ClubRunners'
+
+function InstantiateFamilySpreadSheet(
+  clubType = clubTYPE,   // or Clubrunners
+  runnerNames = ['Peter','WALLIS'],  // into cols A & B of 1st Runners row of new family Spreadsheet
+  gender = 'Male',    // for col C
+  email = '',         // for Col D
+  dob = undefined,    // for Col E (hidden for security, as also F..H)
+  parkrunnerId)       // for col J (after derived age-category in col. I)
+{
+  let targetFolder = DriveApp.getFoldersByName(templateFOLDER).next();
+  if (!targetFolder) {
+    targetFolder = DriveApp.createFolder(templateFOLDER);
+  }
+  let templateId = GetTemplateId(templateSHEET);
+  if (debug) Logger.log('Template Id: '+templateId);
+  let templateFile = DriveApp.getFileById(templateId);
+  if (debug) Logger.log('Template File: '+templateFile);
+  let familyName = runnerNames[1];
+  let familySheetFile = familyName+' '+clubType;
+  if (debug) Logger.log('Family sheet: '+familySheetFile);
+  let newFamilySpreadsheet = templateFile.makeCopy(familySheetFile,targetFolder);
+  let familySheetId = newFamilySpreadsheet.getId();
+  if (debug) Logger.log('Family sheet Id: '+familySheetId);
+  let ssNew = SpreadsheetApp.openById(familySheetId);
+  // pass values here - alternative to pass by argument?
+  let runnersSheet = ssNew.getSheetByName(runnersSheetNAME);
+  runnersSheet.getRange(runnersStartROW,1,1,5)        // cols A..E is 5 params
+    .setValues([[...runnerNames,gender,email,dob]]);  //  ... A..E only ensures MAP is not removed
+  runnersSheet.getCell(runnersStartROW,parkrunnerIdCOL).setValue(parkrunnerId);
+  return [familySheetFile,familySheetId];
+}
+
 const spawnCASE = {
-  title: 'Spawn New Family',
-  desc: 'This spawns a new Spreadsheet (named after this runner FAMILY name) that captures all their results. '
-        +'The FAMILY name of this first runner determines the name of that new Spreadsheet in which they '
-        +'appear in the first row of the new Runners sheet with a separate sheet for the results of that '
-        +'runner, based on their first name and the row index which is zero (0).',
+  title: 'Spawn New Family / Club',
+  desc: 'This spawns a new family/club Spreadsheet that captures all results for that first '
+        +'member. The surname of this first runner is used to name the new Spreadsheet in which '
+        +'they will appear in the first row of the Runners sheet, with a separate sheet '
+        +'(\<first name\>_0) where the results of that first member will eventually appear '
+        +'via a background task.',
   action: 'Spawn',
   handler: 'DoSpawnNewFamily'
 };
@@ -1517,9 +1528,9 @@ function SpawnNewFamily() {
   // callback to DoSpawnNewFamily with [parkrunnerId,dob,email] from form
 }
 
-const clubTYPE = 'Parkrunners';   // or 'ClubRunners'
-
-function DoSpawnNewFamily(form) {
+function DoSpawnNewFamily(
+  form = ['21283','30-Jan-69',null]
+) {
   let [parkrunnerId,dob,email] = form;
   if (debug) Logger.log('1. Prompt: '+form);
   const dobRegex = /^\d{2}-[A-Za-z]{3}-\d{2}$/;
@@ -1533,7 +1544,7 @@ function DoSpawnNewFamily(form) {
       return GetRunnerResultsPage(parkrunnerId);
     })
     .then(resultsPage => {   // after load page in browser
-      if (debug) Logger.log('3a. Runner:'+parkrunnerId);
+      if (debug) Logger.log('3a. Runner: '+parkrunnerId);
       let [runnerFullName,gender] = GetRunnerDetails(resultsPage);
       let runnerNames = runnerFullName.split(' ');
       if (debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
@@ -1545,19 +1556,19 @@ function DoSpawnNewFamily(form) {
     })
     .then(familySheet => {    // after create new Spreadsheet file with new Runners instance
       let [familySheetFile,familySheetId] = familySheet;
-      if (debug) Logger.log('4. Instantiate: '+sheetName);
+      if (debug) Logger.log('4. Instantiate: '+familySheetFile);
       let [familyName,clubType] = familySheetFile.split(' '); 
       // get first name from 'Runners' sheet?
       Logger.log('Spawned new family sheet to add 1st runner in: '+familyName+' ['+clubType+']');
       TriggerRemote('AddFirstMember',familySheetId);
     })
     .catch(err => {
-      Logger.log('ERROR: Spawn New Family, '+familySheet+'\n'+err);
+      Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
       CloseChromeBrowser();
     })
     .finally(() =>
       // CloseChromeBrowser() // NOT yet until forked process is done!
-      Logger.log('No closure of browser unless all runners done'));
+      Logger.log('No closure of browser until spawned process completed'));
 }
 
 /**
@@ -1799,54 +1810,150 @@ function CatchUpAllPositions() {
       CleanupBatch(threadBatchFN);
       return;
     }
-    else Logger.log('No closure of browser until all runners done')
+    else Logger.log('No closure of browser until all positions updated.')
   });
 }
 
 /* ---------------------------------------------------------------------------
 /
 /   The following definitions and functions are used to support the automatic
-/   creation of comparison charts
+/   creation of comparison charts.
+/   The SpreadSheet itself has built in functions to support automated charts.
+/   These include standard comparative graphs for different groups that may be
+/   customised to suit what best inspires a family or club.
+/   There are eight samples of filtered charts (mostly by Age-Grade %age):
+      Juniors (over past 1.5yrs)
+      Seniors (all time)
+      Veterans (under 50, over past 2 yrs)
+      Supervets (50+,over past year)
+      By FAMILY surname (past year)
+      Females (by Gender position, over past 2 years)
+    Note that these are formulae to filter the selection but can be manually set also  
+    By example, here is a sample Group runner selection formula for Veterans under 50
+
+      =LET(
+        stage,"Veteran", 
+        start,3, 
+        ageUnder,50,
+        TRANSPOSE(ARRAYFORMULA(
+          LET(
+            cond,Runners!K:K*(Runners!G:G=stage)*(Runners!F:F<ageUnder),
+            {
+              FILTER(Runners!A:A,cond), 
+              FILTER(ROW(Runners!A:A)-start,cond)
+            }
+          )
+        ))
+      )
+
+    On Rankings sheet,there are no function except a common formula,that is the
+    same for each ranking table. Note that 0+dateSource ensures a DATE from a
+    string (which is the new convention instead of a UTC-compliant date):
+
+      =LET(
+        start,3,
+        recentYrs,IF(H1="∞",0,H1),
+        yearDays,365.25, dateLink,2,
+        fTime,5, ageGrade,6, isPB,8,
+        genPosn,9, agePosn,10, gradePosn,11, ageCat,12,
+        foreNames,UNIQUE(FILTER(Runners!$A$3:$A,Runners!$K$3:$K)),
+        sortHeader,J1, headers,B2:J2,
+        sortBy,MATCH(sortHeader,headers,0),
+        sortOrder,IF(LEFT(sortHeader,1)="↓",FALSE,TRUE),
+        SORT(
+          BYROW(foreNames, LAMBDA(name,
+            LET(
+              idx,MATCH(name,Runners!$A:$A,0)-start,
+              nameId,name&"_"&idx,
+              dateSource, INDIRECT(nameId & "!B:B"),
+              timeSource, INDIRECT(nameId & "!E:E"),
+              fResult, FILTER( INDIRECT(nameId&"!A:L"),
+                IF( recentYrs = 0, timeSource <> "" ,
+                  0+dateSource >= TODAY()-recentYrs*yearDays
+                )
+              ),
+              fastTime,MATCH(MIN(
+                INDEX(fResult,0,fTime)), 
+                INDEX(fResult,0,fTime),0 ),
+              {
+                name,
+                INDEX(fResult,fastTime,dateLink),
+                INDEX(fResult,fastTime,fTime),
+                INDEX(fResult,fastTime,ageGrade),
+                INDEX(fResult,fastTime,isPB),
+                INDEX(fResult,fastTime,genPosn),
+                INDEX(fResult,fastTime,agePosn),
+                INDEX(fResult,fastTime,gradePosn),
+                INDEX(fResult,fastTime,ageCat)
+              }
+            )
+          )),
+          sortBy,
+          sortOrder
+        )
+      )
+
+    For maintenance needs, here is the hierarchy of functions for the comparative charts:
+
+      GenerateChartsFromGroups
+        ExtractGroupRunners
+        When referencing a new Performances sheet...
+          ClearPerformancesSheet
+        GenerateGroupChartInPerformances
+          FilterGroupRunnersDatedPerformances
+            CollateGroupRunnersDatedPerformances
+          CopyGroupPerformancesToSheet
+          EmbedGroupPerformancesChart
+            ApplyFormatsOnGroupPerformancesCharts
+
+      When any change of hex colour codes in the top Legends table...
+        ColourLegendsInGroups
 /
 / ---------------------------------------------------------------------------
 */
 
+const datesINDEX = 1;           // for col B on runners' results sheet
+const timesINDEX = 4;           // for col E on runners' results sheet
+const ageGradesINDEX = 5;       // for col F on runners' results sheet
 const chartYAxisTITLE = 'Age Grade';
-const ageGradesCOL = 5;       // for column F on each runner's results sheet
 const ageGradeFORMAT = '0.0%';  // for %age on graphs
-const dateFORMAT = 'd-MMM-yy';
 
 /**
  * Returns an array of selective runners performances versus event dates,
  *  ensuring event dates are unique (even if event location differs),
  *  based on most recent years (unless all performances override).
  *    @param {Array<Date>} allDates     - Array of non-unique event dates
- *    @param {Array<string>} runners    - Array of selective runners' names
- *    @param {Object} runnersPerfs      - Object of performances for each runner on dates (subset of all dates)
+ *    @param {Array<string>} runners    - 2D Array of selective runners' names with unique indices
+ *    @param {Object} runnersPerfs      - Object of performances for each indexed runner on dates (subset of all dates)
  *    @param {number} [mostRecentYears=recentYRS] - Number of recent years to include (0 to get all)
  *  @returns {Array<Array>} as an Array of arrays containing dated performances (with nulls for absences)
  *           (potentially more efficient as a 2D array)
  */
-function CollateRunnersDatedPerformances(allDates,runners,runnersPerfs,
+function CollateGroupRunnersDatedPerformances(allDates,runners,runnersPerfs,
   mostRecentYears = recentYRS)  // assume all performances if zero years cut-off
 {
   // Ensure empty performances for runners who missed out
   //    on any run dates (based on recent years only)
-  var filteredDates = mostRecentYears == 0   // ignore filter option
-    ? allDates
-    : allDates.filter(date => date >= new Date(
-      new Date().getFullYear()-(mostRecentYears|0),
-      new Date().getMonth()-((mostRecentYears%1)*12|0),
-      new Date().getDate()));
-  var uniqueDates = [...new Set(filteredDates.map(date => date.getTime()))]
-    .map(timestamp => new Date(timestamp)).sort((a, b) => a - b);
+  const NOW = new Date();
+  let cutoff = mostRecentYears == 0   // simplify the filter (if any)
+    ? NOW
+    : new Date(
+      NOW.getFullYear() - (mostRecentYears|0), 
+      NOW.getMonth() - ((mostRecentYears%1)*12|0), 
+      NOW.getDate()
+    );
+  let filteredDates = allDates.filter(date => new Date(date) > cutoff);
+  filteredDates.sort((a,b) => new Date(a)-new Date(b));   //sort, oldest first (a-b)
+  let uniqueDates = [...new Set(filteredDates)];  // remove duplicates and returnas an Array
   var runnersDatedPerfs = [];
   for (var i=0; i<uniqueDates.length; i++) {
     var row = [uniqueDates[i]];
     for (var j=0; j<runners.length; j++) {
-      if (runnersPerfs[runners[j]] &&
-          runnersPerfs[runners[j]][uniqueDates[i]] !== undefined) {
-        row.push(runnersPerfs[runners[j]][uniqueDates[i]]);
+      let runnerNameId = runners[j].join('_');
+      if (runnersPerfs[runnerNameId] &&
+          runnersPerfs[runnerNameId][uniqueDates[i]] != 0 &&
+          runnersPerfs[runnerNameId][uniqueDates[i]] !== undefined) {
+        row.push(runnersPerfs[runnerNameId][uniqueDates[i]]);
       } else {
         row.push(null);
       }
@@ -1858,24 +1965,29 @@ function CollateRunnersDatedPerformances(allDates,runners,runnersPerfs,
 
 /**
  * Retrieves and collates dated performances for the specified runners from their results sheets
- *    @param {Array<string>}                      - runners - Array of runner names from Group (rarely all)
+ *    @param {string}                             - chart title,only used for tracking distinct groups
+ *    @param {Array<string>}                      - runners - Array of runner names & indices from Group (rarely all)
  *    @param {number} [mostRecentYears=recentYRS] - Number of recent years to include (0 to get all)
- *    @param {number} [perfColumn=ageGradesCOL]   - Column index of performance values (Age Grade, Time, etc.)
+ *    @param {number} [perfIndex=ageGradesINDEX]   - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
-function GetRunnersDatedPerformances(runners,
+function FilterGroupRunnersDatedPerformances(chartTitle,runners,
   mostRecentYears = recentYRS,   // assume all performances if zero years cut-off
   // performance is normally Age Grade values < 1, presented as %ages,
   //   but potentially Time or Age Grade Posn or # of 1sts may be used
-  perfColumn = ageGradesCOL)
+  perfIndex = ageGradesINDEX)
 {
-  const datesCOL = 1;     // for column B on each runner's sheet
-  const headerROW = 2;    // number of header rows assumed above runner's results
+  const headerROW = runnersStartROW-1;  // number of header rows above runner's results
   var allDates = [];
   var runnersPerfs = {};
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  runners.forEach(function(runnerName,index) {
-    var runnerNameId = runnerName+'_'+index;
+  runners.forEach(function(runner) { 
+    let [runnerName,runnerIndex] = runner;
+    if (runnerName.includes("N/A")) {
+      Logger.log('WARNING: Missing runners in this group chart ('+chartTitle+'_');
+      return;   // for this group chart only
+    }
+    let runnerNameId = runnerName+'_'+runnerIndex;
     try {
       var resultsSheet = spreadsheet.getSheetByName(runnerNameId);
       if (!resultsSheet) {
@@ -1884,26 +1996,30 @@ function GetRunnersDatedPerformances(runners,
           SpreadsheetApp.getUi().ButtonSet.OK);
         return;
       }
-      var resultsRange = resultsSheet.getDataRange();
-      var values = resultsRange.getValues();  // dates in UTC & %ages < 1
-      var dates = values.map(function(row) {
-        return row[datesCOL]; // raw Date values
-      }).slice(headerROW);
-      var perfs = values.map(function(row) {
-        return row[perfColumn];
-      }).slice(headerROW);
+      var resultsRange = resultsSheet.getDataRange()
+        .offset(headerROW,0,resultsSheet.getLastRow()-headerROW);
+      var dates = resultsRange.getDisplayValues()
+        .map(date => date[datesINDEX]); // Dates in col B only
+      var perfs = [];
+      if (perfIndex == timesINDEX) {     //  DisplayValues may be a problem on chart min/max
+        perfs = resultsRange.getDisplayValues()
+          .map(time => time[timesINDEX]); // Duration times in col E only
+      } else {
+        perfs = resultsRange.getValues()
+        .map(perf => perf[perfIndex]); // Positions or %ages (<1) in col. D, F, or I..K
+      }
       runnersPerfs[runnerNameId] = {};
       for (var i=0; i<dates.length; i++) {
         runnersPerfs[runnerNameId][dates[i]] = perfs[i];
       }
-      allDates = allDates.concat(dates);   // dates are not unique
-    } catch (e) {
-      Logger.log("Error protecting runner sheet, " +runnerFullName[0]+": "+e);
+      allDates = allDates.concat(dates);
+    } catch (err) {
+      Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
   });
-  runnersDatedPerfs = CollateRunnersDatedPerformances(
+  runnersDatedPerfs = CollateGroupRunnersDatedPerformances(
     allDates,runners,runnersPerfs,mostRecentYears);
-  Logger.log('CollateRunnersDatedPerformances: '+runners);
+  Logger.log('Collate Runners Dated Performances: '+runners);
   return runnersDatedPerfs;
 }
 
@@ -1918,31 +2034,33 @@ function TransposeArray(array) {
  *    @param {Array<Array>} runnersPerfs        - Array of arrays containing runners' collated & dated performances
  *    @param {number} [groupPerfsRow=2]         - Row index where to start placing performances on the sheet
  *    @param {number} [groupPerfsCol=4]         - Column index likewise
- *    @param {string} [dateFormat='d-MMM-yy']   - Format used for displayed dates
+ *    @param {string} [dateFormat=dateFORMAT]   - Format used for displayed dates
  *    @param {number} [decimalPlaces=4]         - Floating precision (unless integer)
  * @returns {Range} where performances are on the sheet (beyond subsequent charts)
  */
-function CopyRunnersPerformancesToSheet(
+function CopyGroupPerformancesToSheet(
   perfsSheet,runners,runnersPerfs,
   groupPerfsRow = 2,
   groupPerfsCol = 4,
-  dateFormat = 'dd-MMM-yy',
+  dateFormat = dateFORMAT,     // aligned  with display format
   decimalPlaces = 4)
 {
-  var dates = ['Date',...runnersPerfs.map(row =>
-    Utilities.formatDate(new Date(row[0]),'UTC',dateFormat))];
-  var groupTable = [dates];
+  var dates = ['Date', ...runnersPerfs.map(date => date[0])];
+  var groupTable = [dates];   // 'Date' with d-MMM-YY dates are headers
   for (var i=1; i<=runners.length; i++) {
-    var runnerPerfs = runnersPerfs.map(row => row[i]);
-    var runnerName = runners[i-1];
-    var perfRow = [runnerName];
+    var runnerPerfs = runnersPerfs.map(result => result[i]);
+    var [runnerName,runnerIndex] = runners[i-1];
+    var runnerNameId = runnerName+'_'+runnerIndex;  // strip Index later if required?
+    var perfRow = [runnerNameId];
     runnerPerfs.forEach(value => {
       var formattedValue;
       if (value === undefined || value === null)
         formattedValue = null;
       else {
         formattedValue = Number(value);
-        if (formattedValue % 1 !== 0)
+        if (isNaN(Number(value)))  // retrieved as a display value => assume time
+          formattedValue = `0:${value}.000`;
+        else if (formattedValue % 1 !== 0)
           formattedValue = Number(formattedValue.toFixed(decimalPlaces));
       }
       perfRow.push(formattedValue);
@@ -1953,6 +2071,9 @@ function CopyRunnersPerformancesToSheet(
     groupPerfsRow,groupPerfsCol,
     groupTable.length,groupTable[0].length);
   groupPerfsRange.setValues(groupTable);
+  groupPerfsRange.offset(0,1,1,
+    groupPerfsRange.getLastColumn()-groupPerfsRange.getColumn()-1)
+    .setNumberFormat(dateFormat);
   return groupPerfsRange;
 }
 
@@ -1968,7 +2089,7 @@ function CopyRunnersPerformancesToSheet(
  *     @param {number} chartWidth      - The width of the chart
  *     @param {number} offsetBorder    - The offset border size (in pixels)
  */
-function ApplyFormatsOnGroupPerformancesAndChartSheet (
+function ApplyFormatsOnGroupPerformancesChart (
   perfSheet,groupPerfsRange,runnersLegend,
   perfChartRow,perfChartCol,perfFormat,
   chartHeight,chartWidth,offsetBorder=offsetBORDER)
@@ -2007,25 +2128,26 @@ function ApplyFormatsOnGroupPerformancesAndChartSheet (
  *  results and have already been presented to the right of where this Group chart is
  *  to be created on this same sheet.
  *    @param perfSheet         - The sheet (object) to embed the chart in
- *    @param {string} title    - The title of the chart
+ *    @param {string} chartTitle    - The title of the chart
  *    @param {range} groupPerfsRange      - Performances range on RHS of chart position
- *    @param {Array<Array<string>>} runnersLegend - A 2D array of runner names & colours.
+ *    @param {Array<Array<string>>} runnersLegend - A 2D array of names, indices & colours.
  *    @param {number} [perfChartRow=2]    - The row number to place the chart at
  *                                           (avoid subsequent charts coinciding)
  *    @param {number} [perfChartCol=2]    - The column number to place the chart 
  *                                           (typically starting at B2)
  *    @param {boolean} [showDates=false]  - Allow non-contiguous dates on the horizontal
  *    @param {boolean} [reverseTrend=1]   - Trends in reverse: rising to low values
+ *    @param {boolean} [stripIndex=false] - Simplify legend if first name context unique
  *    @param {number} [filterRecentYears=recentYRS] - The cut-off years for results 
  *    @param {string} [perfTitle=chartYAxisTITLE]   - Performance title on vertical
  *                                                    (typically Age Grade in results)
  *    @param {string} [perfFormat=ageGradeFORMAT]   - Format the performance (e.g. %age)
  */
-function EmbedRunnersPerformancesChartInSheet(
-  perfSheet,title,groupPerfsRange,runnersLegend,
+function EmbedGroupPerformancesChart(
+  perfSheet,chartTitle,groupPerfsRange,runnersLegend,
   perfChartRow = 2,
   perfChartCol = 2,
-  showDates = false,reverseTrend = 1,
+  showDates=false,reverseTrend=1,stripIndex=false,
   filterRecentYears = recentYRS,
   perfTitle = chartYAxisTITLE,
   perfFormat = ageGradeFORMAT)
@@ -2033,13 +2155,23 @@ function EmbedRunnersPerformancesChartInSheet(
   const chartWIDTH = 800;
   const chartHEIGHT = 350;
   const offsetBORDER = 5; // pixels
-  var perfLimits = ApplyFormatsOnGroupPerformancesAndChartSheet(
+  var perfLimits = ApplyFormatsOnGroupPerformancesChart(
     perfSheet,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,perfFormat,
     chartHEIGHT,chartWIDTH,offsetBORDER);
   if (filterRecentYears > 0)
-    title += ' (max '+filterRecentYears+' years)';
-  let colours = runnersLegend.map(colour=>colour[1]);
+    chartTitle += ' (max '+filterRecentYears+' years)';
+  perfSheet.getRange(perfChartRow-1,perfChartCol).setValue(chartTitle);
+  if (stripIndex) {  // tweak to remove the unique index if desired on chart legend
+    let numRunners = groupPerfsRange.getValues().slice(1).length;
+    groupPerfsRange.offset(1,0,numRunners,1)
+      .setValues(groupPerfsRange
+        .getValues()
+        .slice(1)
+        .map(name => [name[0].split('_')[0]])
+      );
+  }
+  let colours = runnersLegend.map(colour=>colour[2]); // 3rd col
   var seriesOptions = {};
   for (var i=0; i<colours.length; i++) {
     seriesOptions[i] = { color: colours[i] };
@@ -2058,7 +2190,7 @@ function EmbedRunnersPerformancesChartInSheet(
     .setOption('curveType','function')
     .setOption('interpolateNulls',true)
     .setOption('legend.position','top')
-    .setOption('title',title)
+    .setOption('title',chartTitle)
     .setOption('vAxis.direction',reverseTrend)  // Low values at the top (good if it worked!)
     .setOption('vAxis.minValue',perfLimits.min)
     .setOption('vAxis.maxValue',perfLimits.max)
@@ -2079,7 +2211,7 @@ function EmbedRunnersPerformancesChartInSheet(
  *    @param {string} [perfSheetName="Performances"] - The name of the sheet to retrieve and clear.
  *  @returns {Spreadsheet.Sheet} The cleared sheet object.
  */
-function GetClearPerformancesSheet(
+function ClearPerformancesCharts(
   perfSheetName = "Performances")
 {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -2099,17 +2231,19 @@ function GetClearPerformancesSheet(
 }
 
 /**
- * Extracts runner names and corresponding colours from a range.
- *    @param {Range} runnersRange - contains runners' names in 1st & colors in 2nd rows.
- * @returns {Array<Array<string>>} 2D array of [name,color] pairs for each runner.
+ * Extracts runner names and corresponding indices and colours from a range.
+ *    @param {Range} runnersRange - contains runners' names, indices & colours in 3 rows
+ * @returns {Array<Array<string>>} 2D array of [name,index,color] for each runner.
  */
 function ExtractGroupRunners(runnersRange) {
-  var runnersNames = runnersRange.getValues()[0];
-  var runnersColours = runnersRange.getValues()[1]; // aligned with names above
+  var groupRunners = runnersRange.getValues();
+  var runnersNames = groupRunners[0];
+  var runnersIndices = groupRunners[1];
+  var runnersColours =  groupRunners[2];
   var runnersLegend = [];
   for (var j=0; j<runnersNames.length; j++) {
     if (runnersNames[j] != "") {
-      runnersLegend.push([runnersNames[j],runnersColours[j]]);
+      runnersLegend.push([runnersNames[j],runnersIndices[j],runnersColours[j]]);
     }
   }
   return runnersLegend;   // 2-D array
@@ -2119,36 +2253,37 @@ function ExtractGroupRunners(runnersRange) {
  * Generate a performance chart in a specified sheet for a group of runners
  *    @param {string} perfSheet     - The name of the sheet to generate the chart in
  *    @param {string} chartTitle    - The full title of the chart
- *    @param {Array<Array<string>>} runnersLegend   - A 2D array runner,colour pair
+ *    @param {Array<Array<string>>} runnersLegend   - A 2D array runner,index,colour triple
  *    @param {number} perfChartRow  - The row number to position the chart
  *    @param {number} perfChartCol  - The column number to position the chart.
  *    @param {string} showDates     - Allows for long gaps (false unless true)
  *    @param {string} reverseTrend  - Reverse vertical axis (1, unless -1)
+ *    @param {string} stripIndex    - Reverse vertical axis (1, unless -1)
  *    @param {number} filterRecentYears - Cut-off excess years (0 if no filter)
  *    @param {string} perfColumnTitle   - The vertical title (default: Age Grade)
  *    @param {number} perfColumnIndex   - The index of the performance  (5 = F)
  *    @param {string} perfFormat        - The format to apply to performances
  */
-function GeneratePerformanceChartInSheet(
+function GenerateGroupChartInPerformances(
   perfSheet,chartTitle,runnersLegend,
   perfChartRow,perfChartCol,
-  showDates=false,reverseTrend=1,
+  showDates=false,reverseTrend=1,stripIndex=false,
   filterRecentYears,
   perfColumnTitle=chartYAxisTITLE,perfColumnIndex,perfFormat)
 {
   if (!perfSheet) return null;
-  let runners = runnersLegend.map(runner=>runner[0]);
-  // runners are a subset; so need to get index from 
-  var runnersDatedPerfs = GetRunnersDatedPerformances(
-    runners,filterRecentYears,perfColumnIndex);
+  let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
+  // runners are a subset! so index is EITHER from allRunners sheet OR in Legend
+  var runnersDatedPerfs = FilterGroupRunnersDatedPerformances(
+    chartTitle,runners,filterRecentYears,perfColumnIndex);
   if (!runnersDatedPerfs) return null;
-  var groupPerfsRange = CopyRunnersPerformancesToSheet(perfSheet,runners,
+  var groupPerfsRange = CopyGroupPerformancesToSheet(perfSheet,runners,
     runnersDatedPerfs,perfChartRow);
   if (!groupPerfsRange) return null;
-  var perfChart = EmbedRunnersPerformancesChartInSheet(
+  var perfChart = EmbedGroupPerformancesChart(
     perfSheet,chartTitle,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,
-    showDates,reverseTrend,
+    showDates,reverseTrend,stripIndex,
     filterRecentYears,
     perfColumnTitle,perfFormat);
   if (perfChart) {
@@ -2168,29 +2303,31 @@ function GenerateChartsFromGroups(
     .getSheetByName(groupsSheetName);
   if (!groupsSheet)
 return;
-  const numGroupROWS = 3;       // Group of related runners info spread over 3 rows 
-  const startGroupROW = 3;      // Asumme title and header in top 2 rows above
-  const lastGroupROW = groupsSheet.getLastRow();
-  const maxGroupsCOUNT = parseInt((lastGroupROW-startGroupROW+1)/numGroupROWS);
-  const startRunnerCOL = 3;     // Assume list of runners start in column C
-  const maxRunnersCOUNT = groupsSheet.getLastColumn()-startRunnerCOL+1;
-  const paramsCOUNT = 9;        // Assume parameters of Group in Columns A..I
-  // For each Group, there are THREE ordered steps to generate the chart...
-  var defaultPerfSheet = null;  // Assume default Performance Seeet unless specified
+  const numGroupROWS = 4;       // Group of related runners info spread over 4 rows 
+  const numRunnerROWS = numGroupROWS-1;
+  const groupsStartROW = 6;     // Title & header rows sandwich 3-row loopup table
+  const runnersStartCOL = 3;     // Output sheet name & Group titleprecede  
+  const groupsEndROW = groupsSheet.getLastRow();
+  const maxGroupsCOUNT = parseInt((groupsEndROW-groupsStartROW+1)/numGroupROWS);
+  const maxRunnersCOUNT = groupsSheet.getLastColumn()-runnersStartCOL+1;
+  const paramsCOUNT = 10;       // Assume parameters of Group in Columns A..J
+  var defaultPerfSheet = null;  // Assume default Performance Sheet unless specified
   var is1stGroup = true;
+  // For each Group, there are THREE ordered steps to generate the chart...
   for (var i=0; i<maxGroupsCOUNT; i++) {
-    var group1stRow = startGroupROW+numGroupROWS*i; // Assumes no blank rows between
+    var group1stRow = groupsStartROW+numGroupROWS*i; // Assumes no blank rows between
+    
     // 1. Establish valid Group in runners (2D-Array) with colours on two rows...
     var runnersRange = groupsSheet.getRange(group1stRow+1,  // Runner names on 2nd row
-      startRunnerCOL,2,maxRunnersCOUNT);                // with legend on next row
+      runnersStartCOL,numRunnerROWS,maxRunnersCOUNT);   // incl. runner index & legend (2..4)
     var runnersLegend = ExtractGroupRunners(runnersRange);
-    if (!runnersLegend || runnersLegend.length == 0)
-  continue; 
-    // 2. Extract Group parameters from 1st row, except chart position from next row
+    if (!runnersLegend || runnersLegend.length == 0) continue; // skip after step 2 if no runners
+
+    // 2. Extract Group parameters from 1st row, with chart position in Col. A of 2nd row
     //    Assume null for function defaults (if empty) - see notes on Groups sheet
     var paramsRange = groupsSheet.getRange(group1stRow,1,1,paramsCOUNT);
     var perfSheet,perfSheetName,groupName,groupTitle,
-      showDates,reverseTrend,
+      showDates,reverseTrend,stripIndex,
       filterRecentYears,
       perfColumnTitle,perfColumnIndex,perfFormat;
     var params = paramsRange.getValues()[0];
@@ -2198,8 +2335,8 @@ return;
       switch (j) {
       case 0:     // column A (of Groups sheet)
         perfSheetName = params[0] || defaultPerfSheet;
-        if (is1stGroup || perfSheetName != defaultPerfSheet) {
-          perfSheet = GetClearPerformancesSheet(perfSheetName);
+        if (is1stGroup || perfSheetName != defaultPerfSheet) {  // target is 'Performance' sheet
+          perfSheet = ClearPerformancesCharts(perfSheetName);
           defaultPerfSheet = perfSheetName;   // if explicit assume default thereafter
           is1stGroup = false;
         } else {
@@ -2211,8 +2348,8 @@ return;
       case 2:     // column C
         groupTitle = params[2];                       break;
       case 3:     // column D
-        // used for vertical & main titles , and
-        // ... matches a header in results sheets
+        // used for vertical & main titles , AND
+        // ... criteria matches a header in results sheets
         perfColumnTitle = params[3] || chartYAxisTITLE;  break;
       case 4:     // column E
         perfColumnIndex = params[4] || undefined;     break;
@@ -2221,30 +2358,37 @@ return;
       case 6:     // column G
         filterRecentYears = params[6] || undefined;   break;
       case 7:     // column H
-        showDates = params[7] == true || false;     break;
-      case 8:     // column I
-        reverseTrend = params[8] == true ? -1 : 1;  break;
+        showDates = params[7] == true || false;       break;
+      case 8:     // column I - TODO ineffective on reverse
+        reverseTrend = params[8] == true ? -1 : 1;    break;
+      case 9:     // column J 
+        stripIndex = params[9] == true || false;      break;
       }
     } // end of parameters for one Group from Groups sheet
-    var perfChartRow = paramsRange.offset(1,0)
-      .getValue() || undefined;  // in column A on next row
-    var perfChartCol = paramsRange.offset(1,1)
-      .getValue() || undefined;  // in column B
-    if (!groupName)
-  continue
+    var perfChartRow = paramsRange.offset(1,0)    // in col A on 2nd row
+      .getValue() || undefined;  
+    var perfChartCol = paramsRange.offset(1,1)    // in col B (default col B)
+      .getValue() || undefined;
+    var firstRunner = paramsRange.offset(1,2) 	  // in col C
+      .getValue() || undefined;  
+    if (!groupName || firstRunner === "#N/A")
+      continue;   // skip if no runners (after having cleared since last run)
+
     // 3. Place Group performances data on sheet before creating Group chart
     var chartTitle = groupName+" ("+groupTitle+") "+perfColumnTitle;
-    GeneratePerformanceChartInSheet(
+    GenerateGroupChartInPerformances(
       perfSheet,chartTitle,runnersLegend,
       perfChartRow,perfChartCol,
-      showDates,reverseTrend,
+      showDates,reverseTrend,stripIndex,
       filterRecentYears,
       perfColumnTitle,perfColumnIndex,perfFormat);
   } // end of Groups from Groups sheet
   return perfSheet;
 }
 
-function ColourLegendsOnSheet(sheetName="Groups") {
+function ColourLegendsInGroups(
+  sheetName="Groups")
+{
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
@@ -2256,11 +2400,21 @@ function ColourLegendsOnSheet(sheetName="Groups") {
             && hexValue.match(/^#[0-9A-F]{6}$/i))
         {
           sheet.getRange(i+1,j+1).setBackground(hexValue);
-          sheet.getRange(i+1,j+1).setFontColor("#ffffff");
+          sheet.getRange(i+1,j+1).setFontColor("#ffffff");  // TODO or #000000 for contrast?
         }
       }
     }
   }
+}
+
+function GetRelatedTabColor(
+  nameIndex = 'Alan_13')
+{
+  const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
+  let resultsSheet = spreadSheet.getSheetByName(nameIndex);
+  const colour = resultsSheet.getTabColor();
+  Logger.log('Colour: '+colour);
+  return colour || "#ffffff"; // default if no color
 }
 
 /**
@@ -2283,20 +2437,22 @@ function onOpen() {
     .addItem("Generate charts from Groups"+
       "\u00A0".repeat(15)+"Ctrl+Alt+Shift+1",
       'GenerateChartsFromGroups')
-    .addItem("Catch-up all positions"+
-      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+2",
-      'CatchUpAllPositions')
+    .addSeparator()
     .addItem("Protect results sheets per runner"+
       "\u00A0".repeat(9)+"Ctrl+Alt+Shift+3",
       'ReprotectEachRunnerResultsSheets')
-    .addItem("Colour legends for Groups",
-      'SetLegendCellColoursOnSheet')
+    .addItem("Colour legends in Groups"+
+      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+4",
+      'ColourLegendsInGroups')
+    .addItem("Catch-up all positions"+
+      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+6",
+      'CatchUpAllPositions')
     .addSeparator()
-    .addItem("Add family member"+
-      "\u00A0".repeat(32)+"Ctrl+Alt+Shift+7",
+    .addItem("Add family (or club) member"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
       'AddFamilyMember')
-    .addItem("Spawn new family"+
-      "\u00A0".repeat(35)+"Ctrl+Alt+Shift+9",
+    .addItem("Spawn new family (or club)"+
+      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
       'SpawnNewFamily')
     // .insertMenu(ui,5)   // ideally before Tools 
     .addToUi();
@@ -2312,16 +2468,6 @@ function PasteAboveRangeFormula() {
     activeCells.getNumColumns()
   );
   aboveCells.copyTo(activeCells, SpreadsheetApp.CopyPasteType.PASTE_FORMULA);
-}
-
-function GetRelatedTabColor(
-  nameIndex = 'Alan_13')
-{
-  const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
-  let resultsSheet = spreadSheet.getSheetByName(nameIndex);
-  const colour = resultsSheet.getTabColor();
-  Logger.log('Colour: '+colour);
-  return colour || "#ffffff"; // default if no color
 }
 
 function DuplicateAboveRowFormula() {
