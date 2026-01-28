@@ -22,7 +22,7 @@
 
 /**
  * @OnlyCurrentDoc
- *  // Ensure authorisation granted via appscript.json
+ *  // Ensure authorisation granted via appsscript.json
  * @scope https://www.googleapis.com/auth/script.external_request
  * @scope https://www.googleapis.com/auth/script.scriptapp
  * @scope https://www.googleapis.com/auth/spreadsheets
@@ -520,7 +520,7 @@ function CleanFormatforPastedRunResults(
 /               IncludePositions
 /         >CloseChromeBrowser
 /
-/   2.  CatchupAllPositions
+/   2.  CatchUpAllPositions
 /         OpenChromeBrowser ->
 //        Loop for each member runner...
 /           LockCallerForwardsTo ->
