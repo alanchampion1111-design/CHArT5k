@@ -3,30 +3,35 @@
   "dependencies": {
   },
   "exceptionLogging": "STACKDRIVER",
-  "oauthScopes": ["https://www.googleapis.com/auth/script.external_request",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/script.scriptapp",
-    "https://www.googleapis.com/auth/spreadsheets"],
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive"
+  ],
   "runtimeVersion": "V8",
   "sheets": {
     "macros": [{
-      "menuName": "Re-protect results for each runner",
-      "functionName": "ReprotectEachRunnerResultsSheets",
+      "menuName": "Add family (or club) member",
+      "functionName": "AddFamilyMember",
       "defaultShortcut": "Ctrl+Alt+Shift+7"
     }, {
-      "menuName": "Import latest result for each runner",
-      "functionName": "ImportLatestResultForEachRunner",
+      "menuName": "Import results for each runner",
+      "functionName": "ImportResultForEachRunner",
+      "defaultShortcut": "Ctrl+Alt+Shift+0"
+    }, {
+      "menuName": "Spawn new family (or club)",
+      "functionName": "SpawnNewFamily",
       "defaultShortcut": "Ctrl+Alt+Shift+9"
     }, {
       "menuName": "Generate charts from Groups",
-      "functionName": "GenerateChartsFromGroupsSheet",
-      "defaultShortcut": "Ctrl+Alt+Shift+0"
+      "functionName": "GenerateChartsFromGroups",
+      "defaultShortcut": "Ctrl+Alt+Shift+1"
     }, {
-      "menuName": "Set legend colours for Groups",
-      "functionName": "SetLegendCellColoursOnSheet",
-      "defaultShortcut": "Ctrl+Alt+Shift+4"
-    }, {
-      "menuName": "Scroll Beyond Last Result",
-      "functionName": "ScrollBeyondLastResult"
+      "menuName": "Colour legends in Groups",
+      "functionName": "ColourLegendsInGroups"
     }]
   }
 }
