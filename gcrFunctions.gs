@@ -1,3 +1,38 @@
+/* -------------------------------------------------------------------------------------
+/
+/ This is the client-end GoogleApp Script that resides within the Family Template
+/ Google Spreadsheet.  It complements the server side JavaScript index.js script sinc
+/ dependent on those asynchronous GCR functions.
+/ It primarily consist of a series of five macro-based functions aimed at automating
+/ the capture of results (Phase II) including positions (Phase III), and subsequently
+/ automating the retro catch-up (Phase IV) and the automation of adding new members
+/ (Phase V) as a pre0requisite for start-up of new families/clubs:
+/   1.  Import result for each runner     (Phase II & III positions)
+/       (ImportResultForEachRunner      - Ctrl+Alt+Shift+0) - weekly
+/   2.  Catch-up all positions            (Phase IV)
+/       (CatchUpAllPositions            - Ctrl+Alt+Shift+5)
+/   3.  Batch positions for runner        (Phase IV)    
+/       (BatchPositionsForRunner        - threading)
+/   4.  Add family (or club) member       (Phase V)
+/       (AddFamilyMember                - Ctrl+Alt+Shift+7)    
+/   5.  Spawn new family (or club)        (Phase V)
+/       (SpawnNewFamily                 - Ctrl+Alt+Shift+9)
+/   6.  Add first member                  (Phase V)
+/       (AddFirstMember                 - via library call)
+/
+/---------------------------------------------------------------------------------------
+ */
+
+/**
+ * @OnlyCurrentDoc
+ *  // Ensure authorisation granted via appsscript.json
+ * @scope https://www.googleapis.com/auth/script.external_request
+ * @scope https://www.googleapis.com/auth/script.scriptapp
+ * @scope https://www.googleapis.com/auth/spreadsheets
+ * @scope https://www.googleapis.com/auth/script.container.ui
+ * @scope https://www.googleapis.com/auth/drive.readonly
+ * @scope https://www.googleapis.com/auth/drive
+ */
 
 /* --------------------------------------------------------------------------
 /
