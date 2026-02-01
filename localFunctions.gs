@@ -35,22 +35,6 @@ const scrollCOL = 13;      // Scroll down when selecting column M beyond the tab
 const pasteCOL = 1;        // Paste Event result starting in 1st column (A)
 const timeCOL = 5;         // Event result time is in the 5th column (E)
 
-// 
-const runnersSheetNAME = 'Runners';
-const allRunnersSHEET =           // The Runners sheet drives the creation of results sheets
-  SpreadsheetApp.getActiveSpreadsheet()   // ...for new runners by those permitted
-    .getSheetByName(runnersSheetNAME);
-const templateNameCELL = "J1";          // This cell identifes the seed template (e.g. Keren)
-const templateNAME = allRunnersSHEET    // The seed template may be readily reconfigured
-  .getRange(templateNameCELL)     // See the note on Runners!J1 cell
-  .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
-const parkrunnerIdCOL = 10;       // in column J on Runners sheet
-const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
-const runnersStartROW = 3;        // start after title & header rows (2)
-const resultsStartROW = 3;      // start after title & header rows (2)
-const numBlankROWS = 5;          // Regular catch-up of multiple results by those permitted
-const dateFORMAT = 'd-MMM-yy';    //consistent for backwards compatibility
-
 // Junior parkrun thresholds?
 const min2kmTIME = 6;         // Minimum time for 2km in minutes (after repair)
 const max2kmTIME = 23;        // Maximum time for 2km (less than 24 "hours" = minutes)
@@ -68,8 +52,7 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /   of each runner's result sheets to allow safe entry of results by others.
 /   The heirarchy of functions are:
 /     ReprotectEachRunnerResultsSheets
-/         CreateRunnerResultsSheet (if new runner)
-/         EnsureBlankResultsRange (range for new results)
+/       EnsureBlankResultsRange (range for new results)
 /       ReallowRunnerResultsSheetWithException
 /         UnprotectResultsSheet
 /         ProtectResultsSheetWithException
@@ -147,16 +130,15 @@ function ReallowRunnerResultsSheetWithException(rangeNotation) {
  *  @return {string[]} An array of user names permitted to add results.
  */
 function GetResultsAddersForRunner(runnerName) {
-  // var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const addersCOLUMN = "D";     // Where the results adder(s) are in the Runners table
-  var indexRow = allRunnersSHEET.getRange("A3:A").getValues().map(function(value) { 
+  var indexRow = allRunnersSheet.getRange("A3:A").getValues().map(function(value) { 
     return value[0];
   }).indexOf(runnerName);
   if (indexRow == -1) {
     Logger.log("Individual runner, "+runnerName+" not found within the Runners sheet table");
     return [];
   }
-  var addersCell = allRunnersSHEET.getRange(addersCOLUMN+(indexRow+runnersStartROW));
+  var addersCell = allRunnersSheet.getRange(addersCOLUMN+(indexRow+runnersStartROW));
   var adders = addersCell.getValue().split(",");
   adders = adders.map(adder => adder.trim());
   Logger.log("Results on " + runnerName + "'s result sheet may be added by "
@@ -181,7 +163,7 @@ function ProtectResultsRangeByEditor(editor,newProtection) {
   try {
     newProtection.addEditor(editor);
   } catch (err) {
-    Logger.log("Error adding editor: "+editor+". Error: "+err+" because not a google email address");
+    Logger.log("ERROR: adding editor: "+editor+". Error: "+err+" because not a google email address");
   }
 }
 
@@ -204,7 +186,7 @@ function ReprotectResultsRange(rangeNotation) {
     Logger.log("Reprotected new range, "+rangeNotation+" on "+runnerName+
       "'s results sheet, except by "+(adders.join(", ")));
   } else {
-    SpreadsheetApp.getUi().alert('Warning',"Without protection, any spreadsheet Editor can add results to "+
+    SpreadsheetApp.getUi().alert('WARNING',"Without protection, any spreadsheet Editor can add results to "+
       runnerName+"'s results sheet");
     Logger.log("Unprotected new range, "+rangeNotation+" on "+runnerName+"'s results sheet");
   }
@@ -221,8 +203,7 @@ function ReprotectResultsRange(rangeNotation) {
  */
 function ReprotectEachRunnerResultsSheets() {
   const runnersRANGE = runnerNameCOLUMN+resultsStartROW+":"+runnerSurnameCOLUMN;
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var runnerFullNames = allRunnersSHEET.getRange(runnersRANGE)
+  var runnerFullNames = allRunnersSheet.getRange(runnersRANGE)
     .getValues().filter(function(value) {
     return value[0] != "";
   }).map(function(value) {
@@ -233,12 +214,12 @@ function ReprotectEachRunnerResultsSheets() {
   {
     var runnerName = runnerFullName[0];
     var runnerNameId = runnerName+'_'+index;
-    var resultsSheet = spreadsheet.getSheetByName(runnerNameId);
+    var resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
     if (!resultsSheet) {
       var thisRow = index+runnersStartROW;
-      var parkrunnerId = allRunnersSHEET.getRange(
+      var parkrunnerId = allRunnersSheet.getRange(
         thisRow,parkrunnerIdCOL).getValue();
-      resultsSheet = CreateRunnerResultsSheet(runnerFullName,parkrunnerId);
+      // resultsSheet = CreateRunnerResultsSheet(runnerFullName,parkrunnerId);
       if (!resultsSheet) return;
     } 
     resultsSheet.activate();
@@ -259,7 +240,7 @@ function ReprotectEachRunnerResultsSheets() {
 /     Loop manually for each runner...
 /       Copy the latest result rows (if missing set)...
 /         onSelectionChange (by pressing down arrow icon)
-/           ScrollToLastResult (may create rows if permitted)
+/           ScrollBeyondLastResult (may create rows if permitted)
 /         Paste manually into the runner's result sheet...
 /           CleanFormatforPastedRunResults (after copying row from parkrun event)
 /             ClearBordersOnRange
@@ -271,8 +252,8 @@ function ReprotectEachRunnerResultsSheets() {
 /  ----------------------------------------------------------------------------
 */
 
-function ScrollToLastResult() {
-  const functionNAME = "ScrollToLastResult";
+function ScrollBeyondLastResult() {
+  const functionNAME = "ScrollBeyondLastResult";
   // Select the first empty row in preparation for pasting a non-parkrun entry
   // Conveniently used to skip to the bottom of the table below the latest result
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -284,8 +265,8 @@ function ScrollToLastResult() {
   for (; i>firstResultROW; i--) 
     if (sheet.getRange(i,pasteCOL).getValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
-  // if (i == lastRow)       
-  //  sheet.appendRow([""]);
+  if (i == lastRow)       
+    sheet.appendRow([""]);
   // Always select the row below the last result
   sheet.getRange(i+1,pasteCOL).activate();
 }
@@ -311,7 +292,7 @@ function onSelectionChange(e) {
   // Only effective when selecting a cell just to the right of the table
   // assuming a down-arrow image is on the right of that Event result header
   if (range.getColumn() === scrollCOL)
-    ScrollToLastResult();
+    ScrollBeyondLastResult();
 }
 
 function convertHoursToMinutes(timeStr) {
@@ -487,7 +468,8 @@ function CleanFormatforPastedRunResults(
   RepairDurationTimesInRangeColumn(pastedResults,timeCOL);
 }
 
-/* --------------------------------------------------------------------------
+
+/* ---------------------------------------------------------------------------
 /
 /   The following definitions and functions are used to support the automatic
 /   creation of comparison charts.
@@ -653,7 +635,6 @@ function FilterGroupRunnersDatedPerformances(chartTitle,runners,
   const headerROW = runnersStartROW-1;  // number of header rows above runner's results
   var allDates = [];
   var runnersPerfs = {};
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   runners.forEach(function(runner) { 
     let [runnerName,runnerIndex] = runner;
     if (runnerName.includes("N/A")) {
@@ -662,7 +643,7 @@ function FilterGroupRunnersDatedPerformances(chartTitle,runners,
     }
     let runnerNameId = runnerName+'_'+runnerIndex;
     try {
-      var resultsSheet = spreadsheet.getSheetByName(runnerNameId);
+      var resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
       if (!resultsSheet) {
         SpreadsheetApp.getUi().alert('Error',
           'No results in unique runner sheet, '+runnerNameId,
@@ -887,10 +868,9 @@ function EmbedGroupPerformancesChart(
 function ClearPerformancesCharts(
   perfSheetName = "Performances")
 {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var perfSheet = spreadsheet.getSheetByName(perfSheetName);
+  var perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
   if (!perfSheet) {
-    perfSheet = spreadsheet.insertSheet(perfSheetName);
+    perfSheet = activeSpreadsheet.insertSheet(perfSheetName);
     if (!perfSheet) return null;
   }
   var charts = perfSheet.getCharts();
@@ -1088,6 +1068,47 @@ function GetRelatedTabColor(
   const colour = resultsSheet.getTabColor();
   Logger.log('Colour: '+colour);
   return colour || "#ffffff"; // default if no color
+}
+
+/**
+ * Sets up the Parkruns menu on opening the spreadsheet.
+ *  Instructions to set up (and execute?) the trigger:
+ *    1. Go to the Apps Script (Macros) editor.
+ *    2. Click on the clock icon (Triggers) in the left sidebar.
+ *    3. Click on "Create trigger".
+ *    4. Set up the trigger with the following settings:
+ *        - Choose function: onOpen
+ *        - Select event type: On open
+ *        - Save
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  var parkrunsMenu = ui.createMenu('parkrun')
+    .addItem("Import result for each runner"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
+      'ImportResultForEachRunner')
+    .addItem("Generate charts from Groups"+
+      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+1",
+      'GenerateChartsFromGroups')
+    .addSeparator()
+    .addItem("Protect results sheets per runner"+
+      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+3",
+      'ReprotectEachRunnerResultsSheets')
+    .addItem("Colour legends in Groups"+
+      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+4",
+      'ColourLegendsInGroups')
+    .addItem("Catch-up all positions"+
+      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+6",
+      'CatchUpAllPositions')
+    .addSeparator()
+    .addItem("Add family (or club) member"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
+      'AddFamilyMember')
+    .addItem("Spawn new family (or club)"+
+      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
+      'SpawnNewFamily')
+    // .insertMenu(ui,5)   // ideally before Tools 
+    .addToUi();
 }
 
 function PasteAboveRangeFormula() {
