@@ -29,4 +29,4 @@ const runnersStartROW = 3;        // start after title & header rows (2)
 const resultsStartROW = 3;        // start after title & header rows (2)
 const numBlankROWS = 1;           // Regular catch-up of result by those permitted
 const dateFORMAT = 'd-MMM-yy';    //consistent for backwards compatibility
-const batchSizeMAX = 25;    // estimate batch to catch up on within 5-6 minutes
+const batchSizeMAX = 10;    // estimate batch to catch up on within 5-6 minutes
