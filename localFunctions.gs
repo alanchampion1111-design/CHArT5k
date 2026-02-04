@@ -431,7 +431,7 @@ function CleanFormatforPastedRunResults(
 {
   const functionNAME = "CleanFormatforPastedRunResults";
   // Used to clean up one or more results in 4 steps (1..4), AFTER A, B & C beforehand 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var sheet = activeSpreadsheet.getActiveSheet();
   Logger.log('Running '+functionNAME+' on sheet: '+sheet.getName());
   // Preconditions: ensure result(s) from parkrun(s) pasted below existing clean result(s)
     if (!pastedResults)   // if range specified, assume also already active
@@ -502,7 +502,7 @@ function CleanFormatforPastedRunResults(
       )
 
     On Rankings sheet,there are no function except a common formula,that is the
-    same for each ranking table. Note that 0+dateSource ensures a DATE from a
+    same for each ranking 2D table. Note that 0+dateSource ensures a DATE from a
     string (which is the new convention instead of a UTC-compliant date):
 
       =LET(
@@ -522,7 +522,7 @@ function CleanFormatforPastedRunResults(
               nameId,name&"_"&idx,
               dateSource, INDIRECT(nameId & "!B:B"),
               timeSource, INDIRECT(nameId & "!E:E"),
-              fResult, FILTER( INDIRECT(nameId&"!A:L"),
+              fResult,FILTER(INDIRECT(nameId&"!A:L"),
                 IF( recentYrs = 0, timeSource <> "" ,
                   0+dateSource >= TODAY()-recentYrs*yearDays
                 )
@@ -547,6 +547,72 @@ function CleanFormatforPastedRunResults(
           sortOrder
         )
       )
+
+    Likewise, here are the three formulae for key columns (for the 1st challenge):
+
+    "Prev Best" (determines the target time, based on past n years, where n is in B$1)
+      =LET(
+        start,3,
+        recentYRS,B$1,
+        MAP($A3:$A,LAMBDA(name,
+          LET(
+            name_Id,name&"_"&ROW(name)-start,
+            IFERROR(MIN(
+              FILTER(
+                INDIRECT(name_Id&"!E:E"),
+                (0+INDIRECT(name_Id&"!B:B")
+                  >= TODAY()-recentYRS*365.25)*
+                (0+INDIRECT(name_Id&"!B:B")
+                  < E$1),
+                ISNUMBER(INDIRECT(name_Id&"!E:E"))
+              )
+            ),"")
+          )
+        ))
+      )
+
+    "Time" (if participated)
+      =LET(
+        start,3, 
+        MAP($A3:$A,LAMBDA(name,
+          LET(
+            name_Id,name&"_"&ROW(name)-start,
+            IFERROR(
+              INDEX(
+                INDIRECT(name_Id&"!E:E"),
+                MATCH(
+                  E$1,
+                  0+INDIRECT(name_Id&"!B:B")
+                ,0)
+              ),
+              "DNS"
+            )
+          )
+        ))
+      )
+
+    "Age Grade %age" (if participated)
+      =LET(
+        start,3, 
+        MAP($A3:$A,LAMBDA(name,
+          LET(
+            name_Id,name&"_"&ROW(name)-start,
+            IFERROR(
+              INDEX(
+                INDIRECT(name_Id&"!F:F"),
+                MATCH(
+                  E$1,
+                  VALUE(INDIRECT(name_Id&"!B:B")),
+                  0
+                )
+              ),
+              "DNS"
+            )
+          )
+        ))
+      )
+
+    Thereafter, each challenge block may be hiddenm when a new block is added with a new date.
 
     For maintenance needs, here is the hierarchy of functions for the comparative charts:
 
@@ -952,10 +1018,8 @@ function GenerateGroupChartInPerformances(
 function GenerateChartsFromGroups(
   groupsSheetName = "Groups")
 {
-  var groupsSheet = SpreadsheetApp.getActiveSpreadsheet()
-    .getSheetByName(groupsSheetName);
-  if (!groupsSheet)
-return;
+  var groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
+  if (!groupsSheet) return;
   const numGroupROWS = 4;       // Group of related runners info spread over 4 rows 
   const numRunnerROWS = numGroupROWS-1;
   const groupsStartROW = 6;     // Title & header rows sandwich 3-row loopup table
@@ -993,8 +1057,7 @@ return;
           defaultPerfSheet = perfSheetName;   // if explicit assume default thereafter
           is1stGroup = false;
         } else {
-          perfSheet = SpreadsheetApp.getActiveSpreadsheet()
-            .getSheetByName(perfSheetName);
+          perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
         }                                             break;
       case 1:     // column B
         groupName = params[1];                        break;
@@ -1042,7 +1105,7 @@ return;
 function ColourLegendsInGroups(
   sheetName="Groups")
 {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var sheet = activeSpreadsheet.getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
   for (var i=0; i<values.length; i++) {
@@ -1063,8 +1126,7 @@ function ColourLegendsInGroups(
 function GetRelatedTabColor(
   nameIndex = 'Alan_13')
 {
-  const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
-  let resultsSheet = spreadSheet.getSheetByName(nameIndex);
+  let resultsSheet = activeSpreadsheet.getSheetByName(nameIndex);
   const colour = resultsSheet.getTabColor();
   Logger.log('Colour: '+colour);
   return colour || "#ffffff"; // default if no color
@@ -1135,7 +1197,7 @@ function DuplicateAboveRowFormula() {
 
 function swapColumns() {
   // Swap columns selected by user (potentially across multiple sheets)
-  var selection = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList().getRanges();
+  var selection = activeSpreadsheet.getActiveRangeList().getRanges();
   // Check if selection is valid (2 columns, same sheet or extended selection)
   if (selection.length < 2) {
     SpreadsheetApp.getUi().alert('Please select at least two columns to swap.');
@@ -1157,5 +1219,5 @@ function swapColumns() {
     range1.setValues(range2.getValues());
     range2.setValues(temp);
   });
-  // SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList().removeAllRanges();
+  // activeSpreadsheet.getActiveRangeList().removeAllRanges();
 }
