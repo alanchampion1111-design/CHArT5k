@@ -489,12 +489,9 @@ function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
   const GenderPosnCOL = 9;      // column I (new column extension)
   const AgeCatPosnCOL = 10;     // column J (previously done manually)
   const AgeGradePosnCOL = 11;   // column K (new column extension)
-  resultRange.getCell(1,AgeCatPosnCOL).setValue(acPosn);    // col J for Age-Cat position
-  resultRange.getCell(1,AgeGradePosnCOL).setValue(agPosn);  // col K for Age-Grade position
-  // Pending outcome of proposal to Parkrun site: "Replace the Run # with Gender Position?
+    // Pending outcome of proposal to Parkrun site: "Replace the Run # with Gender Position?
   // Alternatively, the number of runners in the event may replace the redundant run number
-  resultRange.getCell(1,GenderPosnCOL).setValue(gcPosn);    // col I for Gender position
-  // return resultRange;   // Values change, although previously extended range itself is unchanged
+  resultRange.offset(0,GenderPosnCOL-1,1,3).setValues([[gcPosn, acPosn, agPosn]]);
 }
 
 /**
