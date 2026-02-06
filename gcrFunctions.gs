@@ -817,10 +817,10 @@ function CreateRunnerResultsSheet(
 /*
 /  Hierarchy for two use-cases of a new runner:
 /
-/   1.  AddFamilyMember (as a member of your family/club)
+/   1.  ilyMember (as a member of your family/club)
 /         PromptNewRunner(addCASE)-> to get parkrun id, Dob,..
 /         :
-/       DoAddFamilyMember
+/       DoilyMember
 /         OpenChromeBrowser->   
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
@@ -889,7 +889,7 @@ const addCASE = {
         +'results of that new parkrun family member (based on their first name and unique row index), '
         +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
-  handler: 'DoAddFamilyMember'
+  handler: 'DoilyMember'
 };
 
 function PromptNewRunner(
@@ -957,13 +957,12 @@ async function DoAddFamilyMember(form) {
         email,dob,           // into cols.D & E (hidden for security, as also F..H)
         parkrunnerId);       // into col J (after derived age-category in col. I)
       if (debug) Logger.log('4. Create sheet: '+runnerNameId);
-      return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage);
-    })
-    .then(() => {
-      if (debug) Logger.log('5. Import: '+parkrunnerId+' '+runnerNameId);
-      let [runnerName,runnerIndex] = runnerNameId.split('_');
-      Logger.log('Added family member with their results: '+runnerName+'\t['+runnerIndex+']');
-      LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
+      return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
+      	.then(() => {
+          let [runnerName,runnerIndex] = runnerNameId.split('_');
+          Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
+          LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
+        });
     })
     .catch(err => {
       Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err);
