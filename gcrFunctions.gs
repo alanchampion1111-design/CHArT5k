@@ -573,17 +573,42 @@ function GetDomainGender(
 {
   const languageMAP = {
     // assume derived from age categorym: e.g. VW35-39 => W
-    'en': { M: 'Male',      W: 'Female' },
-    'nl': { M: 'Man',       W: 'Vrouw' },
-    'de': { M: 'Männlich',  W: 'Weiblich' },
-    'it': { M: 'Uomo',      W: 'Donna' }
+    'en': { M: 'Male', W: 'Female' },
+    'nl': { M: 'Man', W: 'Vrouw' },
+    'de': { M: 'Männlich', W: 'Weiblich' },
+    'it': { M: 'Uomo', W: 'Donna' },
+    'fr': { M: 'Homme', W: 'Femme' },
+    'da': { M: 'Mand', W: 'Kvinde' },
+    'fi': { M: 'Mies', W: 'Nainen' },
+    'no': { M: 'Mann', W: 'Kvinne' },
+    'pl': { M: 'Mężczyzna', W: 'Kobieta' },
+    'sv': { M: 'Man', W: 'Kvinna' },
+    'jp': { M: 'Otoko', W: 'Onna' }
   };
   const countryMAP = {
     'uk': 'en',
     'ie': 'en',
     'us': 'en',
     'au': 'en',
-    'at': 'de'
+    'za': 'en',
+    'at': 'de',
+    'nl': 'nl',
+    'de': 'de',
+    'it': 'it',
+    'fr': 'fr',
+    'dk': 'da',
+    'fi': 'fi',
+    'no': 'no',
+    'pl': 'pl',
+    'se': 'sv',
+    'jp': 'jp',
+    'ca': 'en', // or 'fr' for French-speaking Canada
+    'sg': 'en',
+    'nz': 'en',
+    'my': 'en', // or 'ms' for Malay
+    'na': 'en',
+    'lt': 'lt', // add Lithuanian translations to languageMAP
+    'es': 'en' // add Eswatini, assuming English
   };
   let thisDomain = thisUrl.split('/')[2];
   let thisCountry = thisDomain.split('.').pop();
