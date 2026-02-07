@@ -1357,10 +1357,18 @@ function BatchPositionsForRunner(/*runnerNameId*/) {
   .catch(err =>
     Logger.log('ERROR: Failed to trigger recursed batches: '+err)
   )
-  .finally(() =>
+  .finally(() => {
     // CloseChromeBrowser() // NOT yet until status for every
-    Logger.log('Ordinarily, preserve browser session until completed')
-  );
+    Logger.log('Ordinarily, preserve browser session until completed');
+    // Avoid limitation on triggers - clean as you go!
+    let triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getTriggerSource() === ScriptApp.TriggerSource.CLICK
+          && !trigger.isEnabled()) {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+  })
 }
 
 /**
