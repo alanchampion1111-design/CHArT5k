@@ -682,7 +682,7 @@ function ImportResultForEachRunner(
     ).getValues().filter(String);
     // Process each runner in parallel BEFORE closing after ALL runners done!
     return Promise.all(runners.map(function(runner,index) {
-      let runnerName = runner[0];     // col A
+      let runnerName = runner[0];     // col A for first name
       let runnerNameId = runnerName+'_'+index;
       let parkrunnerId = allRunnersSheet.getRange(
         runnersStartROW+index,parkrunnerIdCOL).getValue();
@@ -698,7 +698,7 @@ function ImportResultForEachRunner(
           let resultRange = PasteResultForRunner(thisResult,runnerNameId);
           if (resultRange) {
             if (debug) Logger.log('Appending result for unique runner sheet, '+runnerNameId);
-            let runnerFullName = runnerName+' '+runner[1];  // from col A & B
+            let runnerFullName = runner.join(' ');  // from col A & B
             return AppendPositionsForResult(runnerFullName,resultRange);
           } else {
             if (debug) Logger.log('No later result needs appended for unique runner, '+runnerNameId);
@@ -828,9 +828,9 @@ function CreateRunnerResultsSheet(
     allRunnersSheet.getRange(rangeRow,1)     // Col. A
       .setFormula('=HYPERLINK("#gid='+newResultsGid+'","'
         +runnerName+'")');
-    allRunnersSheet.getRange(rangeRow,2)     // Col. B     
+    allRunnersSheet.getRange(rangeRow,parkrunnerIdCOL)     // Col. J    
       .setFormula('=HYPERLINK("'+parkrunnerResultsUrl+'","'
-        +runnerSurname+'")');
+        +parkrunnerId+'")');
     if (runnerIndex != 0) {
       let numCols = allRunnersSheet.getLastColumn();
       allRunnersSheet.getRange(rangeRow-1,1,1,numCols)
@@ -842,10 +842,10 @@ function CreateRunnerResultsSheet(
 /*
 /  Hierarchy for two use-cases of a new runner:
 /
-/   1.  ilyMember (as a member of your family/club)
+/   1.  AddFamilyMember (as a member of your family/club)
 /         PromptNewRunner(addCASE)-> to get parkrun id, Dob,..
 /         :
-/       DoilyMember
+/       DoAddFamilyMember
 /         OpenChromeBrowser->   
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
@@ -888,12 +888,16 @@ function CreateRunnerResultsSheet(
 function GetRunnerDetails(thisPage) {
   if (!thisPage)
     throw new Error('ERROR: Delayed or unable to access Runner results');
-  const h2REGEXP = /<h2>(.*?)<\/h2>/;
-  let runnerFullName = (thisPage.match(h2REGEXP) || [])[1]
+  const nameREGEXP = /<h2>(.*?)<\/h2>/;
+  let runnerFullName = (thisPage.match(nameREGEXP) || [])[1]
     .replace(/<span.*?<\/span>/,'')
     .replace(/&nbsp;/g,'')
     .trim();
   if (debug) Logger.log ('3b. Name: '+runnerFullName);
+  let runnerNames = runnerFullName.split(' ');
+  if (runnerNames.length > 2) {   // Keep any middle name with surname 
+    runnerNames = [runnerNames[0],runnerNames.slice(1).join(' ')];
+  }
   const paraREGEXP = /<p>(.*?)<\/p>/s;
   let paraContent = (thisPage.match(paraREGEXP) || [])[1];
   // if (debug) Logger.log ('Paragraph: '+paraContent); 
@@ -904,7 +908,7 @@ function GetRunnerDetails(thisPage) {
       : category.includes('W') ? 'Female'
       : null)
     : null;
-  return [runnerFullName,gender]; 
+  return [runnerNames,gender]; 
 }
 
 const addCASE = {
@@ -914,7 +918,7 @@ const addCASE = {
         +'results of that new parkrun family member (based on their first name and unique row index), '
         +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
-  handler: 'DoilyMember'
+  handler: 'DoAddFamilyMember'
 };
 
 function PromptNewRunner(
@@ -974,8 +978,7 @@ async function DoAddFamilyMember(form) {
     })
     .then(resultsPage => {   // after load page in browser
       if (debug) Logger.log('3a. Runner:'+parkrunnerId);
-      let [runnerFullName,gender] = GetRunnerDetails(resultsPage);
-      let runnerNames = runnerFullName.split(' ');
+      let [runnerNames,gender] = GetRunnerDetails(resultsPage);
       if (debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
       let runnerNameId = CreateRunnerResultsSheet(
         runnerNames,gender,  // to go into cols A & B, C
@@ -999,18 +1002,17 @@ async function DoAddFamilyMember(form) {
 }
 
 /**
- * Adds the first Runner to the new  family with basic details
+ * Adds the first Runner to the new family with basic details
  *  1. Creates new Results Sheet for first runner 
  *  2. Imports all the results for the new Runner (without Positions)
  *  3. Triggers the Batch process to append positions
  */
 function AddFirstMember(
-  parkrunnerId,runnerFullName,resultsPage)
+  parkrunnerId,runnerNames,resultsPage)
 {   // assumes famSpreadsheetId now set and active Spreadsheet switched
   if (debug) Logger.log('New spreadsheet Id: '+activeSpreadsheetId);
   if (debug) Logger.log('First parkrunner: '+parkrunnerId);
   const firstINDEX = 0;
-  runnerNames = runnerFullName.split(' ');
   let runnerNameId = CreateRunnerResultsSheet(
     runnerNames,undefined,  // gender, with
     undefined,undefined,    // email & DoB already processed
@@ -1125,8 +1127,7 @@ function DoSpawnNewFamily(
     })
     .then(resultsPage => {   // after load page in browser
       if (debug) Logger.log('3a. Runner: '+parkrunnerId);
-      let [runnerFullName,gender] = GetRunnerDetails(resultsPage);
-      let runnerNames = runnerFullName.split(' ');
+      let [runnerNames,gender] = GetRunnerDetails(resultsPage);
       if (debug)
         Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
       return InstantiateFamilySpreadSheet(
@@ -1134,15 +1135,15 @@ function DoSpawnNewFamily(
         runnerNames,gender, // into cols A & B, C of 1st row of new Runners instance
         email,dob,          // into cols.D & E (hidden for security, as also F..H)
         parkrunnerId)       // into col J (after derived age-category in col. I)
-        .then(familySheetFile => [familySheetFile,runnerFullName,resultsPage])
+        .then(familySheetFile => [familySheetFile,runnerNames,resultsPage])
     })
-    .then(([familySheetFile,runnerFullName,resultsPage]) => {
+    .then(([familySheetFile,runnerNames,resultsPage]) => {
       if (debug) Logger.log('Family Spread sheet: '+familySheetFile);
       let [familyName,clubType] = familySheetFile.split(' ');
       if (debug) {
         Logger.log('4. Instantiate 1st runner in: '+familyName+' ['+clubType+']');
       }
-      AddFirstMember(parkrunnerId,runnerFullName,resultsPage);
+      AddFirstMember(parkrunnerId,runnerNames,resultsPage);
     })
     .catch(err => {
       Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
@@ -1176,7 +1177,7 @@ function FirstMatchRange(resultsSheet,positionCol,positionValue) {
  *  @returns whether more batches to do (aside from the promise itself)
  */
 async function SyncPositionsPerRunner(
-  runnerNameId = 'Dave_14')    // default unit test (assumes precedent 
+  runnerNameId = 'Alan_2')    // default unit test (assumes precedent 
 {
   const runnerNameCELL = 'A1';
   const ageCatCELL = 'L3';  //runner may be older since 1st run but gender fixed
