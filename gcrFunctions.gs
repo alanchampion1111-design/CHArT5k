@@ -829,8 +829,8 @@ function CreateRunnerResultsSheet(
       .setFormula('=HYPERLINK("#gid='+newResultsGid+'","'
         +runnerName+'")');
     allRunnersSheet.getRange(rangeRow,parkrunnerIdCOL)     // Col. J    
-      .setFormula('=HYPERLINK("'+parkrunnerResultsUrl+'","'
-        +parkrunnerId+'")');
+      .setFormula('=HYPERLINK("'+parkrunnerResultsUrl+'",'
+        +parkrunnerId+')');
     if (runnerIndex != 0) {
       let numCols = allRunnersSheet.getLastColumn();
       allRunnersSheet.getRange(rangeRow-1,1,1,numCols)
