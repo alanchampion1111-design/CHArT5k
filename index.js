@@ -472,7 +472,7 @@ exports.filterUrl = async (req,res) => {
   console.log('Test: '+testCmd);
   var thisPage;
   if (thisUrl in cachedPages) {        // typically, many runners at the same event
-    Logger.log('Re-using detailed results from cached URL, '+thisUrl);
+    console.log('Re-using detailed results from cached URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
     thisPage = await loadUrl(thisUrl,loadSECS,true);
