@@ -24,6 +24,8 @@ const parkrunnerURL = parkrunURL+'/parkrunner/';
 let thisPageId;       // re-use same page      
 let browserTimeout;   // for browser session
 let browserTimer;
+let cacheURL = undefined;
+let cachePage = undefined;
 const launchSECS = 45;
 const loadSECS = 13;  // max time to load page
 const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
@@ -469,7 +471,14 @@ exports.filterUrl = async (req,res) => {
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
-  var thisPage = await loadUrl(thisUrl,loadSECS,true);    // less than default 10?   Consider looping on 10 results only?
+  var thisPage;
+  if (thisUrl === cacheUrl) {    // typically runners at same event?
+    thisPage = cachePage;        // ...and so no delay in loading OR in awaiting enforced delay between each
+  } else {
+    thisPage = await loadUrl(thisUrl,loadSECS,true);
+    cachePage = thisPage;
+    cacheUrl = thisUrl;
+  }
   try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
     let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
