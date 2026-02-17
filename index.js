@@ -24,7 +24,8 @@ const parkrunnerURL = parkrunURL+'/parkrunner/';
 let thisPageId;       // re-use same page      
 let browserTimeout;   // for browser session
 let browserTimer;
-let cachedPages = {};
+let cachedPages = {};    // when caching
+let caching = false;
 const launchSECS = 45;
 const loadSECS = 13;  // max time to load page
 const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
@@ -460,23 +461,24 @@ exports.filterUrl = async (req,res) => {
   let ageCat = req.query?.ac       || 'VM55-59';      // Age-Category filter for matching Dave (expect 2)
   let ageGrade = req.query?.ag     || 'Age-Grade';    // Age-Grade (%age) &sort for matching Dave (expect 8)
   let genderCat = req.query?.gc    || 'Male';         // Gender category filter for matching Dave (expect 11)
+  let caching = req.query?.cache   || false;          // No caching during catch-up mode
 // begin
   console.log('thisUrl: '+thisUrl);
   console.log('matchRunner: '+matchRunner);
   console.log('ageCat: '+ageCat);
   console.log('gcCat: '+genderCat);      // WARNING: Values differ per language/country
   console.log('ageGrade: '+ageGrade);
-  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'"" \\'
+  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat'&cache='+caching+'" \\'
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
-  if (thisUrl in cachedPages) {        // typically, many runners at the same event
+  if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
     console.log('Re-using detailed results from cached URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
-  } else {
+  } else if (caching) {
     thisPage = await loadUrl(thisUrl,loadSECS,true);
-    cachedPages[thisUrl] = thisPage;
+    if (caching) cachedPages[thisUrl] = thisPage;
   }
   try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
