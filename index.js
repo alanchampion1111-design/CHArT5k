@@ -473,12 +473,13 @@ exports.filterUrl = async (req,res) => {
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
-  if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
+  if (!caching)  = {};      // clear any cache during batching
+  if (thisUrl in ) {        // typically, many runners at the same event (during weekly import only)
     console.log('Re-using detailed results from cached URL, '+thisUrl);
-    thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
-  } else if (caching) {
+    thisPage = [thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
+  } else {
     thisPage = await loadUrl(thisUrl,loadSECS,true);
-    if (caching) cachedPages[thisUrl] = thisPage;
+    if (caching) [thisUrl] = thisPage;
   }
   try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
