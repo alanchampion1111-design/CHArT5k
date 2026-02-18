@@ -394,10 +394,10 @@ async function filterPositions(
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
   await thisPage.keyboard.press('Enter');        //  3. Assume valid internationally
-  var elem = await thisPage.$(selectBASE);       
-  console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74 (for UK sites)
+  // var elem = await thisPage.$(selectBASE);       
+  // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74 (for UK sites)
   await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
-    {visible: true,timeout: 10000});             //     ... may take longer in other country domain servers (than UK)?
+    {visible: true,timeout: 15000});             //     ... may take longer in other country domain servers (than UK)?
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
     selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
