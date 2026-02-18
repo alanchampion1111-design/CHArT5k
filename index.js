@@ -461,7 +461,7 @@ exports.filterUrl = async (req,res) => {
   let ageCat = req.query?.ac       || 'VM55-59';      // Age-Category filter for matching Dave (expect 2)
   let ageGrade = req.query?.ag     || 'Age-Grade';    // Age-Grade (%age) &sort for matching Dave (expect 8)
   let genderCat = req.query?.gc    || 'Male';         // Gender category filter for matching Dave (expect 11)
-  let caching = req.query?.cache   || false;          // No caching during catch-up mode
+  caching = Boolean(req.query?.cache === 'true');     // globally, No caching during catch-up mode
 // begin
   console.log('thisUrl: '+thisUrl);
   console.log('matchRunner: '+matchRunner);
@@ -469,12 +469,14 @@ exports.filterUrl = async (req,res) => {
   console.log('gcCat: '+genderCat);      // WARNING: Values differ per language/country
   console.log('ageGrade: '+ageGrade);
   console.log('caching: '+caching);
+  console.log('caching type: '+typeof caching);
   var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
   console.log('cachedPages length before:', Object.keys(cachedPages).length);
+  caching
   if (!caching) cachedPages = {};      // clear any cache during batching
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
     console.log('cachedPages length after:', Object.keys(cachedPages).length);
