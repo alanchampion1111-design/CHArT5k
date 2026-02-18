@@ -262,6 +262,7 @@ async function waitForResults(
  *    @param {selection} order - typically agegrade-desc (unless to reset as default)
  */
 /*
+  CAUTION: Text may differ in different languages; sort Age-Grade on last option (-1)
   <select name="sort" class="js-ResultsSelect">
     <option value="position-asc">Sort by Position ▲</option>
     <option value="position-desc">Sort by Position ▼</option>
@@ -343,6 +344,41 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
       <div class="item item--agegroup active" data-value="agegroup: VM55-59">
         <span class="filter-type ">Age Group: </span><span class="filter-value">VM55-59</span>
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
+
+// BEFORE On Japanese events, age-category is similar to English but the gender category is Japanese chars...
+  <input type="text" name="search" class="js-ResultsSearch selectized"
+    placeholder="検索キーワードを入力してください。" tabindex="-1" value="" style="display: none;">
+  <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
+    <div class="selectize-input items not-full has-options">
+      <input type="text" autocomplete="off" tabindex="" style="width: 233px; opacity: 1; position: relative; left: 0px;"
+        placeholder="検索キーワードを入力してください。">
+    </div>
+    <div class="selectize-dropdown multi js-ResultsSearch plugin-remove_button" style="display: none; width: 586px; top: 50px; left: 0px; visibility: visible;">
+      <div class="selectize-dropdown-content">
+        <!-- options will be listed here -->
+      </div>
+    </div>
+  </div>
+
+// AFTER pressing Enter in Japanese
+  <input type="text" name="search" class="js-ResultsSearch selectized"
+    placeholder="検索キーワードを入力してください。" tabindex="-1" value="gender: 男子" style="display: none;">
+  <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
+    <div class="selectize-input items not-full has-options has-items">
+      <div class="item item--gender active" data-value="gender: 男子">
+        <span class="filter-type ">性別: </span>
+        <span class="filter-value">男子</span>
+        <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
+// AFTER pressing Enter in Finnish, there is a minor difference in that the active state does not appear?
+  <input type="text" name="search" class="js-ResultsSearch selectized"
+    placeholder="Kirjoita hakutiedot" tabindex="-1" value="gender: Miehet" style="display: none;">
+  <div class="selectize-control js-ResultsSearch multi plugin-remove_button">
+    <div class="selectize-input items not-full has-options has-items">
+      <div class="item item--gender" data-value="gender: Miehet">
+        <span class="filter-type ">Sukupuoli: </span>
+        <span class="filter-value">Miehet</span>
+        <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
+
 */
 async function filterPositions(
   thisPage,category,
@@ -358,10 +394,10 @@ async function filterPositions(
   await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
   await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
   await thisPage.keyboard.press('Enter');        //  3. Assume valid internationally
-  // var elem = await thisPage.$(selectBASE);       
-  // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74
+  var elem = await thisPage.$(selectBASE);       
+  console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74 (for UK sites)
   await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
-    {visible: true,timeout: 10000});             //     ... may take longer in NL domain server (than UK)?
+    {visible: true,timeout: 10000});             //     ... may take longer in other country domain servers (than UK)?
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
     selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
