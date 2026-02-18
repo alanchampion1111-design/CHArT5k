@@ -468,13 +468,16 @@ exports.filterUrl = async (req,res) => {
   console.log('ageCat: '+ageCat);
   console.log('gcCat: '+genderCat);      // WARNING: Values differ per language/country
   console.log('ageGrade: '+ageGrade);
+  console.log('caching: '+caching);
   var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
+  console.log('cachedPages length before:', Object.keys(cachedPages).length);
   if (!caching) cachedPages = {};      // clear any cache during batching
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
+    console.log('cachedPages length after:', Object.keys(cachedPages).length);
     console.log('Re-using detailed results from cached URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
