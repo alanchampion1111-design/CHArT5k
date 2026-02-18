@@ -468,7 +468,7 @@ exports.filterUrl = async (req,res) => {
   console.log('ageCat: '+ageCat);
   console.log('gcCat: '+genderCat);      // WARNING: Values differ per language/country
   console.log('ageGrade: '+ageGrade);
-  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat'&cache='+caching+'" \\'
+  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
     +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
