@@ -27,7 +27,7 @@ let browserTimer;
 let cachedPages = {};    // when caching
 let caching = false;
 const launchSECS = 45;
-const loadSECS = 13;  // max time to load page
+const loadSECS = 15;  // max time to load page
 const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
@@ -397,7 +397,7 @@ async function filterPositions(
   // var elem = await thisPage.$(selectBASE);       
   // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74 (for UK sites)
   await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
-    {visible: true,timeout: 15000});             //     ... may take longer in other country domain servers (than UK)?
+    {visible: true,timeout: 20000});             //     ... may take longer in other country domain servers (than UK)?
   let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
     selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
   if (selectedValue === expectedValue)
