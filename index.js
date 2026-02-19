@@ -406,6 +406,7 @@ async function filterPositions(
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
+  let selectCatOption = selectOPTIONS+' .option';
   try {
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                    //  1.  Pre-requisite for selecting drop-down?
@@ -414,11 +415,15 @@ async function filterPositions(
     // await thisPage.waitForSelector(selectOUTPUT,
     //   {visible: true,timeout: 20000});
     // await thisPage.keyboard.press('Enter'); 
-    await thisPage.waitForSelector(selectOPTIONS);       //  2.  Skip to the multi drop-down list of options
+    // await thisPage.waitForSelector(selectOPTIONS);       //  2.  Skip to the multi drop-down list of options
     let catOption = '[data-value="'+catClass+': '+category+'"]';     // whether Age-Category or Gender
-    await thisPage.waitForSelector(catOption,            //  3.  Wait until the expected option is visible (takes time)...
+    await thisPage.waitForSelector(selectCatOption+' '+catOption,            //  3.  Wait until the expected option is visible (takes time)...
       {timeout: 15000});                                 //      ...assumes correct DoB and Age-Category / Gender translated
-    await thisPage.click(catOption);                     //  4.  Select the category option          
+    let outputHTML = await thisPage.$eval(selectOUTPUT, elem => elem.outerHTML);
+    console.log('Before click:\n'+outputHTML);
+    await thisPage.click(catOption);                     //  4.  Select the category option
+    outputHTML = await thisPage.$eval(selectOUTPUT, elem => elem.outerHTML);
+    console.log('After click:\n'+outputHTML);
     let selectedValue = await thisPage.$eval(            //  5.  Verify match to pull-down in the item that follows...            
       selectOUTPUT,elem => elem.dataset.value);          //      ...as likewise directed into searchINPUT (but hidden!)
     if (selectedValue === expectedVALUE)
