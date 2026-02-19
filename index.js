@@ -379,33 +379,57 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
         <span class="filter-value">Miehet</span>
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
 
+// Alternatively, select the pull-down option without typing!
+  <div class="selectize-dropdown multi js-ResultsSearch plugin-remove_button" style="display: none; width: 485px; top: 50px; left: 0px; visibility: visible;">
+    <div class="selectize-dropdown-content">
+      :
+      <div class="option" data-selectable="" data-value="achievement: 初参加!">
+        <span class="value">初参加!</span><span class="type type--achievement">達成</span></div>
+      <div class="option" data-selectable="" data-value="gender: 男子">
+        <span class="value">男子</span><span class="type type--gender">性別</span></div>
+      :
+      <div class="option" data-selectable="" data-value="gender: 女子">
+        <span class="value">女子</span><span class="type type--gender">性別</span></div>
+      :
+      <div class="option" data-selectable="" data-value="agegroup: JM11-14">
+        <span class="value">JM11-14</span><span class="type type--agegroup">年齢層</span></div>
+
 */
 async function filterPositions(
   thisPage,category,
   catClass = 'agegroup')                         // alternatively 'gender'
 {
-  const expectedValue = catClass+': '+category;  //    ...likewise with gender: Male/Female
+  const expectedVALUE = catClass+': '+category;  //    ...likewise with gender: Male/Female
   // var initialRowCount = await thisPage.locator('.table-selector tr').count();  // Check WARNING below?
   // const searchINPUT = 'input#search';         // FAILS -Does not find 1st input field since hidden!!
   const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';     
-  const selectINPUT = selectBASE+' input';       // Finds 2nd input text field (within the class element)
-  await thisPage.waitForSelector(selectINPUT);
-  await thisPage.click(selectINPUT);             //  1. Focus may be automatic on typing in 2.
-  await thisPage.type(selectINPUT,category);     //  2. Type valid Age-Category (or Male/Female Gender)
-  await thisPage.keyboard.press('Enter');        //  3. Assume valid internationally
-  // var elem = await thisPage.$(selectBASE);       
-  // console.log(await elem.evaluate( elem => elem.outerHTML));  // ...confirmed as expected in commit b248b74 (for UK sites)
-  await thisPage.waitForSelector(selectOUTPUT,   //  4. Wait until the new element exists 
-    {visible: true,timeout: 20000});             //     ... may take longer in other country domain servers (than UK)?
-  let selectedValue = await thisPage.$eval(      //  5. Verify match to pull-down in the item that follows...            
-    selectOUTPUT,elem => elem.dataset.value);    //      ...as likewise directed into searchINPUT (but hidden!)
-  if (selectedValue === expectedValue)
-    console.log('The filter option for '+category+' matched a pull-down option');
-  else {
-    elem = await thisPage.$(selectBASE);
-    console.log(await elem.evaluate(elem => elem.outerHTML));
-    throw new Error('Expected '+expectedValue+' category but got '+selectedValue);
+  const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
+  const selectOPTIONS = '.selectize-dropdown-content';
+  try {
+    await thisPage.waitForSelector(selectINPUT);
+    await thisPage.click(selectINPUT);                    //  1.  Pre-requisite for selecting drop-down?
+    // TODO: remove former 'type and Enter solution!...
+    // await thisPage.type(selectINPUT,category);
+    // await thisPage.waitForSelector(selectOUTPUT,
+    //   {visible: true,timeout: 20000});
+    // await thisPage.keyboard.press('Enter');        //  3. Assume valid internationally
+    await thisPage.waitForSelector(selectOPTIONS);        //  2.  Skip to the multi drop-down list of options
+    let catOption = '[data-value="'+catClass+': '+category+'"]';     // whether Age-Category or Gender
+    await thisPage.waitForSelector('option'+catOption,    //  3.  Wait until the expected option is visible (takes time)...
+      {timeout: 15000});                                  //      ...assumes correct DoB and Age-Category / Gender translated
+    await thisPage.click(catOption);                      //  4.  Select the category option          
+    let selectedValue = await thisPage.$eval(             //  5.  Verify match to pull-down in the item that follows...            
+      selectOUTPUT,elem => elem.dataset.value);           //      ...as likewise directed into searchINPUT (but hidden!)
+    if (selectedValue === expectedVALUE)
+      console.log('The filter option for '+category+' matched a pull-down option');
+    else {
+      let elem = await thisPage.$(selectBASE);
+      console.log(await elem.evaluate(elem => elem.outerHTML));
+      throw new Error('Expected '+expectedVALUE+' category but got '+selectedValue);
+    }
+  } catch (err) {
+    console.warn('WARNING: Missing expected category, '+category+' (within expected time):\n'+err);
   }
   // TODO: Perhaps may also await the table update, but may be handled without re-query on the browser side?
   // Assume table update of row subset is instant? if filter handled locally by scripts
