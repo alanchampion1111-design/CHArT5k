@@ -417,7 +417,7 @@ async function filterPositions(
     // await thisPage.keyboard.press('Enter'); 
     // await thisPage.waitForSelector(selectOPTIONS);       //  2.  Skip to the multi drop-down list of options
     let catOption = '[data-value="'+catClass+': '+category+'"]';     // whether Age-Category or Gender
-    await thisPage.waitForSelector(selectCatOption+' '+catOption,            //  3.  Wait until the expected option is visible (takes time)...
+    await thisPage.waitForSelector(selectCatOption+catOption,            //  3.  Wait until the expected option is visible (takes time)...
       {timeout: 15000});                                 //      ...assumes correct DoB and Age-Category / Gender translated
     let outputHTML = await thisPage.$eval(selectOUTPUT, elem => elem.outerHTML);
     console.log('Before click:\n'+outputHTML);
