@@ -409,18 +409,18 @@ async function filterPositions(
   try {
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                    //  1.  Pre-requisite for selecting drop-down?
-    // TODO: remove former 'type and Enter solution!...
+    // TODO: remove former steps, 004 'type and Enter solution!...
     // await thisPage.type(selectINPUT,category);
     // await thisPage.waitForSelector(selectOUTPUT,
     //   {visible: true,timeout: 20000});
-    // await thisPage.keyboard.press('Enter');        //  3. Assume valid internationally
-    await thisPage.waitForSelector(selectOPTIONS);        //  2.  Skip to the multi drop-down list of options
+    // await thisPage.keyboard.press('Enter'); 
+    await thisPage.waitForSelector(selectOPTIONS);       //  2.  Skip to the multi drop-down list of options
     let catOption = '[data-value="'+catClass+': '+category+'"]';     // whether Age-Category or Gender
-    await thisPage.waitForSelector('option'+catOption,    //  3.  Wait until the expected option is visible (takes time)...
-      {timeout: 15000});                                  //      ...assumes correct DoB and Age-Category / Gender translated
-    await thisPage.click(catOption);                      //  4.  Select the category option          
-    let selectedValue = await thisPage.$eval(             //  5.  Verify match to pull-down in the item that follows...            
-      selectOUTPUT,elem => elem.dataset.value);           //      ...as likewise directed into searchINPUT (but hidden!)
+    await thisPage.waitForSelector(catOption,            //  3.  Wait until the expected option is visible (takes time)...
+      {timeout: 15000});                                 //      ...assumes correct DoB and Age-Category / Gender translated
+    await thisPage.click(catOption);                     //  4.  Select the category option          
+    let selectedValue = await thisPage.$eval(            //  5.  Verify match to pull-down in the item that follows...            
+      selectOUTPUT,elem => elem.dataset.value);          //      ...as likewise directed into searchINPUT (but hidden!)
     if (selectedValue === expectedVALUE)
       console.log('The filter option for '+category+' matched a pull-down option');
     else {
@@ -431,13 +431,6 @@ async function filterPositions(
   } catch (err) {
     console.warn('WARNING: Missing expected category, '+category+' (within expected time):\n'+err);
   }
-  // TODO: Perhaps may also await the table update, but may be handled without re-query on the browser side?
-  // Assume table update of row subset is instant? if filter handled locally by scripts
-  // WARNING: If this fails because of a backend service, consider continue only after number of rows differ
-  // await thisPage.waitForFunction((initialRowCount) => {
-  //   var newRowCount = document.querySelectorAll('.table-selector tr').length;
-  //   return newRowCount !== initialRowCount;
-  // }, initialRowCount);
 }
 
 /**
