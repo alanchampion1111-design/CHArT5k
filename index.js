@@ -409,7 +409,8 @@ async function filterPositions(
   let selectCatOption = selectOPTIONS+' .option';
   try {
     await thisPage.waitForSelector(selectINPUT);
-    await thisPage.click(selectINPUT);                    //  1.  Pre-requisite for selecting drop-down?
+    await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
+    await thisPage.type(selectINPUT," ");                //      ...ensures pull-down options visible
     // TODO: remove former steps, 004 'type and Enter solution!...
     // await thisPage.type(selectINPUT,category);
     // await thisPage.waitForSelector(selectOUTPUT,
