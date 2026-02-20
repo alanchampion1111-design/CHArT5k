@@ -414,11 +414,12 @@ async function filterPositions(
     await thisPage.type(selectINPUT," ");              //      ...to ensure options become visible
     await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
       {visible: true, timeout: 15000});                              //      ...that are visible
+    /*
     let optionsHTML = await thisPage.evaluate((selectOPTIONS) => {
       return document.querySelector(selectOPTIONS).outerHTML;
     },selectOPTIONS);
-    console.log('Options HTML:', optionsHTML);  //  temporary trace
-    await thisPage.evaluate((selectCatOPTION) => {
+    */
+    await thisPage.evaluate((selectCatOPTION,expectedVALUE) => {
       console.log('Find option:\n'+document.querySelector(selectCatOPTION).outerHTML);  // subset category subset
       let option = document.querySelector(selectCatOPTION);
       if (option) {
@@ -429,7 +430,7 @@ async function filterPositions(
         console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n');
         return false;
       }
-    },selectCatOPTION);
+    },selectCatOPTION,expectedVALUE);
     // NOTE: Verification by reduced number of runners in the table AND successful removeFilter subsequently
   } catch (err) {
     console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
