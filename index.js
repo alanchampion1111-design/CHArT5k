@@ -380,7 +380,8 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
 
 // Alternatively, select the pull-down option without typing!
-  <div class="selectize-dropdown multi js-ResultsSearch plugin-remove_button" style="display: none; width: 485px; top: 50px; left: 0px; visibility: visible;">
+  <div class="selectize-dropdown multi js-ResultsSearch plugin-remove_button"
+      style="display: none; width: 485px; top: 50px; left: 0px; visibility: visible;">
     <div class="selectize-dropdown-content">
       :
       <div class="option" data-selectable="" data-value="achievement: 初参加!">
@@ -403,21 +404,31 @@ async function filterPositions(
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
-  const expectedVALUE = catClass+': '+category;
-    let selectCatOption = selectOPTIONS+' .option:contains("'+expectedVALUE+'")';
+  const selectCatOPTION = selectOPTIONS+' .option.contains("'+catClass+'")';  // limit to category class options
+  const expectedVALUE = catClass+': '+category;    // specific age-category or gender category
   try {
     await thisPage.waitForSelector(selectINPUT);
-    await thisPage.click(selectINPUT);                  //  1.  Pre-requisite for selecting drop-down?
-    await thisPage.type(selectINPUT," ");               //      ...ensures pull-down options visible
-    await thisPage.waitForSelector(selectOPTIONS);      //  2.  Skip to the multi drop-down list of options
-    await thisPage.waitForFunction((selectCatOption) => {
-      document.querySelector(selectCatOption).click();  //  3.  Select required category option (one only)
-      // TODO: may have to loop to find filter option?
-      console.log('The filter matched '+category+' matched a pull-down option');
-    }, { timeout: 15000 }, selectCatOption);
-    // NOTE: Verification confirmed by being able to remove; removeFilter does that after accounting
+    await thisPage.click(selectINPUT);                 //  1.  Pre-requisite for selecting drop-down?
+    await thisPage.type(selectINPUT," ");              //      ...to ensure options become visible
+    const optionsHTML = await thisPage.evaluate((selectOPTIONS) => {
+      return document.querySelector(selectOPTIONS).outerHTML;
+    },selectOPTIONS);
+    console.log('Options HTML:', optionsHTML);  //  temporary trace
+    await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
+      {visible: true, timeout: 15000});                              //      ...that are visible
+    await thisPage.evaluate((selectOPTIONS,selectCatOPTION,expectedVALUE) => {
+      console.log('All options:\n'+document.querySelector(selectOPTIONS).outerHTML);    // dynamic update?
+      console.log('Find option:\n'+document.querySelector(selectCatOPTION).outerHTML);  // subset category subset
+      let option = document.querySelector(selectCatOPTION);
+      if (option && option.textContent.includes(expectedVALUE)) {
+        option.click();                               //  3.  Select specific category option (not the first!)
+        console.log('INFO: One or more runners matched pull-down option: '+expectedVALUE);
+        return true;
+      } else return false;
+    },selectOPTIONS,selectCatOPTION,expectedVALUE);
+    // NOTE: Verification by reduced number of runners in the table AND successful removeFilter subsequently
   } catch (err) {
-    console.warn('WARNING: No runner matching '+expectedVALUE+' - consider correcting runner DoB or gender translation\n'+err);
+    console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n'+err);
   }
 }
 
