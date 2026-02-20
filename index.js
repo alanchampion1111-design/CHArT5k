@@ -451,8 +451,7 @@ async function removeFilter(thisPage,category) {
     }, selectREMOVE);
     // console.log(elementHTML);
     await thisPage.waitForFunction((selectBASE) => {    // verify No has-items
-      var input = document.querySelector(selectBASE)contains instead of includes
-        ;
+      var input = document.querySelector(selectBASE);
       return !input || !input.classList.contains('has-items');
     },selectBASE);
     console.log('Filter for category, '+category+' removed');
