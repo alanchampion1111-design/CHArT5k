@@ -403,7 +403,7 @@ async function filterPositions(
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
-  let selectCatOption = selectOPTIONS+' .option:contains("'+catClass+': '+category+'");
+  let selectCatOption = selectOPTIONS+' .option:contains("'+catClass+': '+category+'")';
   try {
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                  //  1.  Pre-requisite for selecting drop-down?
