@@ -404,31 +404,35 @@ async function filterPositions(
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
-  const selectCatOPTION = selectOPTIONS+' .option.contains("'+catClass+'")';  // limit to category class options
-  const expectedVALUE = catClass+': '+category;    // specific age-category or gender category
+  const expectedVALUE = catClass+': '+category;
+  const selectCatOPTION = selectOPTIONS+' .option[data-value="'+expectedVALUE+'"]';
+  console.log('Expected value:'+expectedVALUE);
+  console.log('Selector:'+selectCatOPTION);
   try {
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                 //  1.  Pre-requisite for selecting drop-down?
     await thisPage.type(selectINPUT," ");              //      ...to ensure options become visible
-    const optionsHTML = await thisPage.evaluate((selectOPTIONS) => {
+    await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
+      {visible: true, timeout: 15000});                              //      ...that are visible
+    let optionsHTML = await thisPage.evaluate((selectOPTIONS) => {
       return document.querySelector(selectOPTIONS).outerHTML;
     },selectOPTIONS);
     console.log('Options HTML:', optionsHTML);  //  temporary trace
-    await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
-      {visible: true, timeout: 15000});                              //      ...that are visible
-    await thisPage.evaluate((selectOPTIONS,selectCatOPTION,expectedVALUE) => {
-      console.log('All options:\n'+document.querySelector(selectOPTIONS).outerHTML);    // dynamic update?
+    await thisPage.evaluate((selectCatOPTION) => {
       console.log('Find option:\n'+document.querySelector(selectCatOPTION).outerHTML);  // subset category subset
       let option = document.querySelector(selectCatOPTION);
-      if (option && option.textContent.includes(expectedVALUE)) {
+      if (option) {
         option.click();                               //  3.  Select specific category option (not the first!)
         console.log('INFO: One or more runners matched pull-down option: '+expectedVALUE);
         return true;
-      } else return false;
-    },selectOPTIONS,selectCatOPTION,expectedVALUE);
+      } else {
+        console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n');
+        return false;
+      }
+    },selectCatOPTION);
     // NOTE: Verification by reduced number of runners in the table AND successful removeFilter subsequently
   } catch (err) {
-    console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n'+err);
+    console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
   }
 }
 
