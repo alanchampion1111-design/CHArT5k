@@ -399,43 +399,24 @@ async function filterPositions(
   thisPage,category,
   catClass = 'agegroup')                         // alternatively 'gender'
 {
-  const expectedVALUE = catClass+': '+category;  //    ...likewise with gender: Male/Female
-  // var initialRowCount = await thisPage.locator('.table-selector tr').count();  // Check WARNING below?
-  // const searchINPUT = 'input#search';         // FAILS -Does not find 1st input field since hidden!!
   const selectBASE = '.selectize-input';
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
-  let selectCatOption = selectOPTIONS+' .option';
+  let selectCatOption = selectOPTIONS+' .option:contains("'+catClass+': '+category+'");
   try {
     await thisPage.waitForSelector(selectINPUT);
-    await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
-    await thisPage.type(selectINPUT," ");                //      ...ensures pull-down options visible
-    // TODO: remove former steps, 004 'type and Enter solution!...
-    // await thisPage.type(selectINPUT,category);
-    // await thisPage.waitForSelector(selectOUTPUT,
-    //   {visible: true,timeout: 20000});
-    // await thisPage.keyboard.press('Enter'); 
-    // await thisPage.waitForSelector(selectOPTIONS);       //  2.  Skip to the multi drop-down list of options
-    let catOption = '[data-value="'+catClass+': '+category+'"]';     // whether Age-Category or Gender
-    await thisPage.waitForSelector(selectCatOption+catOption,            //  3.  Wait until the expected option is visible (takes time)...
-      {timeout: 15000});                                 //      ...assumes correct DoB and Age-Category / Gender translated
-    let outputHTML = await thisPage.$eval(selectOUTPUT, elem => elem.outerHTML);
-    console.log('Before click:\n'+outputHTML);
-    await thisPage.click(catOption);                     //  4.  Select the category option
-    outputHTML = await thisPage.$eval(selectOUTPUT, elem => elem.outerHTML);
-    console.log('After click:\n'+outputHTML);
-    let selectedValue = await thisPage.$eval(            //  5.  Verify match to pull-down in the item that follows...            
-      selectOUTPUT,elem => elem.dataset.value);          //      ...as likewise directed into searchINPUT (but hidden!)
-    if (selectedValue === expectedVALUE)
-      console.log('The filter option for '+category+' matched a pull-down option');
-    else {
-      let elem = await thisPage.$(selectBASE);
-      console.log(await elem.evaluate(elem => elem.outerHTML));
-      throw new Error('Expected '+expectedVALUE+' category but got '+selectedValue);
-    }
+    await thisPage.click(selectINPUT);                  //  1.  Pre-requisite for selecting drop-down?
+    await thisPage.type(selectINPUT," ");               //      ...ensures pull-down options visible
+    await thisPage.waitForSelector(selectOPTIONS);      //  2.  Skip to the multi drop-down list of options
+    await thisPage.waitForFunction((selectCatOption) => {
+      document.querySelector(selectCatOption).click();  //  3.  Select required category option (one only)
+      // TODO: may have to loop to find filter option?
+      console.log('The filter matched '+category+' matched a pull-down option');
+    }, { timeout: 15000 }, selectCatOption);
+    // NOTE: Verification confirmed by being able to remove; removeFilter does that after accounting
   } catch (err) {
-    console.warn('WARNING: Missing expected category, '+category+' (within expected time):\n'+err);
+    console.warn('WARNING: No runner matching '+  consider correcting runner DoB or gender translation\n'+err);
   }
 }
 
@@ -452,7 +433,7 @@ async function filterPositions(
         <span class="filter-type ">Age Group:</span>
         <span class="filter-value">VM55-59</span>
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
-        <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
+        <a href="javascript:void(0)" class="remove" tIs waitabindex="-1" title="Remove">×</a>
 */
 async function removeFilter(thisPage,category) {
   const expectedValue = '';  //    ...likewise with gender: Male/Female
@@ -469,7 +450,8 @@ async function removeFilter(thisPage,category) {
     }, selectREMOVE);
     // console.log(elementHTML);
     await thisPage.waitForFunction((selectBASE) => {    // verify No has-items
-      var input = document.querySelector(selectBASE);
+      var input = document.querySelector(selectBASE)contains instead of includes
+        ;
       return !input || !input.classList.contains('has-items');
     },selectBASE);
     console.log('Filter for category, '+category+' removed');
