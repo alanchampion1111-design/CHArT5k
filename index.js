@@ -403,7 +403,8 @@ async function filterPositions(
   const selectOUTPUT = selectBASE+' .item';     
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
-  let selectCatOption = selectOPTIONS+' .option:contains("'+catClass+': '+category+'")';
+  const expectedVALUE = catClass+': '+category;
+    let selectCatOption = selectOPTIONS+' .option:contains("'+expectedVALUE+'")';
   try {
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                  //  1.  Pre-requisite for selecting drop-down?
@@ -416,7 +417,7 @@ async function filterPositions(
     }, { timeout: 15000 }, selectCatOption);
     // NOTE: Verification confirmed by being able to remove; removeFilter does that after accounting
   } catch (err) {
-    console.warn('WARNING: No runner matching '+  consider correcting runner DoB or gender translation\n'+err);
+    console.warn('WARNING: No runner matching '+expectedVALUE+' - consider correcting runner DoB or gender translation\n'+err);
   }
 }
 
