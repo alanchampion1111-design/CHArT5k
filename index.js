@@ -48,7 +48,8 @@ let cloudBrowser = async (
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem',  // Certificate accessing files on UK, NL & DE
+      // Certificate accessing files on UK, NL, DE, CA & JP
+      '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem,./www.parkrun.ca.pem,./www.parkrun.jp.pem',
       '--verbose',
       '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
     ],
@@ -625,7 +626,7 @@ exports.acceptCookies = async (_,res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem',
+        '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem,./www.parkrun.ca.pem,./www.parkrun.jp.pem',
         '--verbose',
       ],
       timeout: launchSECS*1000,       // max launch time
