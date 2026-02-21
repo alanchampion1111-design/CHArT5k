@@ -609,6 +609,16 @@ exports.stopBrowser = async (_,res) => {
   }
 }
 
+const cookieJAR = [
+  'https://www.parkrun.org.uk',
+  // 'https://www.parkrun.com',  // this inherited option may have worked previously 
+  'https://www.parkrun.co.nl',
+  'https://www.parkrun.com.de',
+  'https://www.parkrun.com.au',
+  'https://www.parkrun.ca',
+  'https://www.parkrun.jp'
+];
+
 async function deleteCookies(page,targetUrl) {
   try {
     let cookies = await page.cookies();
@@ -621,17 +631,45 @@ async function deleteCookies(page,targetUrl) {
   }
 }
 
+exports.deleteCookies = async (_,res) => {
+  // No request because handles ALL parkrun domain URLs
+  // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
+  var thisBrowser;
+  try {
+    thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
+      headless: true,
+      executablePath: '/usr/bin/google-chrome',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--cert='+allParkrunCERTS,
+        '--verbose',
+      ],
+      timeout: launchSECS*1000,       // max launch time
+    });
+  } catch (err) {
+    let resultErr = 'ERROR: Failed to launch browser to delete Cookies\n'+err;
+    console.error(resultErr);
+    res.status(500).send(resultErr);
+  }
+  let thisPage = await thisBrowser.newPage();  // Re-use the same Page since not in parallel
+  for (var domainUrl of cookieJAR) {
+    try {
+      await thisPage.goto(domainUrl,{waitUntil: 'domcontentloaded',timeout: 10000});
+      let cookies = await thisPage.cookies(domainUrl);
+      await thisPage.deleteCookie({name: 'psc', url: domainUrl});
+    } catch (err) {
+      console.error('ERROR: unable to delete parkrun cookie for '+domainUrl+'\n'+err);
+    } finally {
+      await thisPage.close();
+      if (thisBrowser) await thisBrowser.close();
+    }
+  }
+}
+
 exports.acceptCookies = async (_,res) => {
-  // No request because handles all parkrun domain URLs
-  let cookieJar = [
-    'https://www.parkrun.org.uk',
-    // 'https://www.parkrun.com',  // this inherited option may have worked previously 
-    'https://www.parkrun.co.nl',
-    'https://www.parkrun.com.de',
-    'https://www.parkrun.com.au',
-    'https://www.parkrun.ca',
-    'https://www.parkrun.jp'
-  ];
+  // No request because handles ALL parkrun domain URLs
   // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
   var thisBrowser;
   try {
@@ -656,25 +694,28 @@ exports.acceptCookies = async (_,res) => {
   //  ... do not assume the Cookie has been accepted on EACH and every domain!
   let thisPage = await thisBrowser.newPage();  // Re-use the same Page since not in parallel
   let results = [];
-  for (var domainUrl of cookieJar) {
+  for (var domainUrl of cookieJAR) {
     try {
       await thisPage.goto(domainUrl,{waitUntil: 'domcontentloaded',timeout: 10000});
       const acceptButton = `button.cm__btn[data-role="all"]`;
       try {
-        await thisPage.waitForSelector(acceptButton,{timeout: 10000});
+        let accept = await thisPage.$(acceptButton,{timeout: 5000});
+        await thisPage.waitForSelector(acceptButton);
+        /*
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
           domain: domainUrl
         });
-        await thisPage.click(acceptButton);
+        */
+        await thisPage.click(accept);
         let result = 'Cookies accepted for site, '+domainUrl;
         console.log(result);
         results.push(result);
       } catch (warning) {    // If no Accept button appears, then that is the norm
         // WARNING Perhaps retry in case page not fully evaluated or delete and redo
         // TODO: Check logs in case failed for button not detected
-        // deleteCookies(thisPage,thisCookieURL);
+        // deleteCookies(thisPage,domainUrl);
         let resultWarn = 'No button presented for Cookies to be accepted on site, '+domainUrl+'\n  WARNING: '+warning
         console.warn(resultWarn);
         results.push(resultWarn);
@@ -687,7 +728,7 @@ exports.acceptCookies = async (_,res) => {
   }
   if (thisPage) await thisPage.close();
   await thisBrowser.close();
-  res.status(200).send(results.join('\n'));
+  res.status(200).send(results.join('<br><br>').replace(/\n/g, '<br>'));
 }
 
 /**
@@ -706,17 +747,22 @@ exports.acceptCookies = async (_,res) => {
 exports.browser = async (req,res) => {
   var parsedUrl = url.parse(req.url,true);
   var path = parsedUrl.pathname;
-  if (path === '/initBrowser') {
+  if (path === '/initBrowser')
     exports.initBrowser(req,res);
-  } else if (path === '/getUrl') {
+  else if (path === '/getUrl')
     exports.getUrl(req,res);
-  } else if (path === '/filterUrl') {
+  else if (path === '/filterUrl') {
     exports.filterUrl(req,res);
-  } else if (path === '/stopBrowser') {
+  else if (path === '/stopBrowser')
     exports.stopBrowser(req,res);
-  } else if (path === '/acceptCookies') {
+  else if (path === '/acceptCookies')
     exports.acceptCookies(req,res);
-  } else {
+  else if (path === '/deleteCookies')
+    exports.deleteCookies(req,res);
+  else if (path.includes('manifest'))
+    // ignore manifest dependencies
+    console.log('INFO: Ignoring local dependencies: '+path);
+  else {
     console.log('ERROR: Invalid Cloud Run function path,',path);
     res.status(404).send('ERROR: Invalid Cloud Run function path, '+path);
   } 
