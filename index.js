@@ -625,7 +625,7 @@ exports.acceptCookies = async (_,res) => {
   // No request because handles all parkrun domain URLs
   let cookieJar = [
     'https://www.parkrun.org.uk',
-    'https://www.parkrun.com',    // default changed fro, uk in January 2026
+    // 'https://www.parkrun.com',  // this inherited option may have worked previously 
     'https://www.parkrun.co.nl',
     'https://www.parkrun.com.de',
     'https://www.parkrun.com.au',
@@ -633,8 +633,9 @@ exports.acceptCookies = async (_,res) => {
     'https://www.parkrun.jp'
   ];
   // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
+  var thisBrowser;
   try {
-    let thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
+    thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
       executablePath: '/usr/bin/google-chrome',
       args: [
@@ -657,10 +658,10 @@ exports.acceptCookies = async (_,res) => {
   let results = [];
   for (var domainUrl of cookieJar) {
     try {
-      await thisPage.goto(domainUrl, {waitUntil: 'domcontentloaded',timeout: 10000});
+      await thisPage.goto(domainUrl,{waitUntil: 'domcontentloaded',timeout: 10000});
       const acceptButton = `button.cm__btn[data-role="all"]`;
       try {
-        await thisPage.waitForSelector(acceptButton, {timeout: 10000});
+        await thisPage.waitForSelector(acceptButton,{timeout: 10000});
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
