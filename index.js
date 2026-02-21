@@ -622,6 +622,7 @@ async function deleteCookies(page,targetUrl) {
 }
 
 exports.acceptCookies = async (_,res) => {
+  // No request because handles all parkrun domain URLs
   let cookieJar = [
     'https://www.parkrun.org.uk',
     'https://www.parkrun.com',    // default changed fro, uk in January 2026
@@ -682,12 +683,10 @@ exports.acceptCookies = async (_,res) => {
       console.error(resultErr);
       results.push(resultErr);
     };
-  } finally {  // at end of the cookieJar
-    if (thisPage) await thisPage.close();
-    if (thisBrowser) await thisBrowser.close();
-    // Present results (unless error beforehand)
-    res.status(200).send(results.join('\n'));
   }
+  if (thisPage) await thisPage.close();
+  await thisBrowser.close();
+  res.status(200).send(results.join('\n'));
 }
 
 /**
