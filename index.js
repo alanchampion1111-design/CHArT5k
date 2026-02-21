@@ -20,6 +20,8 @@ let thisBrowserWSEp;  // browser persists on server
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
+// Assumes each Parkrun domain certificates have been exported (from normal use) and held in GitHub directly
+// TODO: better to place in a certs subfolder (and limit access?)
 const allParkrunCERTS =
   './www.parkrun.org.uk.pem,'+
   './www.parkrun.com.pem,'+
@@ -629,7 +631,7 @@ exports.acceptCookies = async (_,res) => {
     'https://www.parkrun.ca',
     'https://www.parkrun.jp'
   ];
-  
+  // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
   try {
     let thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
@@ -643,37 +645,48 @@ exports.acceptCookies = async (_,res) => {
       ],
       timeout: launchSECS*1000,       // max launch time
     });
-    let thisPage = await thisBrowser.newPage();
+  } catch (err) {
+    let resultErr = 'ERROR: Failed to launch browser to check Cookies ok\n'+err;
+    console.error(resultErr);
+    res.status(500).send(resultErr);
+  }
+  // CAUTION: Although any single parkrunn certificate may suffice, ...
+  //  ... do not assume the Cookie has been accepted on EACH and every domain!
+  let thisPage = await thisBrowser.newPage();  // Re-use the same Page since not in parallel
+  let results = [];
+  for (var domainUrl of cookieJar) {
     try {
-      thisCookieURL = cookieJar[1];    // assumes any cookie in *.parkrun.com Cookie will suffice
-      await thisPage.goto(thisCookieURL,{waitUntil: 'domcontentloaded',timeout: 10000});
+      await thisPage.goto(domainUrl, {waitUntil: 'domcontentloaded',timeout: 10000});
       const acceptButton = `button.cm__btn[data-role="all"]`;
       try {
-        thisPage.waitForSelector(acceptButton, {timeout: 10000});
+        await thisPage.waitForSelector(acceptButton, {timeout: 10000});
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
-          domain: thisCookieURL
+          domain: domainUrl
         });
         await thisPage.click(acceptButton);
-        console.log('Cookies accepted for sites,',cookieJar);
-        res.status(200).send('Required Cookies accepted for sites, '+cookieJar);
+        let result = 'Cookies accepted for site, '+domainUrl;
+        console.log(result);
+        results.push(result);
       } catch (warning) {    // If no Accept button appears, then that is the norm
         // WARNING Perhaps retry in case page not fully evaluated or delete and redo
-        // TODO: deleteCookies(thisPage,thisCookieURL);
-        console.warn('WARNING:',warning);    // check logs in case failed for button not detected
-        console.log('No button presented for Cookies to be accepted on sites, ',cookieJar);
-        res.status(200).send('No button presented for Cookies to be accepted on sites, '+cookieJar);
-      }
+        // TODO: Check logs in case failed for button not detected
+        // deleteCookies(thisPage,thisCookieURL);
+        let resultWarn = 'No button presented for Cookies to be accepted on site, '+domainUrl+'\n  WARNING: '+warning
+        console.warn(resultWarn);
+        results.push(resultWarn);
+      };
     } catch (err) {
-      console.error('ERROR: Failed to load page,',thisCookieURL,' to check Cookies:',err);
-      res.status(500).send('ERROR: Failed to load page, '+thisCookieURL+' to check Cookies ok: '+err);
-    }
-  } catch (err) {
-    console.error('ERROR: Failed to launch browser to check Cookies ok:',err);
-    res.status(500).send('ERROR: Failed to launch browser to check Cookies ok: '+err);
-  } finally {
+      let resultErr = 'ERROR: Failed to access parkrun domain, '+domainUrl+' to check whether cookie accepted:\n  '+err;
+      console.error(resultErr);
+      results.push(resultErr);
+    };
+  } finally {  // at end of the cookieJar
+    if (thisPage) await thisPage.close();
     if (thisBrowser) await thisBrowser.close();
+    // Present results (unless error beforehand)
+    res.status(200).send(results.join('\n'));
   }
 }
 
