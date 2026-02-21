@@ -18,8 +18,16 @@ const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 const url = require('url');
 let thisBrowserWSEp;  // browser persists on server   
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';
-const parkrunURL = 'https://www.parkrun.org.uk';
+const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
+const allParkrunCERTS =
+  './www.parkrun.org.uk.pem,'+
+  './www.parkrun.com.pem,'+
+  './www.parkrun.co.nl.pem,'+
+  './www.parkrun.com.de.pem,'+
+  './www.parkrun.com.au.pem,'+
+  './www.parkrun.ca.pem,'+
+  './www.parkrun.jp.pem';
 
 let thisPageId;       // re-use same page      
 let browserTimeout;   // for browser session
@@ -48,8 +56,7 @@ let cloudBrowser = async (
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      // Certificate accessing files on UK, NL, DE, CA & JP
-      '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem,./www.parkrun.ca.pem,./www.parkrun.jp.pem',
+      '--cert='+allParkrunCERTS,
       '--verbose',
       '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
     ],
@@ -307,7 +314,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
     await sortPositions(thisPage); // Reset to default order before getting next order
     return position;
   } catch (err) {
-    console.error(err,'on',thisPage.url());
+    console.error(err+' on '+thisPage.url());
     throw err;
   }
 }
@@ -615,7 +622,12 @@ async function deleteCookies(page,targetUrl) {
 exports.acceptCookies = async (_,res) => {
   let cookieJar = [
     'https://www.parkrun.org.uk',
-    'https://www.parkrun.com'
+    'https://www.parkrun.com',    // default changed fro, uk in January 2026
+    'https://www.parkrun.co.nl',
+    'https://www.parkrun.com.de',
+    'https://www.parkrun.com.au',
+    'https://www.parkrun.ca',
+    'https://www.parkrun.jp'
   ];
   
   try {
@@ -626,14 +638,14 @@ exports.acceptCookies = async (_,res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--cert=./www.parkrun.org.uk.pem,./www.parkrun.co.nl.pem,./www.parkrun.com.de.pem,./www.parkrun.ca.pem,./www.parkrun.jp.pem',
+        '--cert='+allParkrunCERTS,
         '--verbose',
       ],
       timeout: launchSECS*1000,       // max launch time
     });
     let thisPage = await thisBrowser.newPage();
     try {
-      thisCookieURL = cookieJar[0];    // assume org.uk Cookie will suffice
+      thisCookieURL = cookieJar[1];    // assumes any cookie in *.parkrun.com Cookie will suffice
       await thisPage.goto(thisCookieURL,{waitUntil: 'domcontentloaded',timeout: 10000});
       const acceptButton = `button.cm__btn[data-role="all"]`;
       try {
@@ -641,7 +653,7 @@ exports.acceptCookies = async (_,res) => {
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
-          domain: 'www.parkrun.org.uk'
+          domain: thisCookieURL
         });
         await thisPage.click(acceptButton);
         console.log('Cookies accepted for sites,',cookieJar);
