@@ -751,7 +751,7 @@ exports.browser = async (req,res) => {
     exports.initBrowser(req,res);
   else if (path === '/getUrl')
     exports.getUrl(req,res);
-  else if (path === '/filterUrl') {
+  else if (path === '/filterUrl')
     exports.filterUrl(req,res);
   else if (path === '/stopBrowser')
     exports.stopBrowser(req,res);
