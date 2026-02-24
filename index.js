@@ -260,10 +260,17 @@ async function waitForResults(
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
   //  { visible: true, timeout: timeSecs*1000});
-  await thisPage.waitForFunction(() => {
-    let elem = document.querySelector('.js-ResultsTbody .Results-table-row');
-    return elem && elem.offsetWidth > 0 && elem.offsetHeight > 0;
-  }, {timeout: timeSecs*1000});
+  try {
+    await thisPage.waitForFunction(() => {
+      return (elem = document.querySelector('.js-ResultsTbody .Results-table-row')) && 
+        elem.offsetWidth > 0 && elem.offsetHeight > 0;
+    }, {timeout: timeSecs*1000});
+    return true;
+  } catch(err) {
+    console.warn('WARNING: Unexpected delay retrieving detailed results on '+thisPage.url()+
+      ' - consider either retrying later or checking whether domain Cookies have expired');
+    throw new Error('ERROR: Failed to load detailed results '+err);
+  }
 }
   
 /**
@@ -305,12 +312,7 @@ async function sortPositions(
  */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
-    let resultsIn = await waitForResults(thisPage);  // sort options useless without the data
-    if (!resultsIn) {
-      console.warn('WARNING: Unexpected delay retrieving detailed results foron '+thisPage.url()+
-        '\n - Consider either retrying later or checking whether domain Cookies have expired');
-      return null;
-    }
+    await waitForResults(thisPage);  // sort options useless without the data
     await sortPositions(thisPage,'agegrade-desc');
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+ageGrade+' runners found: '+runners.length);
@@ -505,12 +507,7 @@ async function filterCategory(
 {
   // Assumes default order of run-time position is preset on runner list (position-desc)
   try {
-    let resultsIn = await waitForResults(thisPage);  // filter options useless without the data
-    if (!resultsIn) {
-      console.warn('WARNING: Unexpected delay retrieving detailed results foron '+thisPage.url()+
-        ' - condider either retrying later or checking whether domain Cookies have expired');
-      return null;
-    }
+    await waitForResults(thisPage);  // filter options useless without the data
     await filterPositions(thisPage,category,catClass);
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+category+' runners found: '+runners.length);
