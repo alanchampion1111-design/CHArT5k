@@ -37,7 +37,7 @@ let browserTimer;
 let cachedPages = {};    // when caching
 let caching = false;
 const launchSECS = 45;
-const loadSECS = 15;  // max time to load page
+const loadSECS = 20;  // max time to load page
 const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
@@ -305,7 +305,12 @@ async function sortPositions(
  */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
-    await waitForResults(thisPage);  // sort options useless without the data
+    let resultsIn = await waitForResults(thisPage);  // sort options useless without the data
+    if (!resultsIn) {
+      console.warn('WARNING: Unexpected delay retrieving detailed results foron '+thisPage.url()+
+        '\n - Consider either retrying later or checking whether domain Cookies have expired');
+      return null;
+    }
     await sortPositions(thisPage,'agegrade-desc');
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+ageGrade+' runners found: '+runners.length);
@@ -500,7 +505,12 @@ async function filterCategory(
 {
   // Assumes default order of run-time position is preset on runner list (position-desc)
   try {
-    await waitForResults(thisPage);  // filter options useless without the data
+    let resultsIn = await waitForResults(thisPage);  // filter options useless without the data
+    if (!resultsIn) {
+      console.warn('WARNING: Unexpected delay retrieving detailed results foron '+thisPage.url()+
+        ' - condider either retrying later or checking whether domain Cookies have expired');
+      return null;
+    }
     await filterPositions(thisPage,category,catClass);
     let runners = await getRunnerNames(thisPage);
     console.log('Number of '+category+' runners found: '+runners.length);
@@ -511,7 +521,7 @@ async function filterCategory(
     await removeFilter(thisPage,category); // Reset filter WHEN a subsequent position is required (e.g. gender)
     return position;
   } catch (err) {
-    console.error(err, 'on', thisPage.url());
+    console.error(err+' on '+thisPage.url());
     throw err;
   }
 }
