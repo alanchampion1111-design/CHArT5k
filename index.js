@@ -616,7 +616,8 @@ const cookieJAR = [
   'https://www.parkrun.com.de',
   'https://www.parkrun.com.au',
   'https://www.parkrun.ca',
-  'https://www.parkrun.jp'
+  'https://www.parkrun.jp',
+  'https://www.parkrun.co.za'
 ];
 
 async function deleteCookies(page,targetUrl) {
@@ -701,13 +702,11 @@ exports.acceptCookies = async (_,res) => {
       try {
         let accept = await thisPage.$(acceptButton,{timeout: 5000});
         await thisPage.waitForSelector(acceptButton);
-        /*
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
           domain: domainUrl
         });
-        */
         await thisPage.click(accept);
         let result = 'Cookies accepted for site, '+domainUrl;
         console.log(result);
