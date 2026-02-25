@@ -37,8 +37,9 @@ let browserTimer;
 let cachedPages = {};    // when caching
 let caching = false;
 const launchSECS = 45;
-const loadSECS = 20;  // max time to load page
-const pageSECS = 10;   // minimum of 10 seconds between page accesses on parkrun site
+const loadSECS = 15;  // max time to load page
+const loadDetailSECS = 20;  // max time to load page
+const pageSECS = 10;   // minimum of 10 seconds BETWEEN page accesses on parkrun site
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -157,7 +158,7 @@ exports.initBrowser = async (_,res) => {
  *  @returns thisPage for detailed searchning or the HTML content via a {Promise} Resolves when page loaded
  */
 async function loadUrl(thisUrl,
-  timeSecs = pageSECS,
+  timeSecs = loadSECS,
   pageOnly = false)
 {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
@@ -170,15 +171,18 @@ async function loadUrl(thisUrl,
       console.log('Persistent browser found,',thisBrowserWSEp,'with ongoing timeout:',browserTimeout);
       var thisBrowser = await puppeteer
         .connect({browserWSEndpoint: thisBrowserWSEp, timeout: browserTimeout});     // actually reconnects 
-      var thisPage = (await thisBrowser.pages())
-        .find(page => page.target()._targetId === thisPageId);
-      if (thisPage) {
+      var thisPage;
+      if (pageOnly && caching) {  // preserve thisPage object
+        thisPage = await thisBrowser.newPage();
         await thisPage.setDefaultTimeout(timeMax);
-      } else {
-        console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout,',timeSecs,'seconds');
-        throw new Error('Persistent page NOT found!');
+      } else {  // re-use
+        thisPage = (await thisBrowser.pages())
+          .find(page => page.target()._targetId === thisPageId);
+        if (!thisPage) {
+          console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout,',timeSecs,'seconds');
+          throw new Error('Persistent page NOT found!');
+        }
       }
-      console.log('Persistent browser timeout,',browserTimeout,'with inter-page access delay,',timeSecs,'seconds');
       console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
       var content = await thisPage.content();   // always ensure page is fully loaded
@@ -544,14 +548,13 @@ exports.filterUrl = async (req,res) => {
   console.log('Test: '+testCmd);
   var thisPage;
   console.log('cachedPages length before:', Object.keys(cachedPages).length);
-  caching
   if (!caching) cachedPages = {};      // clear any cache during batching
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
     console.log('cachedPages length after:', Object.keys(cachedPages).length);
     console.log('Re-using detailed results from cached URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
-    thisPage = await loadUrl(thisUrl,loadSECS,true);
+    thisPage = await loadUrl(thisUrl,loadDetailSECS,true);
     if (caching) cachedPages[thisUrl] = thisPage;
   }
   try {  // Get 2 (or more) positions in series?
