@@ -42,7 +42,10 @@
 /
 /   There are two use-cases, where the heirarchy of function calls are:
 /
-/   1.  ImportResultForEachRunner (optional event date of Parkrun)
+/   1.  ImportResultsOnEventDate
+/         ...to get event Date (dd/mm/yyyy).
+/
+/   1a. ImportResultForEachRunner (optional event date of Parkrun)
 /         OpenChromeBrowser ->
 //        Loop for each member runner...
 /           >CopyResultForRunner (latest or dated?)->
@@ -55,9 +58,9 @@
 /                 CleanValue (apply links as hyperlinks)
 /               FormatDate (may be redundant)
 /               AppendResultRow
-/             >AppendPositionsForResult ->
+/             >AppendPositionsForResult (with caching) ->
 /               GetResultUrl (assume always parkrun)
-/               GetDomainGender  (for language-based filter)
+/               GetCategories (for language-based filter)
 /               ExtendRange
 /               >AssessPositions (for one runner)
 /               IncludePositions
@@ -67,6 +70,7 @@
 /         OpenChromeBrowser ->
 //        Loop for each member runner...
 /           LockCallerForwardsTo ->
+/         >CloseChromeBrowser
 /
 /   2a. BatchPositionsForRunner (threaded in parallel?)
 /         UnlockCallerForwarded
@@ -78,32 +82,25 @@
 /                 AppendPositionsForResult ->
 /                   GetResultUrl
 //                  When event is a Parkrun...
-/                     GetDomainGender (for language-based filter)
+/                     GetCategories (for language-based filter)
 /                     >AssessPositions (for one runner)
 /                     IncludePositions
 /                       Trigger forked task, BatchPositionsForRunner
+/         >CloseChromeBrowser
 /
 /   2b. BatchPositionsForRunner (recurse if more to sync):
 /         UnlockCallerForwarded
 /         When all positions applied...
-/           >CloseChromeBrowser
+/           >CleanBatch
 /  -------------------------------------------------------------------------
 */
-
-/**
- * For the purpose of this trial, the following session & connection functions rely on
- * The asynchronous functions include:
- *    OpenChromeBrowser
- *    AccessPage
- *    CloseChromeBrowser
- */
 
 async function OpenChromeBrowser() {
   const initBrowserURL = browserURL+'/initBrowser';
   try {
     var response = await UrlFetchApp.fetch(initBrowserURL);
     browserSession = response.getContentText();   // WS Endpoint lingers for upto 30 minutes
-    Utilities.sleep(1000); // in case image not cached, avoids Error: Requesting main frame too early!
+    Utilities.sleep(1500); // in case image not cached, avoids Error: Requesting main frame too early!
     Logger.log('Session: '+browserSession);
     return true;
   } catch (err) {
@@ -124,10 +121,10 @@ async function AccessPage(
       //      AND/OR WHEN a single CPU is specified for the run
       // Therefore, allow worst case timing for all, as if serial
       {muteHttpExceptions:true,timeout:30000});
-    Utilities.sleep(1000); // in case client-side table needs refresh (aside awaiting the fetch)
+    Utilities.sleep(1500); // in case client-side table needs refresh (aside awaiting the fetch)
     return response.getContentText();
   } catch (err) {
-    Logger.log(err,'within',thisUrl);
+    Logger.log(err+' within '+thisUrl);
     return null;
   }
 }
@@ -148,7 +145,6 @@ const parkrunURL = 'https://www.parkrun.org.uk/';
 const parkrunnerURL = parkrunURL+'parkrunner/';
 const allForONE = '/all/';
 const oneForALL = '/results/';    // TODO: Potentially cache if same location as next member
-var cacheResultsURL = undefined;  // ...assumes cached within the browser service for re-use
 
 async function GetRunnerResultsPage(
   parkrunnerId = '1213963')    // default useful for testing
@@ -165,10 +161,6 @@ async function GetRunnerResultsPage(
 }
 
 /**
- *  Gets the latest result or a dated result if a date is specified (dd/mm/yyyy)
- * 
- */
-/**
  * Gets a specific result row for a runner (default to latest in the first row)
  *  @param {Array<string>} bodyRows - Array of HTML rows containing result data.
  *  @param {number|string} [eventRef=0] - Index of the result (0 = latest) or date (dd/mm/yyyy) of result.
@@ -179,11 +171,10 @@ function GetResultRow(
   bodyRows,
   eventRef = 0)  // default to latest (indexed 0) in first row; otherwise match as a date 
 {
-  const latestROW = 0;  // only consider 1st row as single latest result
   if (typeof eventRef === 'number') {
     return bodyRows[eventRef];
   } else {
-    return bodyRows.findIndex(row => row.includes(`>${eventRef}<`))
+    return bodyRows.find(row => row.includes(`>${eventRef}<`))
   }
 }
 
@@ -225,22 +216,22 @@ async function CopyResultForRunner(
                 var cells = row.match(/<td>.*?<\/td>/gs);
                 return cells.map(cell => cell.replace(/<td>|<\/td>/g, "").trim());
               });
-            } else { // // single result, default to latest
+            } else { // single result, default to latest unless specific date
               var resultRow = GetResultRow(bodyRows,eventRef);  
+              if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'):'+typeof resultRow);
               if (resultRow) {
                 var cells = resultRow.match(/<td>.*?<\/td>/gs);
                 if (cells) {
                   var values = cells.map(function(cell) {
                     return cell.replace(/<td>|<\/td>/g,"").trim();
                   });
-                  // if (debug) Logger.log('Cells parsed as '+cells+' for runner, '+parkrunnerId+', and ready for pasting');
                   return values;
                 } else {
                   Logger.log('WARNING: No cells found in row, '+resultROW+' for runner, '+parkrunnerId);
                   return null;
                 }
               } else {
-                Logger.log('Unable to find results for runner,'+parkrunnerId);
+                Logger.log('Unable to find results for runner, '+parkrunnerId);
                 return null;
               }
             }            
@@ -266,7 +257,6 @@ async function CopyResultForRunner(
     return null;
   });
 }
-
 
 let hyperLinks = [];  // Preserves the links from the runner's page
 const PBtickBoxCOL = 8; // column H is a read-only tick-box, derived from column G (if PB present)
@@ -317,7 +307,6 @@ function FormatDate(dateSource,dateFormat) {
   );
 }
 
-
 function PrepareResultRow(thisResult) { // cols A..G (7)
   const linksNUM = hyperLinks.length; // cols A..C (3)
   const valsNUM = thisResult.length - linksNUM; // cols D..G (4)
@@ -339,7 +328,6 @@ function PrepareResultRow(thisResult) { // cols A..G (7)
     return null;
   }
 }
-
 
 /**
  *  Appends a result row (columns A-G) into results sheet (including 2 or more hyperlinks)
@@ -433,19 +421,15 @@ function AppendResultRow(
  *  @param {string} ageCat 
  * @return {Promise<Array>} [acPosn,agPosn,gcPosn]
  */
-async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat) {
+async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat,cacheUrl=false) {
   let filterBrowserURL = browserURL+'/filterUrl'
     +'?url='+thisUrl
     +'&rn='+encodeURIComponent(matchRunner)
     +'&ac='+ageCat
-    +'&gc='+genderCat;
-    // +'&ag='Age-Grade';   // assume internal default
+    +'&gc='+genderCat
+    // +'&ag='Age-Grade'   // assume internal default
+    +'&cache='+cacheUrl;   // only cache on import for event-date / latest date
   try {
-    if (thisUrl === cacheResultsURL) {
-      if (debug) Logger.log('Runner: '+matchRunner+'\tImplicitly re-using results from previous runner?');
-    } else {
-      cacheResultsURL = thisUrl;
-    }
     var positions = await UrlFetchApp.fetch(filterBrowserURL,
       // Runners with 500+ results take longer 
       //    AND parallelism may be curtailed
@@ -455,15 +439,17 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat) {
       {muteHttpExceptions:true,timeout:12000});
     let posnText = positions.getContentText();
     if (debug) Logger.log('Runner: '+matchRunner+'\t'+posnText);
-    // TODO redundant since opened on each batch, with managable batch size (<20)
-    if (posnText.includes('Internal Server Error')) {
+    // TODO Perhaps redundant with managable batch size (<20) unless browser close prematurely!!
+    /* if (posnText.includes('Internal Server Error')) {
       browserSession = undefined; // restart the browser!
+      Logger.log('CAUTION: Check GCR logs for unexpected errors');
       return CloseChromeBrowser()
       .then(() => {
         OpenChromeBrowser()
       });
       return null;
     }
+    */
     if (posnText.includes('ERROR')) {
       Logger.log('WARNING: Unmatched '+matchRunner+' in event link, '+thisUrl);
       return null;
@@ -526,7 +512,7 @@ function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
   const eventDate = eventDateCell.getDisplayValue;
   eventDateCell.activate();   // hyperlink may surface when cell selected?Copy
   let richText = eventDateCell.getRichTextValue();
-  if (richText) {   // WARNING: Only works for cells with HYPERLINK formaulae
+  if (richText) {   // WARNING: Only works for cells with HYPERLINK formalae
     resultsLink = richText.getLinkUrl();
   } else {   // Legacy complication for past results, the embedded URL was not retrievable!!
      const locationUrlMap = {
@@ -561,59 +547,105 @@ function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
   return resultsLink;
 }
 
+// Since 2026, these three MAP definitions are now needed to correspond to the correct gender and age-category
+// Assume derived from age category: e.g. SW25-29 for native UK => SV25-29 in NL event (and vice-versa)
+// TODO: For international, better to inspect the gender position directly from detailed result?
+const genderMAP = {
+  'en': { M: 'Male', W: 'Female' },       // confirmed
+  'nl': { M: 'Man', V: 'Vrouw' },         // confirmed
+  'de': { M: 'Männlich', F: 'Weiblich' }, // confirmed
+  'it': { M: 'Uomo', W: 'Donna' },        // confirmed
+  'fr': { H: 'Homme', F: 'Femme' },
+  'da': { M: 'Mand', W: 'Kvinde' },
+  'fi': { M: 'Miehet', N: 'Naiset' },     // confirmed
+  'lt': { V: 'Vyras', M: 'Moteris' },     // confirmed
+  'no': { M: 'Mann', K: 'Kvinne' },       // confirmed
+  'pl': { M: 'Mężczyzna', K: 'Kobieta' },
+  'se': { M: 'Man', K: 'Kvinna' },
+  'jp': { M: '男子', W: '女子' }    // pronounced Danshi or Joshi
+};
+
+const toUK= {
+  'en': { 'M': 'M', 'W': 'W' },     // confirmed
+  'nl': { 'M': 'M', 'V': 'W' },     // confirmed
+  'de': { 'M': 'M', 'F': 'W' },     // confirmed
+  'it': { 'M': 'M', 'W': 'W' },
+  'fr': { 'H': 'M', 'F': 'W' },
+  'da': { 'M': 'M', 'W': 'W' },     // confirmed as en
+  'fi': { 'M': 'M', 'N': 'W' },     // confirmed
+  'lt': { 'V': 'M', 'M': 'W' },     // confirmed
+  'no': { 'M': 'M', 'K': 'W' },
+  'pl': { 'M': 'M', 'K': 'W' },
+  'se': { 'M': 'M', 'K': 'W' },
+  'jp': { 'M': 'M', 'W': 'W' }      // confirmed as en
+};
+
+// Together with the inverse of toUK allows a native gender abbrev. to be translated
+// to any other event country gender in two steps (via this 2-way UK mapping)
+let fromUK = {};    
+Object.keys(toUK).forEach(lang => {
+  fromUK[lang] = {};
+  Object.entries(toUK[lang]).forEach(([local,uk]) => {
+    fromUK[lang][uk] = local;
+  });
+});
+
+const countryMAP = {
+  'uk': 'en',
+  'ie': 'en',
+  'us': 'en',
+  'au': 'en',
+  'za': 'en',
+  'at': 'de',
+  'nl': 'nl',
+  'de': 'de',
+  'it': 'it',
+  'fr': 'fr',
+  'dk': 'da',
+  'fi': 'fi',
+  'no': 'no', // without any stage prefix char (omit J, S and V)
+  'pl': 'pl',
+  'se': 'se', // without stage prefix char for J(unior) or S(enior)
+  'jp': 'jp',
+  'ca': 'en', // or 'fr' for French-speaking Canada?
+  'sg': 'en',
+  'nz': 'en',
+  'my': 'en', // or 'ms' for Malay
+  'na': 'en',
+  'lt': 'lt',
+  'es': 'es'    // Add Spain to other MAPs when launched
+};
+
 /**
- * Returns the gender word for a given Country domain based on 2nd char of Age Category as the code
- *    @param {string} [thisUrl=parkrunURL] - URL to determine domain
- *    @param {string} [gender='M'] - Gender code (M/W)
- *  @returns {string} language translation for Gender code (e.g. "Male" for M, "Vrouw" for W, etc.)
+ * Returns the gender and age category based on the URL domain of the event
+ * which may differ from the native country of the spreadsheet
+ *    @param {string} [eventUrl=parkrunURL] - URL to determine domain
+ *    @param {string} [thisAgeCat='VW35-39'] - Gender code (M/U/H or W/V/K/D/F)
+ *  @returns {array} [Gender code (e.g. "Male" for M, "Vrouw" for V, etc.), Event-based age-category]
  */
-function GetDomainGender(
-  thisUrl = parkrunURL,
-  thisGender = 'M')
+function GetCategories(
+  eventUrl = parkrunURL,      
+  thisAgeCat = 'VW35-39')   // as on (native) spreadsheet
 {
-  const languageMAP = {
-    // assume derived from age categorym: e.g. VW35-39 => W
-    'en': { M: 'Male', W: 'Female' },
-    'nl': { M: 'Man', W: 'Vrouw' },
-    'de': { M: 'Männlich', W: 'Weiblich' },
-    'it': { M: 'Uomo', W: 'Donna' },
-    'fr': { M: 'Homme', W: 'Femme' },
-    'da': { M: 'Mand', W: 'Kvinde' },
-    'fi': { M: 'Mies', W: 'Nainen' },
-    'no': { M: 'Mann', W: 'Kvinne' },
-    'pl': { M: 'Mężczyzna', W: 'Kobieta' },
-    'sv': { M: 'Man', W: 'Kvinna' },
-    'jp': { M: 'Otoko', W: 'Onna' }
-  };
-  const countryMAP = {
-    'uk': 'en',
-    'ie': 'en',
-    'us': 'en',
-    'au': 'en',
-    'za': 'en',
-    'at': 'de',
-    'nl': 'nl',
-    'de': 'de',
-    'it': 'it',
-    'fr': 'fr',
-    'dk': 'da',
-    'fi': 'fi',
-    'no': 'no',
-    'pl': 'pl',
-    'se': 'sv',
-    'jp': 'jp',
-    'ca': 'en', // or 'fr' for French-speaking Canada
-    'sg': 'en',
-    'nz': 'en',
-    'my': 'en', // or 'ms' for Malay
-    'na': 'en',
-    'lt': 'lt', // add Lithuanian translations to languageMAP
-    'es': 'en' // add Eswatini, assuming English
-  };
-  let thisDomain = thisUrl.split('/')[2];
-  let thisCountry = thisDomain.split('.').pop();
-  let thisLang = countryMAP[thisCountry] || thisCountry;
-  return languageMAP[thisLang][thisGender];
+  // TODO: retrieve native Domain/Language from  the spreadsheet (owner home)
+  const nativeDOMAIN = 'uk';
+  const nativeLANG = countryMAP[nativeDOMAIN];              // i.e. en
+  let eventDomain = eventUrl.split('/')[2];
+  let eventCountry = eventDomain.split('.').pop();          // e.g. at
+  let eventLang = countryMAP[eventCountry] || eventCountry; // e.g. de
+  let newAgeCat = thisAgeCat;   // default to no change
+  if (nativeLANG !== eventLang) {   // convert native -> UK -> event,
+    // ...assumes prefix is V(eteran), S(enior), or J(unior), even in Japan!
+    let thisGender = thisAgeCat[1];
+    newAgeCat = thisAgeCat.replace(thisGender,          // e.g. W => V
+      fromUK[eventLang][toUK[nativeLANG][thisGender]]   // VW35-39 => VV35-39
+    );
+  }
+  let genderWord = genderMAP[eventLang][newAgeCat[1]];
+  // strip stage prefix (J, S or V) if Norway, or if Sweden unless Veteran
+  if (eventLang === 'no' || (eventLang === 'se' && /^[JS]/.test(newAgeCat)))
+    newAgeCat = newAgeCat.slice(1);
+  return [genderWord,newAgeCat];
 }
 
 /**
@@ -623,7 +655,7 @@ function GetDomainGender(
  *    @param {Range} resultRange - Range of result data
  *  @returns {boolean} Success flag
  */
-async function AppendPositionsForResult(runnerFullName,resultRange) {
+async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=false) {
   const eventCOL = 1;           // column A is the event location
   const dateCOL = 2;            // column B is the date of event
   const runNumCOL = 3;          // column C is the instance # at event
@@ -631,8 +663,9 @@ async function AppendPositionsForResult(runnerFullName,resultRange) {
   if (!runNumber) return false;   // Skipping any non-Parkrun instance since no positions
   else {
     const genderPosnCOL = 9;      // column I is the Gender position (if present already done)
-    const ageCatPosCOL = 10;      // column J is the Age-Category position
-    const ageGradePosCOL = 11;    // column K is the Age-Grade (%age) position
+    // const ageCatPosCOL = 10;   // column J is the Age-Category position
+    // const ageGradePosCOL = 11; // column K is the Age-Grade (%age) position
+    // const genderCatCOL = 4;    // column C on Runners' sheet (assumed unchanged at event)
     const ageCatCOL = 12;         // column L is the Age Category on the date (derived from DoB)
     const PBtoAgeCatNumCOLS = 5;  // cols H..L for I..K positions between derived cols, H & L
     let eventLocation = resultRange.getCell(1,eventCOL).getValue();
@@ -640,29 +673,30 @@ async function AppendPositionsForResult(runnerFullName,resultRange) {
     let extResultRange = (resultRange.getNumColumns() < ageCatCOL) 
       ? ExtendRange(resultRange,0,PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
       : resultRange;             // Result row range previously extended (for Catch-up use-case)
-    let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
     let genderPositionKnown = extResultRange.getCell(1,genderPosnCOL).getValue();  
     if (genderPositionKnown) return false;  // Skipping since extra position(s) already on the sheet
     else {
       try {
-        var resultsLink = GetResultsUrl(eventDateCell,eventLocation,runNumber); // if workaround needed
+        let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
+        let genderCategory;  // = runnersSHEET.getCell(runnerIndex,genderCatCOL).getValue();  // out of Range!!
+        var resultsLink = GetResultsUrl(eventDateCell,eventLocation,runNumber); // legacy if workaround needed
         // var resultsLink = GetResultsUrl(eventDateCell); // behind Date (in col B)
-        var genderCategory = GetDomainGender(resultsLink,ageCategory[1]); // e.g. JM10 => M => Male in uk
+        // Adjust ageCategory to suit language at event - e.g. SW25-29 (uk) => SV25-29 (de)
+        [genderCategory,ageCategory] = GetCategories(resultsLink,ageCategory); // e.g. JM10 => M => Male in uk
         if (debug) Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
-        let extraPosns = await AssessPositions(runnerFullName,resultsLink,ageCategory,genderCategory);
+        let extraPosns = await AssessPositions(runnerFullName,resultsLink,ageCategory,genderCategory,cacheUrl);
         if (extraPosns && extraPosns.length === 3) {
           IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
           return true;
         } else {
-          Logger.log('ERROR: Unable to assess positions for result at '+eventLocation+
-            ' for runner, '+runnerFullName+' ('+resultsLink+')');
+          Logger.log('CAUTION: Consider revising DoB of '+runnerFullName+' to ensure matching category ('+ageCategory+') at '+eventLocation+' ('+resultsLink+')?');
           return false;
         }
       } catch (err) {
         Logger.log('ERROR: While appending positions for runner, '+runnerFullName+': '+err);
         return false; // or throw error
       } finally {
-        Utilities.sleep(2000);
+        Utilities.sleep(1500);
       }
     }
   }
@@ -676,6 +710,7 @@ function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
   eventDate = undefined)  // undefined means latest date - return to this state otherwise
 {
+  Logger.log('Checking for result on event date, '+eventDate);
   return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
     var runners = allRunnersSheet.getRange(
       runnerNameCOLUMN+runnersStartROW+":"+runnerSurnameCOLUMN
@@ -696,10 +731,11 @@ function ImportResultForEachRunner(
       .then(thisResult => {
         if (thisResult) {
           let resultRange = PasteResultForRunner(thisResult,runnerNameId);
+          if (eventDate) Logger.log('Result added for runner, '+runnerName+' on '+eventDate);
           if (resultRange) {
             if (debug) Logger.log('Appending result for unique runner sheet, '+runnerNameId);
             let runnerFullName = runner.join(' ');  // from col A & B
-            return AppendPositionsForResult(runnerFullName,resultRange);
+            return AppendPositionsForResult(runnerFullName,resultRange,true); // caching
           } else {
             if (debug) Logger.log('No later result needs appended for unique runner, '+runnerNameId);
           }
@@ -710,12 +746,46 @@ function ImportResultForEachRunner(
       });
     }))
   })
-  .catch(error =>
-    Logger.log('ERROR: '+error)
-  )
+  .catch(error => {
+    Logger.log('ERROR: '+error);
+    CloseChromeBrowser();
+  })
   .finally(() =>
-    CloseChromeBrowser()
+    Logger.log('CAUTION: Take care not to close prematurely until all event positions appended!')
+    // CloseChromeBrowser();
   );
+}
+
+/**
+ * Imports results for each runner on a specific date
+ *  1. Prompts for the date
+ *  2. Imports result for each runner (on that date)
+ */
+function ImportResultsOnEventDate() {
+  const edRegexp = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  const edPlace = 'dd/mm/yyyy';
+  const ui = SpreadsheetApp.getUi();
+  const formTitle = 'Import Results on Event Date';
+  const formDesc = 'This imports the result for any member who ran on a particular date.';
+  const formAction = 'Import';
+  const formHandler = 'ImportResultForEachRunner';
+  const formHTML = '\n'+
+    '<form onsubmit="if(!document.getElementById(\'eventDate\').checkValidity()) {'+
+    '    document.getElementById(\'eventDate\').focus();return false;}">\n'+
+    '  <div>'+formDesc+'</div><br>\n'+
+    '  <label>Date of parkrun event:\t</label>\n'+
+    '    <input type="text" id="eventDate" pattern="'+edRegexp.source+'" placeholder="'+edPlace+'"><br><br>\n'+
+    '  <input type="submit" id="submitButton" value="'+formAction+'"\n'+
+    '    onclick="document.getElementById(\'submitButton\').disabled=true;\n'+
+    '      document.getElementById(\'submitButton\').value=\'Processing...\';\n'+
+    '    google.script.run.withSuccessHandler(function() { google.script.host.close(); }).'+
+          formHandler+'(document.getElementById(\'eventDate\').value)">\n'+
+    '  <input type="button" value="Cancel"\n'+
+    '    onclick="google.script.host.close()">\n'+
+    '  </form>\n';
+  var form = ui.showModalDialog(HtmlService.createHtmlOutput(formHTML),formTitle);
+  // return eventDate;  // an array of 1 value?
+  // callback with eventDate (string) from form
 }
 
 function AppendAllResults(
@@ -780,7 +850,6 @@ async function ImportAllResultsForRunner(
     })
     .catch(err => 
       Logger.log('ERROR: Importing all results\n'+err));
-      
 }
 
 /**
@@ -925,27 +994,29 @@ function PromptNewRunner(
   thisCase = addCASE)
 {
   const ui = SpreadsheetApp.getUi();
-  let formHTML = '\n'+
-    '<form>\n'+
-    '  <div>'+thisCase.desc+'</div><br><br>\n'+
+  const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])-[A-Za-z]{3}-(19|20)?\d{2}$/;
+  const dobPlace = 'dd-Mmm-yyyy';
+  const formHTML = '\n'+
+    '<form onsubmit="if(!document.getElementById(\'dob\').checkValidity()) {'+
+    '    document.getElementById(\'dob\').focus();return false;}">\n'+
+    '  <div>'+thisCase.desc+'</div><br>\n'+
     '  <label>parkrun Id (barcode numeric part only):\t</label>\n'+
     '    <input type="text" id="parkrunnerId"><br><br>\n'+
     '  <label>Date of birth (for accurate %age grade):\t</label>\n'+
-    '    <input type="text" id="dob" placeholder="dd-Mmm-YY"><br><br>\n'+
+    '    <input type="text" id="dob" pattern="'+ dobRegex.source+'" placeholder="'+dobPlace+'"><br><br>\n'+
     '  <label>Email (optional, for delegating access):\t</label>\n'+
     '    <input type="text" id="email"><br><br>\n'+
-    '  <input type="button" id="submitButton" value="'+thisCase.action+'"\n'+
+    '  <input type="submit" id="submitButton" value="'+thisCase.action+'"\n'+
     '    onclick="document.getElementById(\'submitButton\').disabled=true;\n'+
     '      document.getElementById(\'submitButton\').value=\'Processing...\';\n'+
-    '      google.script.run.'+thisCase.handler+'([\n'+
-    '      document.getElementById(\'parkrunnerId\').value,\n'+
+    '    google.script.run.withSuccessHandler(function() { google.script.host.close(); }).'+
+          thisCase.handler+'([document.getElementById(\'parkrunnerId\').value,\n'+
     '      document.getElementById(\'dob\').value,\n'+
-    '      document.getElementById(\'email\').value]);\n'+
-    '      google.script.host.close()">\n'+
+    '      document.getElementById(\'email\').value]);">\n'+
     '  <input type="button" value="Cancel"\n'+
-    '    onclick="google.script.host.close()">\n'+
+    '    onclick="google.script.host.close();">\n'+
     '  </form>\n';
-  var form = ui.showModalDialog(HtmlService.createHtmlOutput(formHTML), thisCase.title);
+  var form = ui.showModalDialog(HtmlService.createHtmlOutput(formHTML),thisCase.title);
   // return [parkrunnerId,dob,email];
 }
 
@@ -966,31 +1037,26 @@ function AddFamilyMember() {
 async function DoAddFamilyMember(form) {
   let [parkrunnerId,dob,email] = form;
   if (debug) Logger.log('1. Prompt: '+form);
-  let dobRegex = /^\d{2}-[A-Za-z]{3}-\d{2}$/;
-  if (!dobRegex.test(dob)) {
-    throw new Error('ERROR: Invalid date format - use dd-Mmm-YY');
-    // otherwise coerce to this format
-  }
   return OpenChromeBrowser()
     .then(() => {   // allow time to open browser on server
       if (debug) Logger.log('2. Open: '+parkrunnerId);
-      return GetRunnerResultsPage(parkrunnerId);
-    })
-    .then(resultsPage => {   // after load page in browser
-      if (debug) Logger.log('3a. Runner:'+parkrunnerId);
-      let [runnerNames,gender] = GetRunnerDetails(resultsPage);
-      if (debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
-      let runnerNameId = CreateRunnerResultsSheet(
-        runnerNames,gender,  // to go into cols A & B, C
-        email,dob,           // into cols.D & E (hidden for security, as also F..H)
-        parkrunnerId);       // into col J (after derived age-category in col. I)
-      if (debug) Logger.log('4. Create sheet: '+runnerNameId);
-      return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
-      	.then(() => {
-          let [runnerName,runnerIndex] = runnerNameId.split('_');
-          Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
-          LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
-        });
+      return GetRunnerResultsPage(parkrunnerId)
+        .then(resultsPage => {   // after load page in browser
+          if (debug) Logger.log('3a. Runner:'+parkrunnerId);
+          let [runnerNames,gender] = GetRunnerDetails(resultsPage);
+          if (debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
+          let runnerNameId = CreateRunnerResultsSheet(
+            runnerNames,gender,  // to go into cols A & B, C
+            email,dob,           // into cols.D & E (hidden for security, as also F..H)
+            parkrunnerId);       // into col J (after derived age-category in col. I)
+          if (debug) Logger.log('4. Create sheet: '+runnerNameId);
+          return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
+            .then(() => {
+              let [runnerName,runnerIndex] = runnerNameId.split('_');
+              Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
+              LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
+            });
+        })
     })
     .catch(err => {
       Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err);
@@ -1111,15 +1177,10 @@ function SpawnNewFamily() {
 }
 
 function DoSpawnNewFamily(
-  form = ['21283','30-Jan-69',undefined]
+  form = ['21283','30-Jan-1969',undefined]
 ) {
   let [parkrunnerId,dob,email] = form;
   if (debug) Logger.log('1. Prompt: '+form);
-  const dobRegex = /^\d{2}-[A-Za-z]{3}-\d{2}$/;
-  if (!dobRegex.test(dob)) {
-    throw new Error('ERROR: Invalid date format - use dd-Mmm-YY');
-    // otherwise coerce to this format
-  }
   return OpenChromeBrowser()
     .then(() => {   // allow time to open browser on server
       if (debug) Logger.log('2. Open: '+parkrunnerId);
@@ -1240,9 +1301,9 @@ function CleanupBatch(
 {
   var triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(trigger => {
-    if (trigger && trigger.getHandlerFunction() == thisScript) {
+    Logger.log('Trigger handler cleaning: '+trigger.getHandlerFunction());
+    if (trigger && trigger.getHandlerFunction() == thisScript)
       ScriptApp.deleteTrigger(trigger);
-    }
   });
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
   PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
@@ -1314,7 +1375,6 @@ function UnlockCallerForwarded() {
 function LockCallerForwardsTo(thisFunction,withReason,thisRunnerNameId) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(12000);  // max time before parallel threads may continue
     PropertiesService.getScriptProperties()
       .setProperty(lockINDEX,thisRunnerNameId);
     PropertiesService.getScriptProperties()
@@ -1332,8 +1392,9 @@ function LockCallerForwardsTo(thisFunction,withReason,thisRunnerNameId) {
  *  Recursively catch up on missing Positions for each runner from Parkrun site
  *    @params {string} - runnerNameId, passed via locked property setting
  */
-function BatchPositionsForRunner(/*runnerNameId*/) {
+function BatchPositionsForRunner() {
   const runnerNameId = UnlockCallerForwarded();
+// function BatchPositionsForRunner(runnerNameId='Amy_20') {  // for debug
   let [runnerName,runnerIndex] = runnerNameId.split('_');
 // begin
   return OpenChromeBrowser()
@@ -1345,31 +1406,35 @@ function BatchPositionsForRunner(/*runnerNameId*/) {
   })
   .then((moreToDo) => { 
     if (moreToDo) {
+      // Avoid limitation on triggers - clean as you go!
+      ScriptApp.getProjectTriggers().forEach(trigger => {
+        Logger.log('Trigger handler reduction: '+trigger.getHandlerFunction());
+        if (trigger.getHandlerFunction() === 'BatchPositionsForRunner')
+          ScriptApp.deleteTrigger(trigger);
+      });
       Logger.log('Recursing runner: '+runnerName+'\t['+runnerIndex+']');
-      LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);
+      LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);  
     } else {
       let runnersStatus = MarkRunnerPositionsDone(runnerIndex);
       if (AllPositionsDone(runnersStatus)) {
         CleanupBatch(threadBatchFN);
         return;
-      }
+      } else  // loop back for next "unfinished" runner
+        ScriptApp.newTrigger('CatchUpAllPositions')
+          .timeBased()
+          .after(1500)
+          .create();
     }
   })
-  .catch(err =>
-    Logger.log('ERROR: Failed to trigger recursed batches: '+err)
-  )
-  .finally(() => {
-    // CloseChromeBrowser() // NOT yet until status for every
-    Logger.log('Ordinarily, preserve browser session until completed');
-    // Avoid limitation on triggers - clean as you go!
-    let triggers = ScriptApp.getProjectTriggers();
-    triggers.forEach(trigger => {
-      if (trigger.getTriggerSource() === ScriptApp.TriggerSource.CLICK
-          && !trigger.isEnabled()) {
-        ScriptApp.deleteTrigger(trigger);
-      }
-    });
+  .catch(err => {
+    Logger.log('ERROR: Failed to trigger recursed batches: '+err);
+    CloseChromeBrowser();
   })
+  .finally(() => {
+    // Perhaps need to wait on closure before re-opening on next batch?
+    // CloseChromeBrowser();   // open on each batch avoids unexpected session end
+    // Utilities.sleep(2000); // Allowing time for triggers & property reset
+  });
 }
 
 /**
@@ -1386,32 +1451,48 @@ function CatchUpAllPositions() {
     // Ensure ALL threads use the same status so that closure is when done for ALL runners
     runnersStatus = allRunnersSheet.getRange(hasPosnsCOLUMN+runnersStartROW+":"+hasPosnsCOLUMN)
       .getValues().map(x => x[0]);
-    // Thread process for each valid runner in parallel, with a non-conflicting delay 
-    runners.forEach((runnerName,runnerIndex) => {
+    // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
+    for (var [runnerIndex,runnerName] of runners.entries()) {
       if (runnersResults[runnerIndex]) {    // if runner has at least one result
         if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
           let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
-          Logger.log('Threading runner: '+runnerName+' ['+runnerIndex+']');
+          Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
           LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
-          Utilities.sleep(11000); // delay between activating runner threads in parallel
+          break; // batch the first incomplete runner only until done to avoid conflict
         }
-        else
+        else if (debug) 
           Logger.log('Positions up-to-date for runner: '+runnerName+' ['+runnerIndex+']');
       } else {
         if (!runnersStatus[runnerIndex]) {   // Since no results, then already caught-up
           runnersStatus = MarkRunnerPositionsDone(runnerIndex);   // avoids impact on not finishing
         }
       }
-    });
+    }
   })
-  .catch(err => 
-    Logger.log('ERROR: Failed to trigger threaded batches: '+err)
-  )
+  .catch(err =>  {
+    Logger.log('ERROR: Failed to trigger any catch-up in batches: '+err);
+    CloseChromeBrowser();
+  })
   .finally(() => {
     if (AllPositionsDone(runnersStatus)) {
       CleanupBatch(threadBatchFN);
       return;
     }
-    else Logger.log('Preserve browser session until all positions updated.')
+    // else CloseChromeBrowser();  // even though each batch re-opens
   });
+}
+
+/**
+ * Accept cookies on all country Domains
+ */
+async function AcceptCookies() {
+  let acceptCookiesViaBrowserURL = browserURL+'/acceptCookies';
+  try {
+    var response = await UrlFetchApp.fetch(acceptCookiesViaBrowserURL,
+      {muteHttpExceptions:true,timeout:30000});
+    return response.getContentText();
+  } catch (err) {
+    Logger.log(err);
+    return err;
+  }
 }
