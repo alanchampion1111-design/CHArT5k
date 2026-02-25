@@ -431,13 +431,7 @@ async function filterPositions(
     await thisPage.type(selectINPUT," ");              //      ...to ensure options become visible
     await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
       {visible: true, timeout: 15000});                              //      ...that are visible
-    /*
-    let optionsHTML = await thisPage.evaluate((selectOPTIONS) => {
-      return document.querySelector(selectOPTIONS).outerHTML;
-    },selectOPTIONS);
-    */
     await thisPage.evaluate((selectCatOPTION,expectedVALUE) => {
-      console.log('Find option:\n'+document.querySelector(selectCatOPTION).outerHTML);  // subset category subset
       let option = document.querySelector(selectCatOPTION);
       if (option) {
         option.click();                               //  3.  Select specific category option (not the first!)
