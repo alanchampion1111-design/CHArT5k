@@ -211,7 +211,7 @@ exports.getUrl = async (req,res) => {
     res.status(500).send('ERROR: Failed to load URL, '+thisUrl);
   } finally {
     // delay between calls (before any returns) while browser remains active
-    await new Promise(resolve => setTimeout(resolve,pageSECS));
+    // await new Promise(resolve => setTimeout(resolve,pageSECS));
     // but AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
     // await thisBrowser.disconnect(); 
   }
@@ -561,25 +561,27 @@ exports.filterUrl = async (req,res) => {
       console.error(err);
       res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
     } finally {
-      // delay between calls (before any returns) while browser remains active
-      await new Promise(resolve => setTimeout(resolve,pageSECS));
+      // delay between calls while browser remains active (assume delay handled in stealth mode)
+      // await new Promise(resolve => setTimeout(resolve,pageSECS));
     }
   }
-  try {  // Get 2 (or more) positions in series?
-    // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
-    let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
-    // 2. Filter by Age-Category to get ageCat position of matchRunner
-    let acPosition = await filterCategory(thisPage,matchRunner,ageCat);
-    // 3. Filter by Gender if need to get genderCat position of matchRunner
-    let gcPosition = await filterCategory(thisPage,matchRunner,genderCat,'gender');
-    // res.status(200).json({acPosition,agPosition});      // in expected order
-    res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
-  } catch (err) {
-    console.error('ERROR:',err);
-    res.status(500).send('ERROR: '+err.message);
-  } finally {
-    // TODO: await thisPage.close();  // re-use page may fail??, consider new Page for each parkrun results instance
-    console.warn('WARNING: If re-using the same page, the normal parallel performance may be slower (or otherwise interfere)');
+  if (thisPage) {
+    try {  // Get 2 (or more) positions in series?
+      // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
+      let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
+      // 2. Filter by Age-Category to get ageCat position of matchRunner
+      let acPosition = await filterCategory(thisPage,matchRunner,ageCat);
+      // 3. Filter by Gender if need to get genderCat position of matchRunner
+      let gcPosition = await filterCategory(thisPage,matchRunner,genderCat,'gender');
+      // res.status(200).json({acPosition,agPosition});      // in expected order
+      res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
+    } catch (err) {
+      console.error('ERROR:',err);
+      res.status(500).send('ERROR: '+err.message);
+    } finally {
+      // TODO: await thisPage.close();  // re-use page may fail??, consider new Page for each parkrun results instance
+      console.warn('WARNING: If re-using the same page, the normal parallel performance may be slower (or otherwise interfere)');
+    }
   }
 }
 
