@@ -770,8 +770,8 @@ exports.browser = async (req,res) => {
     exports.acceptCookies(req,res);
   else if (path === '/deleteCookies')
     exports.deleteCookies(req,res);
-  else if (path.includes('manifest'))
-    // ignore manifest dependencies
+  else if (path.includes('wp-content'))
+    // ignore internal relative dependencies
     console.log('INFO: Ignoring local dependencies: '+path);
   else {
     console.log('ERROR: Invalid Cloud Run function path,',path);
