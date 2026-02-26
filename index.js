@@ -37,9 +37,9 @@ let browserTimer;
 let cachedPages = {};    // when caching
 let caching = false;
 const launchSECS = 45;
-const loadSECS = 15;  // max time to load page
-const loadDetailSECS = 20;  // max time to load page
-const pageSECS = 10;   // minimum of 10 seconds BETWEEN page accesses on parkrun site
+const loadSECS = 15;  // max time to load runner's result page
+const loadDetailSECS = 25;  // max time to load run event page (excluding analysis per runner)
+const pageSECS = 3;   // reduced from 10 to 3 seconds BETWEEN page accesses on parkrun site using stealth mode
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -49,7 +49,7 @@ let initPromise;      // browser "finished" after initialised (although still ac
  *  @sideeffect leaves the browser connected and returns a presistent WS endpoint for re-use
  */
 let cloudBrowser = async (
-  sessionMins = 55) =>
+  sessionMins = 60) =>
 {
   browserTimeout = sessionMins*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
@@ -212,7 +212,7 @@ exports.getUrl = async (req,res) => {
   } finally {
     // delay between calls (before any returns) while browser remains active
     await new Promise(resolve => setTimeout(resolve,pageSECS));
-    // but NEVER disconnect because this loses the puppeteer Stealth (plugin) setting!
+    // but AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
     // await thisBrowser.disconnect(); 
   }
 }
@@ -547,15 +547,23 @@ exports.filterUrl = async (req,res) => {
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
-  console.log('cachedPages length before:', Object.keys(cachedPages).length);
-  if (!caching) cachedPages = {};      // clear any cache during batching
+  console.log('cachedPages length before: '+Object.keys(cachedPages).length);
+  if (!caching) cachedPages = {};      // clear any cache unless importing for an event 
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
-    console.log('cachedPages length after:', Object.keys(cachedPages).length);
+    console.log('cachedPages length after: '+Object.keys(cachedPages).length);
     console.log('Re-using detailed results from cached URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
-    thisPage = await loadUrl(thisUrl,loadDetailSECS,true);
-    if (caching) cachedPages[thisUrl] = thisPage;
+    try {
+      thisPage = await loadUrl(thisUrl,loadDetailSECS,true);
+      if (caching) cachedPages[thisUrl] = thisPage;
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
+    } finally {
+      // delay between calls (before any returns) while browser remains active
+      await new Promise(resolve => setTimeout(resolve,pageSECS));
+    }
   }
   try {  // Get 2 (or more) positions in series?
     // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
