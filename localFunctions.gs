@@ -163,7 +163,7 @@ function ProtectResultsRangeByEditor(editor,newProtection) {
   try {
     newProtection.addEditor(editor);
   } catch (err) {
-    Logger.log("ERROR: adding editor: "+editor+". Error: "+err+" because not a google email address");
+    Logger.log("ERROR: adding editor: "+editor+". ERROR: "+err+" because not a google email address");
   }
 }
 
@@ -1130,47 +1130,6 @@ function GetRelatedTabColor(
   const colour = resultsSheet.getTabColor();
   Logger.log('Colour: '+colour);
   return colour || "#ffffff"; // default if no color
-}
-
-/**
- * Sets up the Parkruns menu on opening the spreadsheet.
- *  Instructions to set up (and execute?) the trigger:
- *    1. Go to the Apps Script (Macros) editor.
- *    2. Click on the clock icon (Triggers) in the left sidebar.
- *    3. Click on "Create trigger".
- *    4. Set up the trigger with the following settings:
- *        - Choose function: onOpen
- *        - Select event type: On open
- *        - Save
- */
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  var parkrunsMenu = ui.createMenu('parkrun')
-    .addItem("Import result for each runner"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
-      'ImportResultForEachRunner')
-    .addItem("Generate charts from Groups"+
-      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+1",
-      'GenerateChartsFromGroups')
-    .addSeparator()
-    .addItem("Protect results sheets per runner"+
-      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+3",
-      'ReprotectEachRunnerResultsSheets')
-    .addItem("Colour legends in Groups"+
-      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+4",
-      'ColourLegendsInGroups')
-    .addItem("Catch-up all positions"+
-      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+6",
-      'CatchUpAllPositions')
-    .addSeparator()
-    .addItem("Add family (or club) member"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
-      'AddFamilyMember')
-    .addItem("Spawn new family (or club)"+
-      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
-      'SpawnNewFamily')
-    // .insertMenu(ui,5)   // ideally before Tools 
-    .addToUi();
 }
 
 function PasteAboveRangeFormula() {
