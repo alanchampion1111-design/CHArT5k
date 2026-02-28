@@ -19,8 +19,7 @@
       "defaultShortcut": "Ctrl+Alt+Shift+7"
     }, {
       "menuName": "Import results for each runner",
-      "functionName": "ImportResultForEachRunner",
-      "defaultShortcut": "Ctrl+Alt+Shift+0"
+      "functionName": "ImportResultForEachRunner"
     }, {
       "menuName": "Spawn new family (or club)",
       "functionName": "SpawnNewFamily",
@@ -28,10 +27,19 @@
     }, {
       "menuName": "Generate charts from Groups",
       "functionName": "GenerateChartsFromGroups",
-      "defaultShortcut": "Ctrl+Alt+Shift+1"
+      "defaultShortcut": "Ctrl+Alt+Shift+2"
     }, {
       "menuName": "Colour legends in Groups",
-      "functionName": "ColourLegendsInGroups"
+      "functionName": "ColourLegendsInGroups",
+      "defaultShortcut": "Ctrl+Alt+Shift+4"
+    }, {
+      "menuName": "Import results on event date",
+      "functionName": "ImportResultsOnEventDate",
+      "defaultShortcut": "Ctrl+Alt+Shift+0"
+    }, {
+      "menuName": "AcceptCookies",
+      "functionName": "AcceptCookies",
+      "defaultShortcut": "Ctrl+Alt+Shift+5"
     }]
   }
 }
