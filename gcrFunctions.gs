@@ -121,7 +121,7 @@ async function AccessPage(
       //      AND/OR WHEN a single CPU is specified for the run
       // Therefore, allow worst case timing for all, as if serial
       {muteHttpExceptions:true,timeout:30000});
-    Utilities.sleep(1500); // in case client-side table needs refresh (aside awaiting the fetch)
+    Utilities.sleep(2500); // in case client-side table needs refresh (aside awaiting the fetch)
     return response.getContentText();
   } catch (err) {
     Logger.log(err+' within '+thisUrl);
@@ -147,8 +147,10 @@ const allForONE = '/all/';
 const oneForALL = '/results/';    // TODO: Potentially cache if same location as next member
 
 async function GetRunnerResultsPage(
-  parkrunnerId = '1213963')    // default useful for testing
+  parkrunnerId = '1213963', // default useful for testing
+  thisPage = undefined)     // already retrieved (short-circuit)
 {
+  if (thisPage) return thisPage;
   let thisParkrunnerURL = parkrunnerURL+parkrunnerId +allForONE;
   return AccessPage(thisParkrunnerURL)
   .then (htmlContent => {  // ensures htmlContent is not a Promise
@@ -187,60 +189,53 @@ function GetResultRow(
  */
 async function CopyResultForRunner(
   parkrunnerId = "777764",
-  eventRef = undefined,  // by default.the latest; otherwise find one that matches dd/mm/yyy
-  thisPage = undefined)   // pre-loaded Resuts Page 
+  eventRef = undefined,   // by default.the latest; otherwise find one that matches dd/mm/yyy
+  thisPage = undefined)   // pre-loaded Results Page 
 {
-  const allResultsTITLE = "All  Results";    // 3rd table with All Results
-  var headerStart = "<thead><tr><th>Event</th><th>Run Date</th><th>Run Number</th><th>Pos</th>";
-  const allHEADER = headerStart+"<th>Time</th><th>Age<br/>Grade</th><th>PB?</th></tr></thead>";
-  // WARNING: Row does not (yet) show Gender position,
+  // var headerStart = "<thead><tr><th>Event</th><th>Run Date</th><th>Run Number</th><th>Pos</th>";
+  // const allHEADER = headerStart+"<th>Time</th><th>Age<br/>Grade</th><th>PB?</th></tr></thead>";
+  // TODO: Row does not (yet) show Gender position,
   //          nor positions for Age-Category or Age-Grade (%age)
-  return GetRunnerResultsPage(parkrunnerId)
+  return GetRunnerResultsPage(parkrunnerId,thisPage)  //  skips if thisPage pre-loaded!!
   .then (allResults => {   // ensures allResults is not a Promise
     if (allResults) {
-      allResults = allResults
-        .substring(allResults
-          .indexOf(allResultsTITLE))  // trim before "All  Results"
-        .split('#comments')[0];      // trim after #comments
-      if (allResults) {
+      let tables = allResults.match(/<table[\s\S]*?<\/table>/ig);
+      if (tables) Logger.log('Found ['+tables.length+'] tables in results for runner, '+parkrunnerId);
+      if (tables && tables.length>2) {
+        allResults = tables[2]; // All results (if any) are in 3rd table
         // if (debug) Logger.log('All Results table: '+allResults); 
-        var headerRow = allResults.match(/<thead>.*?<\/thead>/s);
-        if (headerRow && headerRow.length>0) {  
-          // if (debug) Logger.log('Header row: '+headerRow[0]);  // TODO: columns may change - WARN if so?
-          var bodyContent = allResults.match(/<tbody>.*?<\/tbody>/s)[0];
-          var bodyRows = bodyContent.match(/<tr[^>]*>.*?<\/tr>/gs);
-          bodyRows = bodyRows.filter(row => !row.includes('junior'));    // junior 2km times upset rankings
-          if (bodyRows && bodyRows.length>0) {
-            if (eventRef === 'ALL') {   // return 2D array of results
-              return bodyRows.map(row => {
-                var cells = row.match(/<td>.*?<\/td>/gs);
-                return cells.map(cell => cell.replace(/<td>|<\/td>/g, "").trim());
-              });
-            } else { // single result, default to latest unless specific date
-              var resultRow = GetResultRow(bodyRows,eventRef);  
-              if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'):'+typeof resultRow);
-              if (resultRow) {
-                var cells = resultRow.match(/<td>.*?<\/td>/gs);
-                if (cells) {
-                  var values = cells.map(function(cell) {
-                    return cell.replace(/<td>|<\/td>/g,"").trim();
-                  });
-                  return values;
-                } else {
-                  Logger.log('WARNING: No cells found in row, '+resultROW+' for runner, '+parkrunnerId);
-                  return null;
-                }
+        // var headerRow = allResults.match(/<thead>.*?<\/thead>/s);
+        // TODO: columns may change - WARN if so?
+        var bodyContent = allResults.match(/<tbody>.*?<\/tbody>/s)[0];
+        var bodyRows = bodyContent.match(/<tr[^>]*>.*?<\/tr>/gs);
+        bodyRows = bodyRows.filter(row => !row.includes('junior'));    // junior 2km times upset rankings
+        if (bodyRows && bodyRows.length>0) {
+          if (eventRef === 'ALL') {   // return 2D array of results
+            return bodyRows.map(row => {
+              var cells = row.match(/<td>.*?<\/td>/gs);
+              return cells.map(cell => cell.replace(/<td>|<\/td>/g, "").trim());
+            });
+          } else { // single result, default to latest unless specific date
+            var resultRow = GetResultRow(bodyRows,eventRef);  
+            if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'):'+typeof resultRow);
+            if (resultRow) {
+              var cells = resultRow.match(/<td>.*?<\/td>/gs);
+              if (cells) {
+                var values = cells.map(function(cell) {
+                  return cell.replace(/<td>|<\/td>/g,"").trim();
+                });
+                return values;
               } else {
-                Logger.log('Unable to find results for runner, '+parkrunnerId);
+                Logger.log('WARNING: No cells found in row, '+resultRow+' for runner, '+parkrunnerId);
                 return null;
               }
-            }            
-          } else {
-            Logger.log('WARNING: Unable to find row, '+resultROW+' in all results for runner, '+parkrunnerId);
-            return null;
-          }
+            } else if (!eventRef) {
+              Logger.log('Unable to find results for runner, '+parkrunnerId);
+              return null;
+            }
+          }            
         } else {
-          Logger.log('WARNING: Missing all results table for runner Id, '+parkrunnerId);
+          Logger.log('WARNING: Unable to find row, '+resultROW+' in all results for runner, '+parkrunnerId);
           return null;
         }
       } else {
@@ -1495,4 +1490,48 @@ async function AcceptCookies() {
     Logger.log(err);
     return err;
   }
+}
+
+/**
+ * Sets up the Parkruns menu on opening the spreadsheet.
+ *  Instructions to set up (and execute?) the trigger:
+ *    1. Go to the Apps Script (Macros) editor.
+ *    2. Click on the clock icon (Triggers) in the left sidebar.
+ *    3. Click on "Create trigger".
+ *    4. Set up the trigger with the following settings:
+ *        - Choose function: onOpen
+ *        - Select event type: On open
+ *        - Save
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  var parkrunsMenu = ui.createMenu('parkrun')
+    .addItem("Import results on event date"+
+      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+0",
+      'ImportResultsOnEventDate')
+    .addItem("Import result for each runner"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+1",
+      'ImportResultForEachRunner')
+    .addItem("Generate charts from Groups"+
+      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+2",
+      'GenerateChartsFromGroups')
+    .addSeparator()
+    .addItem("Protect results sheets per runner"+
+      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+3",
+      'ReprotectEachRunnerResultsSheets')
+    .addItem("Colour legends in Groups"+
+      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+4",
+      'ColourLegendsInGroups')
+    .addItem("Catch-up all positions"+
+      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+6",
+      'CatchUpAllPositions')
+    .addSeparator()
+    .addItem("Add family (or club) member"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
+      'AddFamilyMember')
+    .addItem("Spawn new family (or club)"+
+      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
+      'SpawnNewFamily')
+    // .insertMenu(ui,5)   // ideally before Tools 
+    .addToUi();
 }
