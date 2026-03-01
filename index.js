@@ -318,7 +318,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
     await waitForResults(thisPage);  // sort options useless without the data
     let runners = await getRunnerNames(thisPage);
-    console.log('Total number of runners at '+thisPage.url() ' were: '+runners.length);
+    console.log('Total number of runners at '+thisPage.url()+' were: '+runners.length);
     await sortPositions(thisPage,'agegrade-desc');
     runners = await getRunnerNames(thisPage);
     console.log('Number of '+ageGrade+' runners found: '+runners.length);
