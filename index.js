@@ -5,7 +5,7 @@
 //    3. Verify Chrome browser works directly on server after build (done)
 //    4. Verify server side, thisBrowser activated by client from Google Spreadsheet app (done)
 //    5. Verify sample page retrieved ok and that thisBrowser and thisPage persists (done)
-//    6. Upload profile/certificates for access to www.parkrun.org.uk (done)
+//    6. Upload profile/certificates for access to www.parkrun.owaitforrg.uk (done)
 //    7. Verify allowed to load content for www.parkrun.org.uk (done)
 //    8. Verify stealth access to individual parkrunner results table (tbd - although disallowed)
 
@@ -317,8 +317,10 @@ async function sortPositions(
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
     await waitForResults(thisPage);  // sort options useless without the data
-    await sortPositions(thisPage,'agegrade-desc');
     let runners = await getRunnerNames(thisPage);
+    console.log('Total number of runners at '+thisPage.url() ' were: '+runners.length);
+    await sortPositions(thisPage,'agegrade-desc');
+    runners = await getRunnerNames(thisPage);
     console.log('Number of '+ageGrade+' runners found: '+runners.length);
     if (!runners) throw new Error('Failed to find any runners by '+ageGrade);
     let position = getMatchName(runners,matchRunner);
