@@ -260,7 +260,7 @@ function getMatchName(names, name) {
 */
 async function waitForResults(
   thisPage,
-  timeSecs = loadSECS)
+  timeSecs = loadDetailSECS)
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
   //  { visible: true, timeout: timeSecs*1000});
