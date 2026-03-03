@@ -328,8 +328,8 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
     if (position) console.log(ageGrade+' position for matching runner, '+matchRunner+' is '+position);
     else throw new Error('Failed to find matching runner, '+matchRunner+' in sorted '+ageGrade+' within results, '+thisPage.url());
     await sortPositions(thisPage); // Reset to default order before getting next order
-    let runners = await getRunnerNames(thisPage);
-    console.log('Restore to '+runners.length+' runners at '+thisPage.url());
+    runners = await getRunnerNames(thisPage);
+    console.log('Restored to '+runners.length+' runners at '+thisPage.url());
     return position;
   } catch (err) {
     console.error(err+' on '+thisPage.url());
