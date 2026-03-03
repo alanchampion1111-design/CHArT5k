@@ -35,7 +35,7 @@ let thisPageId;       // re-use same page
 let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // when caching
-let caching = false;
+// let caching = false;
 const launchSECS = 45;
 const loadSECS = 15;  // max time to load runner's result page
 const loadDetailSECS = 25;  // max time to load run event page (excluding analysis per runner)
@@ -83,6 +83,7 @@ let cloudBrowser = async (
   }, browserTimeout);
   thisBrowserWSEp = thisBrowser ? thisBrowser.wsEndpoint() : null;  // return to client (although also global)
   console.log('Retained browser WS Endpoint:',thisBrowserWSEp);
+  cachedPages = {};  // applicable to filterUrl only for shared events on same date
   try {
     var thisPage = await thisBrowser.newPage();
     if (thisPage) {
@@ -318,15 +319,17 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
     await waitForResults(thisPage);  // sort options useless without the data
     let runners = await getRunnerNames(thisPage);
-    console.log('Total number of runners at '+thisPage.url()+' were: '+runners.length);
+    console.log('Starting from '+runners.length+' runners at '+thisPage.url());
     await sortPositions(thisPage,'agegrade-desc');
     runners = await getRunnerNames(thisPage);
-    console.log('Number of '+ageGrade+' runners found: '+runners.length);
+    console.log('Subset number of '+ageGrade+' runners found: '+runners.length);
     if (!runners) throw new Error('Failed to find any runners by '+ageGrade);
     let position = getMatchName(runners,matchRunner);
     if (position) console.log(ageGrade+' position for matching runner, '+matchRunner+' is '+position);
     else throw new Error('Failed to find matching runner, '+matchRunner+' in sorted '+ageGrade+' within results, '+thisPage.url());
     await sortPositions(thisPage); // Reset to default order before getting next order
+    let runners = await getRunnerNames(thisPage);
+    console.log('Restore to '+runners.length+' runners at '+thisPage.url());
     return position;
   } catch (err) {
     console.error(err+' on '+thisPage.url());
@@ -429,6 +432,7 @@ async function filterPositions(
   const selectOPTIONS = '.selectize-dropdown-content';
   const expectedVALUE = catClass+': '+category;
   const selectCatOPTION = selectOPTIONS+' .option[data-value="'+expectedVALUE+'"]';
+  const selectREMOVE = selectOUTPUT+' .remove';  // indicates that 
   console.log('Expected value:'+expectedVALUE);
   console.log('Selector:'+selectCatOPTION);
   try {
@@ -442,6 +446,7 @@ async function filterPositions(
       if (option) {
         option.click();                               //  3.  Select specific category option (not the first!)
         console.log('INFO: One or more runners matched pull-down option: '+expectedVALUE);
+        await thisPage.waitForSelector(selectREMOVE);    // assume filtered by category since now able to remove filter
         return true;
       } else {
         console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n');
@@ -535,7 +540,7 @@ exports.filterUrl = async (req,res) => {
   let ageCat = req.query?.ac       || 'VM55-59';      // Age-Category filter for matching Dave (expect 2)
   let ageGrade = req.query?.ag     || 'Age-Grade';    // Age-Grade (%age) &sort for matching Dave (expect 8)
   let genderCat = req.query?.gc    || 'Male';         // Gender category filter for matching Dave (expect 11)
-  caching = Boolean(req.query?.cache === 'true');     // globally, No caching during catch-up mode
+  let caching = Boolean(req.query?.cache === 'true');     // No caching in catch-up mode on a single runner at different events
 // begin
   console.log('thisUrl: '+thisUrl);
   console.log('matchRunner: '+matchRunner);
@@ -550,7 +555,6 @@ exports.filterUrl = async (req,res) => {
   console.log('Test: '+testCmd);
   var thisPage;
   console.log('cachedPages length before: '+Object.keys(cachedPages).length);
-  if (!caching) cachedPages = {};      // clear any cache unless importing for an event 
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
     console.log('cachedPages length after: '+Object.keys(cachedPages).length);
     console.log('Re-using detailed results from cached URL, '+thisUrl);
