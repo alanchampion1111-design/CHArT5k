@@ -34,8 +34,7 @@ const allParkrunCERTS =
 let thisPageId;       // re-use same page      
 let browserTimeout;   // for browser session
 let browserTimer;
-let cachedPages = {};    // when caching
-// let caching = false;
+let cachedPages = {};    // stores separate open URL pages when caching
 const launchSECS = 45;
 const loadSECS = 15;  // max time to load runner's result page
 const loadDetailSECS = 25;  // max time to load run event page (excluding analysis per runner)
@@ -154,13 +153,16 @@ exports.initBrowser = async (_,res) => {
 
 /**
  *  Loads URL in Puppeteer and waits for page load
- *    @param {Page} page - Puppeteer page object
- *    @param {string} url - URL to load
- *  @returns thisPage for detailed searchning or the HTML content via a {Promise} Resolves when page loaded
+ *    @param {string} thisUrl - URL to load
+ *    @param {number} timeSecs - max timeout (in secs) to load
+ *    @param {boolean} pageOnly - if true, returns thisPage as an object
+ *    @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when pageOnly true)
+ *  @returns thisPage object for detailed searching, or the HTML content, via a {Promise} Resolves when page loaded
  */
 async function loadUrl(thisUrl,
   timeSecs = loadSECS,
-  pageOnly = false)
+  pageOnly = false,
+  caching = false)
 {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
@@ -175,7 +177,7 @@ async function loadUrl(thisUrl,
       var thisPage;
       if (pageOnly && caching) {  // preserve thisPage object
         thisPage = await thisBrowser.newPage();
-        await thisPage.setDefaultTimeout(timeMax);
+        await thisPage.setDefaultTimeout(timeMax);    // for individual queries?
       } else {  // re-use
         thisPage = (await thisBrowser.pages())
           .find(page => page.target()._targetId === thisPageId);
@@ -555,15 +557,18 @@ exports.filterUrl = async (req,res) => {
     +'-H "Content-Type: application/json"';
   console.log('Test: '+testCmd);
   var thisPage;
-  console.log('cachedPages length before: '+Object.keys(cachedPages).length);
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
-    console.log('cachedPages length after: '+Object.keys(cachedPages).length);
-    console.log('Re-using detailed results from cached URL, '+thisUrl);
+    console.log('Mo. of cached pages since caching: '+Object.keys(cachedPages).length);
+    console.log('Re-using detailed cached results for URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
     try {
-      thisPage = await loadUrl(thisUrl,loadDetailSECS,true);
-      if (caching) cachedPages[thisUrl] = thisPage;
+      thisPage = await loadUrl(thisUrl,loadDetailSECS,true,caching);
+      if (caching) {
+        cachedPages[thisUrl] = thisPage;
+        console.log('Cached results page for URL, '+thisUrl);
+        console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
+      }
     } catch (err) {
       console.error(err);
       res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
