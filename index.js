@@ -437,23 +437,24 @@ async function filterPositions(
   console.log('Selector:'+selectCatOPTION);
   try {
     await thisPage.waitForSelector(selectINPUT);
-    await thisPage.click(selectINPUT);                 //  1.  Pre-requisite for selecting drop-down?
-    await thisPage.type(selectINPUT," ");              //      ...to ensure options become visible
-    await thisPage.waitForSelector(selectOPTIONS,      //  2.  Skip to the multi drop-down list of options
+    await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
+    await thisPage.type(selectINPUT," ");                //      ...to ensure options become visible
+    await thisPage.waitForSelector(selectOPTIONS,        //  2.  Skip to the multi drop-down list of options
       {visible: true, timeout: 15000});                              //      ...that are visible
-    await thisPage.evaluate((selectCatOPTION,expectedVALUE) => {
+    let optionExists = await thisPage.evaluate((selectCatOPTION,expectedVALUE) => {
       let option = document.querySelector(selectCatOPTION);
       if (option) {
-        option.click();                               //  3.  Select specific category option (not the first!)
+        option.click();                                 //  3.  Select specific category option (not the first!)
         console.log('INFO: One or more runners matched pull-down option: '+expectedVALUE);
-        await thisPage.waitForSelector(selectREMOVE);    // assume filtered by category since now able to remove filter
         return true;
       } else {
         console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n');
         return false;
       }
     },selectCatOPTION,expectedVALUE);
-    // NOTE: Verification by reduced number of runners in the table AND successful removeFilter subsequently
+    if (optionExists)
+      await thisPage.waitForSelector(selectREMOVE);    //  4.  Filtered by category done if able to remove filter?
+    // NOTE: Verification possible also by checking reduced number of runners in the table
   } catch (err) {
     console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
   }
