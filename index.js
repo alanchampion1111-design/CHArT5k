@@ -300,6 +300,7 @@ async function sortPositions(
   thisPage,
   order = 'position-asc')    // top option is default, overall position from 1..n (lowest time first)
 {    // expect same dataset that may be quickly re-ordered getting Age-Grade positions prior to others
+  const selectSortedRUNNERS = 'tr.Results-table-row';
   await thisPage.evaluate((order) => {
     const sortField = 'sort';
     const sortSelector = `select[name="${sortField}"]`;
@@ -308,6 +309,9 @@ async function sortPositions(
     sortSelect.value = order;
     sortSelect.dispatchEvent(new Event('change',{bubbles: true}));
   }, order);  // ensures order is in scope of the thisPage evaluation
+  await thisPage.waitForFunction((resultsSelector) => {
+    return document.querySelectorAll(resultsSelector).length > 0;
+  }, {timeout: loadDetailSECS*1000}, resultsSelector);
 }
 
 /**
@@ -319,8 +323,9 @@ async function sortPositions(
  */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
-    await waitForResults(thisPage);  // sort options useless without the data
-    const numRunners = (await getRunnerNames(thisPage)).length;
+    await waitForResults(thisPage);
+    const numRunners = (await getRunnerNames(thisPage)).length;  // used as a pre-requisite for filter (later) as well as for sort
+    console.log('Total number of runners is '+numRunners+' in results, '+thisPage.url());
     await sortPositions(thisPage,'agegrade-desc');
     let sortedRunners = await getRunnerNames(thisPage);
     // always expect fewer because some unknown or have not specified age/gender
@@ -328,7 +333,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
     if (!numSortedRunners)
       throw new Error('Failed to find any runners by '+ageGrade);
     else if (numSortedRunners === numRunners)
-      throw new Error('Failed to sort runners by '+ageGrade);
+      throw new Error('Failed to sort ['+numSortedRunners+'] runners by '+ageGrade);
     let position = getMatchName(sortedRunners,matchRunner);
     if (!position)
       throw new Error('Failed to match runner, '+matchRunner+' sorted by '+ageGrade+' within results, '+thisPage.url());
@@ -532,7 +537,7 @@ async function filterCategory(
     if (!numFilteredRunners)
       throw new Error('Failed to filter any '+category+' runners');
     else if (numFilteredRunners === numRunners)
-      throw new Error('Failed to filter runners by '+catClass);
+      throw new Error('Failed to filter ['+numFilteredRunners+'] runners by '+catClass);
     let position = getMatchName(filteredRunners,matchRunner);
     if (!position)
       throw new Error('Failed to match runner, '+matchRunner+' filtered by '+category+' within results, '+thisPage.url());
