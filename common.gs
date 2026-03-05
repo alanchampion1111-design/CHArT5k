@@ -23,10 +23,15 @@ const sampleURL = 'https://www.parkrun.org.uk/colchestercastle/results/116'
 var browserSession;   // Shared by threaded/recursed processes for up to 30 minutes because browser lingers
 
 // used for import,etc,
-const parkrunnerIdCOL = 10;       // in column J on Runners sheet
-const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
 const runnersStartROW = 3;        // start after title & header rows (2)
+const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
+const parkrunnerIdCOL = 10;       // in column J on Runners sheet
 const resultsStartROW = 3;        // start after title & header rows (2)
+const genderPosnCOL = 9;          // column I on each runner Results sheet (until on parkrun results page?)
+const ageCatPosnCOL = 10;         // column J on each runner Results sheet
+const ageGradePosnCOL = 11;       // column K on each runner Results sheet
+const ageCatCOL = 12;             // column L is the Age Category on event date (derived from DoB)
+const PBtoAgeCatNumCOLS = 5;      // cols H..L for I..K positions between derived cols, H & L
 const numBlankROWS = 1;           // Regular catch-up of result by those permitted
-const dateFORMAT = 'd-MMM-yy';    //consistent for backwards compatibility
+const dateFORMAT = 'd-MMM-yy';    // consistent for backwards compatibility
 const batchSizeMAX = 13;          // 1/4 year - estimate batch to catch up on within 5-6 minutes
