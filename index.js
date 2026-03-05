@@ -31,7 +31,8 @@ const allParkrunCERTS =
   './www.parkrun.ca.pem,'+
   './www.parkrun.jp.pem';
 
-let thisPageId;       // re-use same page      
+let thisPageId;       // re-use same page
+let prevFilterURL;
 let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
@@ -232,7 +233,7 @@ exports.getUrl = async (req,res) => {
 */
 async function getRunnerNames(thisPage) {
   const resultsTABLE = 'tr.Results-table-row';
-  await thisPage.waitForSelector(resultsTABLE);
+  // await thisPage.waitForSelector(resultsTABLE);  // already follows waaitForResults that does this
   return await thisPage.$$eval(resultsTABLE,
     rows => rows.map(row => row.getAttribute('data-name'))
   );
@@ -267,12 +268,11 @@ async function waitForResults(
 {
   // await thisPage.waitForSelector('.js-ResultsTbody .Results-table-row',
   //  { visible: true, timeout: timeSecs*1000});
+  const selectAllRUNNERS = 'tr.Results-table-row';
   try {
-    await thisPage.waitForFunction(() => {
-      return (elem = document.querySelector('.js-ResultsTbody .Results-table-row')) && 
-        elem.offsetWidth > 0 && elem.offsetHeight > 0;
-    }, {timeout: timeSecs*1000});
-    return true;
+    await thisPage.waitForFunction((selectAllRUNNERS) => {
+      return document.querySelectorAll(selectAllRUNNERS).length > 1;
+    }, {timeout: timeSecs*1000},selectAllRUNNERS);
   } catch(err) {
     console.warn('WARNING: Unexpected delay retrieving detailed results on '+thisPage.url()+
       ' - consider either retrying later or checking whether domain Cookies have expired');
@@ -314,36 +314,33 @@ async function sortPositions(
  *  Effects the Age-Grade (descending) order in the runner results to match the position
  *    @param {Page} thisPage - Puppeteer page object containing table of results
  *    @param {string} matchnumber - name to match on this page of results 
- *  @returns {number} position of matching name via {Promise} Resolves when sorted
+ *  @returns {array} [position,numRunners] with ordered position within total number of runners
  *    ...and resets the order back to normal finishing-time (fastest first)
  */
 async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
   try {
     await waitForResults(thisPage);  // sort options useless without the data
-    let runners = await getRunnerNames(thisPage);
-    console.log('Starting from '+runners.length+' runners at '+thisPage.url());
+    const numRunners = (await getRunnerNames(thisPage)).length;
     await sortPositions(thisPage,'agegrade-desc');
-    runners = await getRunnerNames(thisPage);
-    console.log('Subset number of '+ageGrade+' runners found: '+runners.length);
-    if (!runners) throw new Error('Failed to find any runners by '+ageGrade);
-    let position = getMatchName(runners,matchRunner);
-    if (position) console.log(ageGrade+' position for matching runner, '+matchRunner+' is '+position);
-    else throw new Error('Failed to find matching runner, '+matchRunner+' in sorted '+ageGrade+' within results, '+thisPage.url());
-    await sortPositions(thisPage); // Reset to default order before getting next order
-    runners = await getRunnerNames(thisPage);
-    console.log('Restored to '+runners.length+' runners at '+thisPage.url());
-    return position;
+    let sortedRunners = await getRunnerNames(thisPage);
+    // always expect fewer because some unknown or have not specified age/gender
+    let numSortedRunners = sortedRunners.length;
+    if (!numSortedRunners)
+      throw new Error('Failed to find any runners by '+ageGrade);
+    else if (numSortedRunners === numRunners)
+      throw new Error('Failed to sort runners by '+ageGrade);
+    let position = getMatchName(sortedRunners,matchRunner);
+    if (!position)
+      throw new Error('Failed to match runner, '+matchRunner+' sorted by '+ageGrade+' within results, '+thisPage.url());
+    await thisPage.reload();    // reset for next filter
+    console.log(ageGrade+' position for matching runner, '+matchRunner+' is '+position+' (out of '+numSortedRunners+'/'+numRunners+')');
+    return [position,numRunners];
   } catch (err) {
     console.error(err+' on '+thisPage.url());
     throw err;
   }
 }
 
-/**
- * Retrieves a position after filtering runners according to Age or Gender Category and  reverts to default order
- *    @param {Page} thisPage - Puppeteer page object containing table of runners
- *    @param {selection} order - typically agegrade-desc (unless to reset as default)
- */
 /*
 // BEFORE entering the age Category, there is no class="item ..."
   <input type="text" name="search" class="js-ResultsSearch selectized"
@@ -424,17 +421,23 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
         <span class="value">JM11-14</span><span class="type type--agegroup">年齢層</span></div>
 
 */
+/**
+ * Retrieves a position after filtering runners according to Age or Gender Category and  reverts to default order
+ *    @param {Page} thisPage - Puppeteer page object containing table of runners
+ *    @param {number} numRunners - total number of runners including Unknowns (or unspecified category)
+ *    @param {string} category - Category to filter (specfic Age-group or Gender) 
+ *    @param {string} catClass - Category value to check - e.g. JM10...VW70-74, Male/Female
+ */
 async function filterPositions(
-  thisPage,category,
-  catClass = 'agegroup')                         // alternatively 'gender'
+  thisPage,numRunners,
+  category,catClass = 'agegroup')                         // alternatively 'gender'
 {
-  const selectBASE = '.selectize-input';
-  const selectOUTPUT = selectBASE+' .item';     
+  const selectBASE = '.selectize-input';   
   const selectINPUT = selectBASE+' input';         // Finds (2nd) input text field (within the class element)
   const selectOPTIONS = '.selectize-dropdown-content';
   const expectedVALUE = catClass+': '+category;
   const selectCatOPTION = selectOPTIONS+' .option[data-value="'+expectedVALUE+'"]';
-  const selectREMOVE = selectOUTPUT+' .remove';  // indicates that 
+  const selectFilteredRUNNERS = 'tr.Results-table-row';
   console.log('Expected value:'+expectedVALUE);
   console.log('Selector:'+selectCatOPTION);
   try {
@@ -442,21 +445,25 @@ async function filterPositions(
     await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
     await thisPage.type(selectINPUT," ");                //      ...to ensure options become visible
     await thisPage.waitForSelector(selectOPTIONS,        //  2.  Skip to the multi drop-down list of options
-      {visible: true, timeout: 15000});                              //      ...that are visible
-    let optionExists = await thisPage.evaluate((selectCatOPTION,expectedVALUE) => {
+      {visible: true, timeout: loadDetailSECS*1000});                              //      ...that are visible
+    let optionExists = await thisPage.evaluate((selectCatOPTION,expectedVALUE) =>
+    {
       let option = document.querySelector(selectCatOPTION);
       if (option) {
-        option.click();                                 //  3.  Select specific category option (not the first!)
-        console.log('INFO: One or more runners matched pull-down option: '+expectedVALUE);
+        option.click();                                  //  3.  Select specific category option (not the first!)
         return true;
       } else {
-        console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?\n');
+        console.warn('WARNING: No runners matching '+expectedVALUE+' - consider correcting runner DoB or gender translation?');
         return false;
       }
     },selectCatOPTION,expectedVALUE);
-    if (optionExists)
-      await thisPage.waitForSelector(selectREMOVE);    //  4.  Filtered by category done if able to remove filter?
-    // NOTE: Verification possible also by checking reduced number of runners in the table
+    if (optionExists) {
+      let filteredOk = await thisPage.waitForFunction((numRunners,selectFilteredRUNNERS) =>
+      {                                                //  4.  Verify by checking reduced no. of runners in table  
+        return document.querySelectorAll(selectFilteredRUNNERS).length < numRunners;
+      },{timeout: loadDetailSECS*1000},numRunners,selectFilteredRUNNERS);
+      if (filteredOk)
+        console.log('Successfully filtered '+expectedVALUE);
   } catch (err) {
     console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
   }
@@ -477,7 +484,7 @@ async function filterPositions(
         <a href="javascript:void(0)" class="remove" tabindex="-1" title="Remove">×</a>
         <a href="javascript:void(0)" class="remove" tIs waitabindex="-1" title="Remove">×</a>
 */
-async function removeFilter(thisPage,category) {
+async function removeFilter(thisPage,category) {    // REDUNDANT since replaced with thisPage.reload
   const expectedValue = '';  //    ...likewise with gender: Male/Female
   // This only resets the filter search, without impacting the sort order
   const selectBASE = '.selectize-input';    //same as for filterPositions
@@ -504,26 +511,32 @@ async function removeFilter(thisPage,category) {
 /**
  *  Effects a filter of the results by category (agegroup/gender) and then remopves that filter
  *    @param {Page} thisPage - Puppeteer page object containing results for an event
- *    @param {string} matchRunner - Name & Surname to find in filtered table of runners 
- *    @param {string} category - Category to filter (Age-group or Gender) 
+ *    @param {string} matchRunner - Name & Surname to find in filtered table of runners
+ *    @param {number} numRunners - total number of runners including Unknowns (or unspecified category)
+ *    @param {string} category - Category to filter (specfic Age-group or Gender) 
  *  @returns {number} category position via {Promise}
  */
 async function filterCategory(
-  thisPage,matchRunner,
+  thisPage,matchRunner,numRunners,
   category,
-  catClass= 'agegroup')   // alternatively 'gender' 
+  catClass = 'agegroup')  //   // alternatively 'gender'
 {
   // Assumes default order of run-time position is preset on runner list (position-desc)
   try {
     await waitForResults(thisPage);  // filter options useless without the data
-    await filterPositions(thisPage,category,catClass);
-    let runners = await getRunnerNames(thisPage);
-    console.log('Number of '+category+' runners found: '+runners.length);
-    if (!runners.length) throw new Error('Failed to filter on '+category+' category');
-    let position = getMatchName(runners,matchRunner);
-    if (position) console.log(category+' position for matching runner, '+matchRunner+' is '+position);
-    else throw new Error('Failed to find matching runner, '+matchRunner+' in filtered '+category+' within results, '+thisPage.url());
-    await removeFilter(thisPage,category); // Reset filter WHEN a subsequent position is required (e.g. gender)
+    await filterPositions(thisPage,numRunners,category,catClass);
+    let filteredRunners = await getRunnerNames(thisPage);
+    // always expect fewer because some unknown or have not specified age/gender
+    let numFilteredRunners = filteredRunners.length;
+    if (!numFilteredRunners)
+      throw new Error('Failed to filter any '+category+' runners');
+    else if (numFilteredRunners === numRunners)
+      throw new Error('Failed to filter runners by '+catClass);
+    let position = getMatchName(filteredRunners,matchRunner);
+    if (!position)
+      throw new Error('Failed to match runner, '+matchRunner+' filtered by '+category+' within results, '+thisPage.url());
+    await thisPage.reload();    // reset for next filter
+    console.log(category+' position for matching runner, '+matchRunner+' is '+position+' (out of '+numFilteredRunners+'/'+numRunners+')'); 
     return position;
   } catch (err) {
     console.error(err+' on '+thisPage.url());
@@ -580,11 +593,11 @@ exports.filterUrl = async (req,res) => {
   if (thisPage) {
     try {  // Get 2 (or more) positions in series?
       // 1. Sort by (descending) Age-Grade, to get ageGrade position of matchRunner
-      let agPosition = await sortAgeGrade(thisPage,matchRunner,ageGrade);
+      let [agPosition,numRunners] = await sortAgeGrade(thisPage,matchRunner,ageGrade);
       // 2. Filter by Age-Category to get ageCat position of matchRunner
-      let acPosition = await filterCategory(thisPage,matchRunner,ageCat);
+      let acPosition = await filterCategory(thisPage,matchRunner,numRunners,ageCat);
       // 3. Filter by Gender if need to get genderCat position of matchRunner
-      let gcPosition = await filterCategory(thisPage,matchRunner,genderCat,'gender');
+      let gcPosition = await filterCategory(thisPage,matchRunner,numRunners,genderCat,'gender');
       // res.status(200).json({acPosition,agPosition});      // in expected order
       res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
     } catch (err) {
@@ -646,7 +659,7 @@ const cookieJAR = [
   'https://www.parkrun.co.za'
 ];
 
-async function deleteCookies(page,targetUrl) {
+async function deleteOldCookies(page,targetUrl) {
   try {
     let cookies = await page.cookies();
     if (await cookies.find(c => c.name === 'psc')) {
