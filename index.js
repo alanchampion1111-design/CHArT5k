@@ -300,18 +300,17 @@ async function sortPositions(
   thisPage,
   order = 'position-asc')    // top option is default, overall position from 1..n (lowest time first)
 {    // expect same dataset that may be quickly re-ordered getting Age-Grade positions prior to others
-  const sortField = 'sort';
-  const sortSelector = `select[name="${sortField}"]`;
+  const sortSelector = 'select[name="sort"]';
   const selectSortedRUNNERS = 'tr.Results-table-row';
-  await thisPage.evaluate((order) => {
+  await thisPage.evaluate((order,sortSelector) => {
     let sortSelect = document.querySelector(sortSelector);    // valid inside evaluate
     console.log('sortPositions sortSelect:',sortSelect);
     sortSelect.value = order;
     sortSelect.dispatchEvent(new Event('change',{bubbles: true}));
-  }, order);  // ensures order is in scope of thisPage evaluation
+  },order,sortSelector);
   await thisPage.waitForFunction((selectSortedRUNNERS) => {
     return document.querySelectorAll(selectSortedRUNNERS).length > 0;
-  }, {timeout: loadDetailSECS*1000}, selectSortedRUNNERS);
+  }, {timeout: loadDetailSECS*1000},selectSortedRUNNERS);
 }
 
 /**
