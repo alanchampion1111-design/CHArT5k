@@ -464,6 +464,7 @@ async function filterPositions(
       },{timeout: loadDetailSECS*1000},numRunners,selectFilteredRUNNERS);
       if (filteredOk)
         console.log('Successfully filtered '+expectedVALUE);
+    }
   } catch (err) {
     console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
   }
