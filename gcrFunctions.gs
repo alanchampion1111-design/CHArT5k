@@ -43,7 +43,7 @@
 /   There are two use-cases, where the heirarchy of function calls are:
 /
 /   1.  ImportResultsOnEventDate
-/         ...to get event Date (dd/mm/yyyy).
+/         ...to get event Date (dd/MM/yyyy).
 /
 /   1a. ImportResultForEachRunner (optional event date of Parkrun)
 /         OpenChromeBrowser ->
@@ -143,7 +143,7 @@ async function CloseChromeBrowser() {
 // Although driven from UK site, specific results are on different domains in other countries
 const parkrunURL = 'https://www.parkrun.org.uk/';
 const parkrunnerURL = parkrunURL+'parkrunner/';
-const allForONE = '/all/';
+const allForONE = '/5k/';
 const oneForALL = '/results/';    // TODO: Potentially cache if same location as next member
 
 async function GetRunnerResultsPage(
@@ -165,7 +165,7 @@ async function GetRunnerResultsPage(
 /**
  * Gets a specific result row for a runner (default to latest in the first row)
  *  @param {Array<string>} bodyRows - Array of HTML rows containing result data.
- *  @param {number|string} [eventRef=0] - Index of the result (0 = latest) or date (dd/mm/yyyy) of result.
+ *  @param {number|string} [eventRef=0] - Index of the result (0 = latest) or date (dd/MM/yyyy) of result.
  * @returns {string|null} The matching result row HTML, or null if a matching date is not found
  * Assumes operates within "universal" (non-US) date browser setting.
  */
@@ -183,13 +183,13 @@ function GetResultRow(
 /**
  * Copies the latest result for a given parkrunner ID from Parkrun site
  *    @param {string} parkrunnerId - The ID of the parkrunner (default: "21283")
- *    @eventRef (string) - ALL or date (dd/mm/yyyy assumes UK format setting in the browser)
+ *    @eventRef (string) - ALL or date (dd/MM/yyyy assumes UK format setting in the browser)
  *    @thisPage (html) - typically preloaded when ALL only
  *  @returns {array|null} - represents the latest result (or null if none)
  */
 async function CopyResultForRunner(
   parkrunnerId = "777764",
-  eventRef = undefined,   // by default.the latest; otherwise find one that matches dd/mm/yyy
+  eventRef = undefined,   // by default.the latest; otherwise find one that matches dd/MM/yyyy
   thisPage = undefined)   // pre-loaded Results Page 
 {
   // var headerStart = "<thead><tr><th>Event</th><th>Run Date</th><th>Run Number</th><th>Pos</th>";
@@ -217,7 +217,7 @@ async function CopyResultForRunner(
             });
           } else { // single result, default to latest unless specific date
             var resultRow = GetResultRow(bodyRows,eventRef);  
-            if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'):'+typeof resultRow);
+            if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'): '+typeof resultRow);
             if (resultRow) {
               var cells = resultRow.match(/<td>.*?<\/td>/gs);
               if (cells) {
@@ -290,7 +290,7 @@ function CleanValue(cell) {
 
 /**
  *  Formats a date string into a specified format.
- *    @param {string} dateSource - Date string to format (DD/MM/YYYY expected) 
+ *    @param {string} dateSource - Date string to format (dd/MM/yyyy expected) 
  *    @param {string} dateFormat - Output date format (e.g. "d-MMM-yy")
  *  @returns {string} Formatted date string
  */
@@ -370,39 +370,53 @@ function AppendResultRow(
 }
 
 /**
- * Pastes the latest result for a given runner into their sheet.
+ * Pastes the latest or dated result for a given runner into their sheet.
  *    @param {array} thisResult - representing the latest (single) result
- *    @param {string} [runnerName="Alan"] - name of the runner's results sheet
- *  @returns {Range} - where result was pasted (or null if result already pasted)
+ *    @param {string} [runnerNameId="Alan_13"] - name of the runner's results sheet
+ *  @returns {Range} - where result was pasted or had been except positions (otherwise null)
  */
  function PasteResultForRunner(
-  thisResult,         // assumed a single row to be added
+  thisResult,     // assumes a single row to be added
   runnerNameId = "Alan_13")
 {
   if (debug) Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
   const locationINDEX = 0;  // column A
   const dateINDEX = 1;      // column B
-  const previousROWS = 15;  // previous results may include non-parkrunner events
+  const previousROWS = 5;   // previous results (for matching) may include non-parkrunner events
   hyperLinks = [];   // discard any hyperLinks from duplicate results
   thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
   var thisDate = thisResult[dateINDEX] = FormatDate(thisResult[dateINDEX],dateFORMAT);
   var thisLocation = thisResult[locationINDEX];
   var resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
-  // Consider matching only with recent previous results (after ignoring title & header rows)
-  // This takes account of some runners who run elsewhere (and captured manually) since their last recorded parkrun
-  var previousResults = resultsSheet.getDataRange().getDisplayValues().slice(2).slice(-previousROWS);
+  var maxRows = Math.min(previousROWS,resultsSheet.getLastRow()-resultsStartROW+1); // e.g. 1 if only 3 rows
+  var firstPrevRow = resultsSheet.getLastRow()-maxRows+1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
+  var previousResultsRange = resultsSheet.getRange(firstPrevRow,1,maxRows,resultsSheet.getLastColumn());
+  var previousResults = previousResultsRange.getDisplayValues();
+  if (debug) Logger.log('Match previous results:\n'+previousResults);
   if (previousResults.length < 1) {
-    Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' (with map formulae?) to be able to match new result');
+    Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' to be able to match new result');
     return null;
   }
   var matchingResults = previousResults.map(function(row) {
     return row[locationINDEX]+'&'+row[dateINDEX];
   });
-  if (matchingResults.includes(thisLocation+'&'+thisDate)) {    // check duplicate?
-    hyperLinks = [];  // discard pending hyperlinks as with this duplicate result
+  var matchIndex = matchingResults.indexOf(thisLocation+'&'+thisDate);  // check duplicate?
+  if (matchIndex > -1) {   // existing result, but is it complete?
+    hyperLinks = [];  // discard pending hyperlinks since redundant for duplicate result
     if (debug) Logger.log('Previously captured result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId);
-    return null;    // null range if not a new result
-  } else {
+    var partialResult = previousResultsRange.offset(matchIndex,0,1);
+    // Check whether existing result has had positions
+    var genderPositionKnown = previousResults[matchIndex][genderPosnCOL-1];  // 0-indexed
+    // let genderPositionKnown = partialResult.getCell(1,genderPosnCOL).getValue();
+    if (debug) Logger.log('genderPositionKnown [row]: '+genderPositionKnown
+      +' ['+matchIndex+' from '+firstPrevRow+']');
+    if (genderPositionKnown !== "") 
+      return null;    // No update needed if positions already known
+    else {
+      Logger.log('Matched result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId+' except for positions');
+      return partialResult;   // continue as if new result because positions omitted
+    }
+  } else {    // new result
     var pastedResult = AppendResultRow(thisResult,resultsSheet);
     Logger.log('New result at '+thisLocation+' on '+thisDate+' added for unique runner, '+runnerNameId);
     return pastedResult;
@@ -467,12 +481,7 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat,cacheUrl=fal
  */                                                 
 function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
   // WARNING: resultRange normally a sheetrange to update cell values
-  const GenderPosnCOL = 9;      // column I (new column extension)
-  const AgeCatPosnCOL = 10;     // column J (previously done manually)
-  const AgeGradePosnCOL = 11;   // column K (new column extension)
-    // Pending outcome of proposal to Parkrun site: "Replace the Run # with Gender Position?
-  // Alternatively, the number of runners in the event may replace the redundant run number
-  resultRange.offset(0,GenderPosnCOL-1,1,3).setValues([[gcPosn, acPosn, agPosn]]);
+  resultRange.offset(0,genderPosnCOL-1,1,3).setValues([[gcPosn,acPosn,agPosn]]);
 }
 
 /**
@@ -482,14 +491,13 @@ function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
  *  @param {string} agPosn
  */
 function ExtendRange(resultRange,numRows,numCols) {
-  const AgeCatCOL = 12;   // column L is the age-category, derived from event date  (without conflict)
   // Two derived values are generated from a MAP function set for the first result in the table 
   resultRange = resultRange.offset(0,0,resultRange.getNumRows()+numRows,resultRange.getNumColumns()+numCols);
-  // resultRange.getCell(resultRange.getNumRows(),AgeCatCOL)
+  // resultRange.getCell(resultRange.getNumRows(),ageCatCOL)
   //  .setValue(null);  // no conflict in derivation from event date in col B and runner's DoB
   if (debug) Logger.log('Extended range of results by '+numRows+' rows and '+numCols+' columns');
   // resultRange implicitly includes  derived Age-Category in col L (assumes MAP function in 1st result)
-  let ageCatCell = resultRange.getCell(1,AgeCatCOL);
+  let ageCatCell = resultRange.getCell(1,ageCatCOL);
   let ageCatCellRef = ageCatCell.getA1Notation();
   let ageCat = ageCatCell.getValue();
   if (debug) Logger.log('Age-Category is '+ageCat+' in new runner row at cell, '+ageCatCellRef);
@@ -505,7 +513,7 @@ function ExtendRange(resultRange,numRows,numCols) {
 function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
   var resultsLink;
   const eventDate = eventDateCell.getDisplayValue;
-  eventDateCell.activate();   // hyperlink may surface when cell selected?Copy
+  eventDateCell.activate();   // hyperlink may surface when cell selected?
   let richText = eventDateCell.getRichTextValue();
   if (richText) {   // WARNING: Only works for cells with HYPERLINK formalae
     resultsLink = richText.getLinkUrl();
@@ -657,12 +665,6 @@ async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=fals
   let runNumber = resultRange.getCell(1,runNumCOL).getValue();
   if (!runNumber) return false;   // Skipping any non-Parkrun instance since no positions
   else {
-    const genderPosnCOL = 9;      // column I is the Gender position (if present already done)
-    // const ageCatPosCOL = 10;   // column J is the Age-Category position
-    // const ageGradePosCOL = 11; // column K is the Age-Grade (%age) position
-    // const genderCatCOL = 4;    // column C on Runners' sheet (assumed unchanged at event)
-    const ageCatCOL = 12;         // column L is the Age Category on the date (derived from DoB)
-    const PBtoAgeCatNumCOLS = 5;  // cols H..L for I..K positions between derived cols, H & L
     let eventLocation = resultRange.getCell(1,eventCOL).getValue();
     let eventDateCell = resultRange.getCell(1,dateCOL);
     let extResultRange = (resultRange.getNumColumns() < ageCatCOL) 
@@ -697,6 +699,12 @@ async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=fals
   }
 }
 
+function getLastSaturday() {
+  var d = new Date();
+  d.setDate(d.getDate()-(d.getDay()+1)%7); // last Saturday
+  return Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy');
+}
+
 /**
  *  Imports the latest results for each of member runners from Parkrun site,
  *  potentially on a specific date (if scheduled or missed), otherwise the latest is assume
@@ -705,50 +713,58 @@ function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
   eventDate = undefined)  // undefined means latest date - return to this state otherwise
 {
+  if (!eventDate)
+    eventDate = getLastSaturday();
   Logger.log('Checking for result on event date, '+eventDate);
-  return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
-    var runners = allRunnersSheet.getRange(
+  var numImports = 0;
+  var runners;
+  return OpenChromeBrowser()
+  .then(() => {   // Browser always launched beforehand...
+    runners = allRunnersSheet.getRange(
       runnerNameCOLUMN+runnersStartROW+":"+runnerSurnameCOLUMN
     ).getValues().filter(String);
-    // Process each runner in parallel BEFORE closing after ALL runners done!
-    return Promise.all(runners.map(function(runner,index) {
+
+    // Force sequential for each runner by looping recursively (in GAS to avoid timeouts?)
+    async function ImportRunnerResult(index) {
+      if (index >= runners.length) return Promise.resolve();;
+      let runner = runners[index];
       let runnerName = runner[0];     // col A for first name
       let runnerNameId = runnerName+'_'+index;
       let parkrunnerId = allRunnersSheet.getRange(
         runnersStartROW+index,parkrunnerIdCOL).getValue();
-      if (debug) Logger.log('Parkrunner ID: '+parkrunnerId);
       if (isNaN(parkrunnerId)) {
-        Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
-        return Promise.resolve();
-      }
-      // Ensure ALL functions complete by returning the Promise chain
+        if (debug) Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
+        return ImportRunnerResult(index+1);
+      } else
+        if (debug) Logger.log('Parkrunner ID: '+parkrunnerId);
       return CopyResultForRunner(parkrunnerId,eventDate)
       .then(thisResult => {
         if (thisResult) {
           let resultRange = PasteResultForRunner(thisResult,runnerNameId);
-          if (eventDate) Logger.log('Result added for runner, '+runnerName+' on '+eventDate);
           if (resultRange) {
-            if (debug) Logger.log('Appending result for unique runner sheet, '+runnerNameId);
+            numImports++;
+            if (debug) Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
             let runnerFullName = runner.join(' ');  // from col A & B
-            return AppendPositionsForResult(runnerFullName,resultRange,true); // caching
-          } else {
-            if (debug) Logger.log('No later result needs appended for unique runner, '+runnerNameId);
-          }
-        } else {
-          if (eventDate) Logger.log('No result found for runner, '+runnerName+' on '+eventDate);
-          else Logger.log('WARNING: No results found for runner, '+runnerName);
-        }
+            return AppendPositionsForResult(runnerFullName,resultRange,false); // caching
+          } else
+            if (debug) Logger.log('No result to be appended for unique runner, '+runnerNameId);
+        } else
+          Logger.log('No result found for runner, '+runnerName+' on '+eventDate);
+      })
+      .then(() => {
+        return ImportRunnerResult(index+1);
       });
-    }))
+    }
+    return ImportRunnerResult(0);
   })
   .catch(error => {
     Logger.log('ERROR: '+error);
-    CloseChromeBrowser();
   })
-  .finally(() =>
-    Logger.log('CAUTION: Take care not to close prematurely until all event positions appended!')
-    // CloseChromeBrowser();
-  );
+  .finally(() => {
+    Logger.log('Total number of results was '+numImports+' imported/updated (out of '+runners.length+' runners)');
+    // Logger.log('CAUTION: Take care not to close prematurely until all event positions appended!')
+    return CloseChromeBrowser();
+  });
 }
 
 /**
@@ -758,7 +774,7 @@ function ImportResultForEachRunner(
  */
 function ImportResultsOnEventDate() {
   const edRegexp = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-  const edPlace = 'dd/mm/yyyy';
+  const edPlace = 'dd/MM/yyyy';
   const ui = SpreadsheetApp.getUi();
   const formTitle = 'Import Results on Event Date';
   const formDesc = 'This imports the result for any member who ran on a particular date.';
@@ -1055,10 +1071,10 @@ async function DoAddFamilyMember(form) {
     })
     .catch(err => {
       Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err);
-      CloseChromeBrowser();
+      return CloseChromeBrowser();
     })
     .finally(() =>
-      // CloseChromeBrowser() // NOT yet until forked process is done!
+      // return CloseChromeBrowser() // NOT yet until forked process is done!
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
@@ -1087,10 +1103,10 @@ function AddFirstMember(
     })
     .catch(err => {
       Logger.log('ERROR: Add First Member, '+parkrunnerId+'\n'+err);
-      CloseChromeBrowser();
+      return CloseChromeBrowser();
     })
     .finally(() =>
-      // CloseChromeBrowser() // NOT yet until forked process is done!
+      // return CloseChromeBrowser() // NOT yet until forked process is done!
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
@@ -1203,10 +1219,10 @@ function DoSpawnNewFamily(
     })
     .catch(err => {
       Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
-      CloseChromeBrowser();
+      return CloseChromeBrowser();
     })
     .finally(() =>
-      // CloseChromeBrowser() // NOT yet until forked process is done!
+      // return CloseChromeBrowser() // NOT yet until forked process is done!
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
@@ -1238,7 +1254,6 @@ async function SyncPositionsPerRunner(
   const runnerNameCELL = 'A1';
   const ageCatCELL = 'L3';  //runner may be older since 1st run but gender fixed
   const dateINDEX = 1;      // index for column B
-  const genderPosnCOL = 9;  // column I is the Gender position (if present already done)
   let resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
   if (!resultsSheet) {
     Logger.log('ERROR: Unable to find results sheet, '+runnerNameId
@@ -1289,7 +1304,7 @@ const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
 const runnerNameCOLUMN = "A";     // Runners name in Column A 
 const runnerSurnameCOLUMN = "B";  // Runners surname in Column B 
 const hasResultsCOLUMN = "K";     // ...results exist (D3:D), with Parkrunner Id in col J
-const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on GenderPosn
+const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on genderPosnCOL
 
 function CleanupBatch(
   thisScript = threadBatchFN) 
@@ -1303,7 +1318,7 @@ function CleanupBatch(
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
   PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
   Utilities.sleep(2000); // Allowing time for triggers & property reset
-  CloseChromeBrowser();
+  return CloseChromeBrowser();
   // if (debug)
     Logger.log('Cleared batch status (including triggered scripts) and closed browser');
 }
@@ -1423,11 +1438,11 @@ function BatchPositionsForRunner() {
   })
   .catch(err => {
     Logger.log('ERROR: Failed to trigger recursed batches: '+err);
-    CloseChromeBrowser();
+    return CloseChromeBrowser();
   })
   .finally(() => {
     // Perhaps need to wait on closure before re-opening on next batch?
-    // CloseChromeBrowser();   // open on each batch avoids unexpected session end
+    // return CloseChromeBrowser();   // open on each batch avoids unexpected session end
     // Utilities.sleep(2000); // Allowing time for triggers & property reset
   });
 }
@@ -1466,14 +1481,14 @@ function CatchUpAllPositions() {
   })
   .catch(err =>  {
     Logger.log('ERROR: Failed to trigger any catch-up in batches: '+err);
-    CloseChromeBrowser();
+    return CloseChromeBrowser();
   })
   .finally(() => {
     if (AllPositionsDone(runnersStatus)) {
       CleanupBatch(threadBatchFN);
       return;
     }
-    // else CloseChromeBrowser();  // even though each batch re-opens
+    // else return CloseChromeBrowser();  // even though each batch re-opens
   });
 }
 
