@@ -155,19 +155,20 @@ exports.initBrowser = async (_,res) => {
 /**
  *  Loads URL in Puppeteer and waits for page load
  *    @param {string} thisUrl - URL to load
- *    @param {number} tableNum [default 2] - 0-indexed (-1 meansd returns thisPage)
+ *    @param {number} tableCount [default 3] -  (-1 meansd returns thisPage)
  *    @param {number} timeSecs - max timeout (in secs) to load (with table?)
  *    @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
  *  @returns the HTML content when table # is loaded, or thisPage object for alternative detailed searching
  */
 async function loadUrl(thisUrl,
-  tableNum = 2,  // default for getUrl for a runner's 5k results, -1 for filterUrl on an event results
+  tableCount = 3,  // default for getUrl for a runner's 5k results, -1 for filterUrl on an event results
   timeSecs = loadSECS,
   caching = false)
 {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
     var timeMax = timeSecs*1000;
+    const selectResultsTABLE = 'table.results';
     if (!thisBrowserWSEp) {
       console.error('ERROR: Persistent browser NOT found:',thisBrowserWSEp);
       throw new Error('Persistent browser NOT found!');
@@ -188,19 +189,19 @@ async function loadUrl(thisUrl,
         }
       }
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
-      if (tableNum < 0) {
+      if (tableCount < 0) {
         console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
         return thisPage;
       } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
-        await thisPage.waitForFunction((tableNum) =>
-          document.querySelectorAll('table').length === tableNum,
-          {timeout: timeMax}, tableNum);
-        console.log('Runner results with ['+tableNum+'] tables loaded for URL,\n',thisUrl);
+        await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
+          document.querySelectorAll(selectResultsTABLE).length === tableCount,
+          {timeout: timeMax},tableCount,selectResultsTABLE);
+        console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
         return await thisPage.content();   // when page content is fully loaded
       }
     }
   } catch (err) {
-    console.error('ERROR: Failed to retrieve page:',err);
+    console.error('ERROR: Failed to retrieve results page:',err);
     throw err;
   }
 }
