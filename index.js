@@ -155,14 +155,14 @@ exports.initBrowser = async (_,res) => {
 /**
  *  Loads URL in Puppeteer and waits for page load
  *    @param {string} thisUrl - URL to load
- *    @param {number} timeSecs - max timeout (in secs) to load
- *    @param {boolean} pageOnly - if true, returns thisPage as an object
- *    @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when pageOnly true)
- *  @returns thisPage object for detailed searching, or the HTML content, via a {Promise} Resolves when page loaded
+ *    @param {number} tableNum [default 2] - 0-indexed (-1 meansd returns thisPage)
+ *    @param {number} timeSecs - max timeout (in secs) to load (with table?)
+ *    @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
+ *  @returns the HTML content when table # is loaded, or thisPage object for alternative detailed searching
  */
 async function loadUrl(thisUrl,
+  tableNum = 2,  // default for getUrl for a runner's 5k results, -1 for filterUrl on an event results
   timeSecs = loadSECS,
-  pageOnly = false,
   caching = false)
 {
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
@@ -176,7 +176,7 @@ async function loadUrl(thisUrl,
       var thisBrowser = await puppeteer
         .connect({browserWSEndpoint: thisBrowserWSEp, timeout: browserTimeout});     // actually reconnects 
       var thisPage;
-      if (pageOnly && caching) {  // preserve thisPage object
+      if (caching) {  // CAUTION: Caching common event is slower with new page overheads (rely on parkrun caching instead?)
         thisPage = await thisBrowser.newPage();
         await thisPage.setDefaultTimeout(timeMax);    // for individual queries?
       } else {  // re-use
@@ -187,16 +187,22 @@ async function loadUrl(thisUrl,
           throw new Error('Persistent page NOT found!');
         }
       }
-      console.log('Loading page with URL,',thisUrl);
       await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
-      var content = await thisPage.content();   // always ensure page is fully loaded
-      return pageOnly ? thisPage : content;     // if content, then we are done, otherwise more to do!
+      if (tableNum < 0) {
+        console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
+        return thisPage;
+      } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
+        await thisPage.waitForFunction((tableNum) =>
+          document.querySelectorAll('table').length === tableNum,
+          {timeout: timeMax}, tableNum);
+        console.log('Runner results with ['+tableNum+'] tables loaded for URL,\n',thisUrl);
+        return await thisPage.content();   // when page content is fully loaded
+      }
     }
   } catch (err) {
     console.error('ERROR: Failed to retrieve page:',err);
     throw err;
   }
-  // TODO: Consider closing the page and avoid re-using if parallel approach better and less risky
 }
 
 /**
@@ -581,7 +587,7 @@ exports.filterUrl = async (req,res) => {
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
     try {
-      thisPage = await loadUrl(thisUrl,loadDetailSECS,true,caching);
+      thisPage = await loadUrl(thisUrl,-1,loadDetailSECS,caching);
       if (caching) {
         cachedPages[thisUrl] = thisPage;
         console.log('Cached results page for URL, '+thisUrl);
