@@ -37,8 +37,8 @@ let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
 const launchSECS = 45;
-const loadSECS = 15;  // max time to load runner's result page
-const loadDetailSECS = 25;  // max time to load run event page (excluding analysis per runner)
+const loadSECS = 20;  // max time to load runner's result page
+const loadDetailSECS = 30;  // max time to load run event page (excluding analysis per runner)
 const pageSECS = 3;   // reduced from 10 to 3 seconds BETWEEN page accesses on parkrun site using stealth mode
 let initPromise;      // browser "finished" after initialised (although still active
 
