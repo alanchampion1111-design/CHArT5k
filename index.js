@@ -5,7 +5,7 @@
 //    3. Verify Chrome browser works directly on server after build (done)
 //    4. Verify server side, thisBrowser activated by client from Google Spreadsheet app (done)
 //    5. Verify sample page retrieved ok and that thisBrowser and thisPage persists (done)
-//    6. Upload profile/certificates for access to www.parkrun.owaitforrg.uk (done)
+//    6. Upload profile/certificates for access to www.parkrun.owaitfoultsrrg.uk (done)
 //    7. Verify allowed to load content for www.parkrun.org.uk (done)
 //    8. Verify stealth access to individual parkrunner results table (tbd - although disallowed)
 
@@ -168,7 +168,7 @@ async function loadUrl(thisUrl,
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
     var timeMax = timeSecs*1000;
-    const selectResultsTABLE = 'table.results';
+    const selectResultsTABLE = 'table#results';  // 3 tables with id="results"
     if (!thisBrowserWSEp) {
       console.error('ERROR: Persistent browser NOT found:',thisBrowserWSEp);
       throw new Error('Persistent browser NOT found!');
