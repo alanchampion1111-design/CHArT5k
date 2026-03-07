@@ -8,9 +8,12 @@ var activeSpreadsheetId = activeSpreadsheet.getId();   // the originator ID
 if (debug) Logger.log('Current Spreadsheet Id: '+activeSpreadsheetId);
 const runnersSheetNAME = 'Runners';
 var allRunnersSheet = activeSpreadsheet   // MUST redo after a dynamic shift during spawning
-  .getSheetByName(runnersSheetNAME);     // ...for new runners in existing 
-const templateNameCELL = "J1";          // This cell identifes the seed template (e.g. Keren)
-const templateNAME = allRunnersSheet     // The seed template may be readily reconfigured
+  .getSheetByName(runnersSheetNAME);      // ...for new runners from initiating Spreadsheet 
+const importDateCELL = "I1";              // Runners cell for the last import date (dd/MM/yyyy)
+const importIndexCELL = "K1";             // Runners cell with index of runner to continue import
+const importTotalCELL = "L1";             // Runners cell with number of runners on import date
+const templateNameCELL = "J1";            // Runners cell identifies the seed template (e.g. Joe_90)
+const templateNAME = allRunnersSheet      // The seed template may be readily reconfigured
   .getRange(templateNameCELL)     // See the note on Runners!J1 cell
   .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
 const templateSPREADSHEET = 'FAMILY Template';
