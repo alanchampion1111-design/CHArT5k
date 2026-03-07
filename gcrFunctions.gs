@@ -723,6 +723,7 @@ function ImportResultForEachRunner(
     allRunnersSheet.getRange(importDateCELL).setValue(eventDate);
     allRunnersSheet.getRange(importIndexCELL).setValue(startIndex);
     if (debug) Logger.log('Continue import from runner with index, : '+startIndex);
+     allRunnersSheet.getRange(importTotalCELL).setValue(0);
   }
   Logger.log('Checking for result on event date, '+eventDate);
   var numImports = 0;
@@ -749,7 +750,6 @@ function ImportResultForEachRunner(
       return CopyResultForRunner(parkrunnerId,eventDate)
       .then(thisResult => {
         if (thisResult) {
-          numWhoRan++;
           let resultRange = PasteResultForRunner(thisResult,runnerNameId);
           if (resultRange) {
             numImports++;
