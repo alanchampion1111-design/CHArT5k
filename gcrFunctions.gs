@@ -46,6 +46,7 @@
 /         ...to get event Date (dd/MM/yyyy).
 /
 /   1a. ImportResultForEachRunner (optional event date of Parkrun)
+/         GetLastSaturday (to derive last event Date if unspecified)
 /         OpenChromeBrowser ->
 //        Loop for each member runner...
 /           >CopyResultForRunner (latest or dated?)->
@@ -58,7 +59,7 @@
 /                 CleanValue (apply links as hyperlinks)
 /               FormatDate (may be redundant)
 /               AppendResultRow
-/             >AppendPositionsForResult (with caching) ->
+/             >AppendPositionsForResult ->
 /               GetResultUrl (assume always parkrun)
 /               GetCategories (for language-based filter)
 /               ExtendRange
@@ -100,7 +101,6 @@ async function OpenChromeBrowser() {
   try {
     var response = await UrlFetchApp.fetch(initBrowserURL);
     browserSession = response.getContentText();   // WS Endpoint lingers for upto 30 minutes
-    Utilities.sleep(1500); // in case image not cached, avoids Error: Requesting main frame too early!
     Logger.log('Session: '+browserSession);
     return true;
   } catch (err) {
@@ -115,13 +115,7 @@ async function AccessPage(
   let getBrowserURL = browserURL+'/getUrl?url='+thisUrl;
   try {
     var response = await UrlFetchApp.fetch(getBrowserURL,
-      // Runners with 500+ results take longer 
-      //    AND parallelism may be curtailed
-      //      WHEN re-using the same page is detected,
-      //      AND/OR WHEN a single CPU is specified for the run
-      // Therefore, allow worst case timing for all, as if serial
       {muteHttpExceptions:true,timeout:30000});
-    Utilities.sleep(2500); // in case client-side table needs refresh (aside awaiting the fetch)
     return response.getContentText();
   } catch (err) {
     Logger.log(err+' within '+thisUrl);
@@ -217,7 +211,6 @@ async function CopyResultForRunner(
             });
           } else { // single result, default to latest unless specific date
             var resultRow = GetResultRow(bodyRows,eventRef);  
-            if (debug) Logger.log('Copy resultRow type (for '+parkrunnerId+'): '+typeof resultRow);
             if (resultRow) {
               var cells = resultRow.match(/<td>.*?<\/td>/gs);
               if (cells) {
@@ -392,7 +385,7 @@ function AppendResultRow(
   var firstPrevRow = resultsSheet.getLastRow()-maxRows+1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
   var previousResultsRange = resultsSheet.getRange(firstPrevRow,1,maxRows,resultsSheet.getLastColumn());
   var previousResults = previousResultsRange.getDisplayValues();
-  if (debug) Logger.log('Match previous results:\n'+previousResults);
+  // if (debug) Logger.log('Match previous results:\n'+previousResults);
   if (previousResults.length < 1) {
     Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' to be able to match new result');
     return null;
@@ -413,7 +406,7 @@ function AppendResultRow(
     if (genderPositionKnown !== "") 
       return null;    // No update needed if positions already known
     else {
-      Logger.log('Matched result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId+' except for positions');
+     if (debug) Logger.log('Matched result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId+' except for positions');
       return partialResult;   // continue as if new result because positions omitted
     }
   } else {    // new result
@@ -544,7 +537,6 @@ function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
     eventLocation = eventLocation.toLowerCase()
       .replace(/[-\.,\'’ ]/g,"");
     resultsLink = parkrunDomain+eventLocation+oneForALL+eventInstance;
-    //if (debug) Logger.log('WARNING: Reconstructed URL for event on '+eventDate+' since irretrievable from the Date cell');
   }
   resultsLink = (resultsLink.includes('parkrun')) ? resultsLink : null;
   return resultsLink;
@@ -656,9 +648,14 @@ function GetCategories(
  * Used initially where region needs extended OR later on catch up when already so.
  *    @param {string} runnerFullName - Runner's full name
  *    @param {Range} resultRange - Range of result data
+ *    @param {number} runnerIndex - index of runner imported to date (unless -1 as default)
+ *    @param {voolean} cacheUrl - cache as separate Page for re-use (REDUNDANT?)
  *  @returns {boolean} Success flag
  */
-async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=false) {
+async function AppendPositionsForResult(runnerFullName,resultRange,
+  runnerIndex = -1,
+  cacheUrl = false)
+{
   const eventCOL = 1;           // column A is the event location
   const dateCOL = 2;            // column B is the date of event
   const runNumCOL = 3;          // column C is the instance # at event
@@ -671,8 +668,10 @@ async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=fals
       ? ExtendRange(resultRange,0,PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
       : resultRange;             // Result row range previously extended (for Catch-up use-case)
     let genderPositionKnown = extResultRange.getCell(1,genderPosnCOL).getValue();  
-    if (genderPositionKnown) return false;  // Skipping since extra position(s) already on the sheet
-    else {
+    if (genderPositionKnown) {
+      if (runnerIndex >= 0) allRunnersSheet.getRange(importIndexCELL).setValue(runnerIndex+1);
+      return false;  // Skipping since extra position(s) already on the sheet
+    } else {
       try {
         let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
         let genderCategory;  // = runnersSHEET.getCell(runnerIndex,genderCatCOL).getValue();  // out of Range!!
@@ -684,6 +683,7 @@ async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=fals
         let extraPosns = await AssessPositions(runnerFullName,resultsLink,ageCategory,genderCategory,cacheUrl);
         if (extraPosns && extraPosns.length === 3) {
           IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
+          if (runnerIndex >= 0) allRunnersSheet.getRange(importIndexCELL).setValue(runnerIndex+1);
           return true;
         } else {
           Logger.log('CAUTION: Consider revising DoB of '+runnerFullName+' to ensure matching category ('+ageCategory+') at '+eventLocation+' ('+resultsLink+')?');
@@ -692,8 +692,6 @@ async function AppendPositionsForResult(runnerFullName,resultRange,cacheUrl=fals
       } catch (err) {
         Logger.log('ERROR: While appending positions for runner, '+runnerFullName+': '+err);
         return false; // or throw error
-      } finally {
-        Utilities.sleep(1500);
       }
     }
   }
@@ -713,8 +711,19 @@ function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
   eventDate = undefined)  // undefined means latest date - return to this state otherwise
 {
+  var startIndex;
   if (!eventDate)
     eventDate = getLastSaturday();
+  let prevImportDate = allRunnersSheet.getRange(importDateCELL).getDisplayValue();
+  if (debug) Logger.log('Import date: '+eventDate+' ('+prevImportDate+')');
+  if (eventDate === prevImportDate) {   // continue since assume prev import incomplete
+    startIndex = allRunnersSheet.getRange(importIndexCELL).getValue();
+  } else {
+    startIndex = 0;
+    allRunnersSheet.getRange(importDateCELL).setValue(eventDate);
+    allRunnersSheet.getRange(importIndexCELL).setValue(startIndex);
+    if (debug) Logger.log('Continue import from runner with index, : '+startIndex);
+  }
   Logger.log('Checking for result on event date, '+eventDate);
   var numImports = 0;
   var runners;
@@ -740,29 +749,36 @@ function ImportResultForEachRunner(
       return CopyResultForRunner(parkrunnerId,eventDate)
       .then(thisResult => {
         if (thisResult) {
+          numWhoRan++;
           let resultRange = PasteResultForRunner(thisResult,runnerNameId);
           if (resultRange) {
             numImports++;
             if (debug) Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
             let runnerFullName = runner.join(' ');  // from col A & B
-            return AppendPositionsForResult(runnerFullName,resultRange,false); // caching
-          } else
-            if (debug) Logger.log('No result to be appended for unique runner, '+runnerNameId);
-        } else
-          Logger.log('No result found for runner, '+runnerName+' on '+eventDate);
+            return AppendPositionsForResult(runnerFullName,resultRange,index,false); // caching
+          } else {
+            allRunnersSheet.getRange(importIndexCELL).setValue(index);
+            if (debug) Logger.log('Positions already appended for runner, '+runnerNameId);
+          }
+          let numWhoRan = allRunnersSheet.getRange(importTotalCELL).getValue();
+          allRunnersSheet.getRange(importTotalCELL).setValue(numWhoRan+1);
+        } else  // provided no timeout or other error...
+          if (debug) Logger.log('Runner, '+runnerName+' likely did not run on '+eventDate);
       })
       .then(() => {
         return ImportRunnerResult(index+1);
       });
     }
-    return ImportRunnerResult(0);
+
+  // begin
+    return ImportRunnerResult(startIndex);   // continue where previous import may have failed
   })
   .catch(error => {
     Logger.log('ERROR: '+error);
   })
   .finally(() => {
-    Logger.log('Total number of results was '+numImports+' imported/updated (out of '+runners.length+' runners)');
-    // Logger.log('CAUTION: Take care not to close prematurely until all event positions appended!')
+    let numWhoRan = allRunnersSheet.getRange(importTotalCELL).getValue();
+    Logger.log('Total number of results was '+numImports+' imported/updated (out of '+numWhoRan+' who ran on '+eventDate+')');
     return CloseChromeBrowser();
   });
 }
@@ -980,9 +996,7 @@ function GetRunnerDetails(thisPage) {
   }
   const paraREGEXP = /<p>(.*?)<\/p>/s;
   let paraContent = (thisPage.match(paraREGEXP) || [])[1];
-  // if (debug) Logger.log ('Paragraph: '+paraContent); 
   let category = paraContent.trim().split(' ').pop();
-  // if (debug) Logger.log ('Category: '+category);
   var gender = category
     ? ( category.includes('M') ? 'Male'
       : category.includes('W') ? 'Female'
@@ -1251,6 +1265,7 @@ function FirstMatchRange(resultsSheet,positionCol,positionValue) {
 async function SyncPositionsPerRunner(
   runnerNameId = 'Alan_2')    // default unit test (assumes precedent 
 {
+  const runnerIndex = parseInt(runnerNameId.split('_')[1]);
   const runnerNameCELL = 'A1';
   const ageCatCELL = 'L3';  //runner may be older since 1st run but gender fixed
   const dateINDEX = 1;      // index for column B
@@ -1317,7 +1332,6 @@ function CleanupBatch(
   });
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
   PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
-  Utilities.sleep(2000); // Allowing time for triggers & property reset
   return CloseChromeBrowser();
   // if (debug)
     Logger.log('Cleared batch status (including triggered scripts) and closed browser');
@@ -1443,7 +1457,6 @@ function BatchPositionsForRunner() {
   .finally(() => {
     // Perhaps need to wait on closure before re-opening on next batch?
     // return CloseChromeBrowser();   // open on each batch avoids unexpected session end
-    // Utilities.sleep(2000); // Allowing time for triggers & property reset
   });
 }
 
