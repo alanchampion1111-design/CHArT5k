@@ -194,7 +194,7 @@ async function CopyResultForRunner(
   .then (allResults => {   // ensures allResults is not a Promise
     if (allResults) {
       let tables = allResults.match(/<table[\s\S]*?<\/table>/ig);
-      if (tables) Logger.log('Found ['+tables.length+'] tables in results for runner, '+parkrunnerId);
+      if (debug && tables) Logger.log('Found ['+tables.length+'] tables in results for runner, '+parkrunnerId);
       if (tables && tables.length>2) {
         allResults = tables[2]; // All results (if any) are in 3rd table
         // if (debug) Logger.log('All Results table: '+allResults); 
