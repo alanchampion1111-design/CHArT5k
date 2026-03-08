@@ -37,9 +37,11 @@ let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
 const launchSECS = 45;
-const loadSECS = 20;  // max time to load runner's result page
-const loadDetailSECS = 30;  // max time to load run event page (excluding analysis per runner)
-const pageSECS = 3;   // reduced from 10 to 3 seconds BETWEEN page accesses on parkrun site using stealth mode
+const pageSECS = 3;     // Assume 10 seconds BETWEEN page accesses on parkrun site relies on stealth mode?
+const minRunnerTableCOUNT = 3;  // 3 for a 5k runner
+const loadSECS = 20;            // max time to load runner's result page
+const minClubTableCOUNT = 1;    // 1..10+ tables for event locations for a family/club? 
+const loadDetailSECS = 30;      // max time to load an event page or multiple locations globally
 let initPromise;      // browser "finished" after initialised (although still active
 
 /**
@@ -168,7 +170,7 @@ async function loadUrl(thisUrl,
   // console.log('Reconnecting to browser WS Endpoint:',thisBrowserWSEp,'with same page ID,',thisPageId);
   try {
     var timeMax = timeSecs*1000;
-    const selectResultsTABLE = 'table#results';  // 3 tables with id="results"
+    const selectResultsTABLE = 'table[id*="results"]';  // 3 tables with id="results"
     if (!thisBrowserWSEp) {
       console.error('ERROR: Persistent browser NOT found:',thisBrowserWSEp);
       throw new Error('Persistent browser NOT found!');
@@ -194,7 +196,7 @@ async function loadUrl(thisUrl,
         return thisPage;
       } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
         await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
-          document.querySelectorAll(selectResultsTABLE).length === tableCount,
+          document.querySelectorAll(selectResultsTABLE).length >= tableCount,
           {timeout: timeMax},tableCount,selectResultsTABLE);
         console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
         return await thisPage.content();   // when page content is fully loaded
@@ -212,18 +214,20 @@ async function loadUrl(thisUrl,
  *  @returns {string} as HTML content
  */
 exports.getUrl = async (req,res) => {
-  // Default in case no ? parameters passed - sample runner is Alan
-  let thisUrl = req.query?.url || 'https://www.parkrun.org.uk/parkrunner/777764/all/';
+  // Default for testing sample parkrunner 5k results OR sample consolidated results 
+  // let thisUrl = req.query?.url || 'https://www.parkrun.org.uk/parkrunner/777764/5k/';
+  let thisUrl = req.query?.url || 'https://www.parkrun.com/results/consolidatedclub/?clubNum=2548&eventdate=2026-07-03';
+  let clubResults = thisUrl.includes('consolidatedclub');
+  let [minTableCount,timeoutSecs] = (clubResults)
+    ? [minClubTableCOUNT,loadDetailSECS] : [minRunnerTableCOUNT,loadSECS]; 
   try {
-    var content = await loadUrl(thisUrl);
+    var content = await loadUrl(thisUrl,minTableCount,timeoutSecs);
     res.status(200).send(content);
   } catch (err) {
     console.error(err);
     res.status(500).send('ERROR: Failed to load URL, '+thisUrl);
   } finally {
-    // delay between calls (before any returns) while browser remains active
-    // await new Promise(resolve => setTimeout(resolve,pageSECS));
-    // but AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
+    // AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
     // await thisBrowser.disconnect(); 
   }
 }
@@ -661,9 +665,9 @@ exports.stopBrowser = async (_,res) => {
 }
 
 const cookieJAR = [
-  'https://www.parkrun.org.uk',
-  // 'https://www.parkrun.com',  // this inherited option may have worked previously 
-  'https://www.parkrun.co.nl',
+  'https://www.parkrun.org.uk',  // may be used interationally for any runner
+  'https://www.parkrun.com',     // this is required for consolidated results for a group date
+  'https://www.parkrun.co.nl',   // this and others may be used for an event results, wherever
   'https://www.parkrun.com.de',
   'https://www.parkrun.com.au',
   'https://www.parkrun.ca',
@@ -742,9 +746,9 @@ exports.acceptCookies = async (_,res) => {
     console.error(resultErr);
     res.status(500).send(resultErr);
   }
-  // CAUTION: Although any single parkrunn certificate may suffice, ...
+  // CAUTION: Although any single parkrun certificate may suffice, ...
   //  ... do not assume the Cookie has been accepted on EACH and every domain!
-  let thisPage = await thisBrowser.newPage();  // Re-use the same Page since not in parallel
+  let thisPage = await thisBrowser.newPage();  // Potentially re-use the same Page since not in parallel
   let results = [];
   for (var domainUrl of cookieJAR) {
     try {
