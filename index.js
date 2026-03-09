@@ -343,7 +343,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
     if (!numSortedRunners)
       throw new Error('Failed to find any runners by '+ageGrade);
     else if (numSortedRunners === numRunners)
-      throw new Error('Failed to sort ['+numSortedRunners+'] runners by '+ageGrade);
+      console.warn('WARNING: Consider no Unknown runners when sorted by '+ageGrade+);
     let position = getMatchName(sortedRunners,matchRunner);
     if (!position)
       throw new Error('Failed to match runner, '+matchRunner+' sorted by '+ageGrade+' within results, '+thisPage.url());
