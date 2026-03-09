@@ -343,7 +343,7 @@ async function sortAgeGrade(thisPage,matchRunner,ageGrade) {
     if (!numSortedRunners)
       throw new Error('Failed to find any runners by '+ageGrade);
     else if (numSortedRunners === numRunners)
-      console.warn('WARNING: Consider no Unknown runners when sorted by '+ageGrade+);
+      console.warn('WARNING: Consider no Unknown runners when sorted by '+ageGrade+' within results, '+thisPage.url());
     let position = getMatchName(sortedRunners,matchRunner);
     if (!position)
       throw new Error('Failed to match runner, '+matchRunner+' sorted by '+ageGrade+' within results, '+thisPage.url());
@@ -621,7 +621,6 @@ exports.filterUrl = async (req,res) => {
       res.status(500).send('ERROR: '+err.message);
     } finally {
       // TODO: await thisPage.close();  // re-use page may fail??, consider new Page for each parkrun results instance
-      console.warn('WARNING: If re-using the same page, the normal parallel performance may be slower (or otherwise interfere)');
     }
   }
 }
@@ -638,7 +637,7 @@ exports.stopBrowser = async (_,res) => {
           await thisPage.close();
           console.log('Page closed successfully - Page Id:',thisPageId);
         } else {
-          console.warn('WARNING: Page previously closed or timed out - Page Id:',thisPageId);
+          console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
         }
       }
       if (thisBrowser && thisBrowser.isConnected()) {
@@ -646,7 +645,7 @@ exports.stopBrowser = async (_,res) => {
         console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
         res.status(200).send('Browser terminated successfully');
       } else {
-        console.warn('WARNING: Browser previously aborted or timed out - WS endpoint:',thisBrowserWSEp);
+        console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
         res.status(204).send('WARNING: Browser previously aborted or timed out');
       }
     } else {
@@ -770,7 +769,7 @@ exports.acceptCookies = async (_,res) => {
         // WARNING Perhaps retry in case page not fully evaluated or delete and redo
         // TODO: Check logs in case failed for button not detected
         // deleteCookies(thisPage,domainUrl);
-        let resultWarn = 'No button presented for Cookies to be accepted on site, '+domainUrl+'\n  WARNING: '+warning
+        let resultWarn = 'No button presented for Cookies to be accepted on site, '+domainUrl+'\n  WARNING: '+warning;
         console.warn(resultWarn);
         results.push(resultWarn);
       };
