@@ -1074,28 +1074,93 @@ function PromptNewRunner(
   const ui = SpreadsheetApp.getUi();
   const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])-[A-Za-z]{3}-(19|20)?\d{2}$/;
   const dobPlace = 'dd-Mmm-yyyy';
-  const formHTML = '\n'+
+  var formHTML = '\n'+
     '<form onsubmit="if(!document.getElementById(\'dob\').checkValidity()) {'+
     '    document.getElementById(\'dob\').focus();return false;}">\n'+
     '  <div>'+thisCase.desc+'</div><br>\n'+
     '  <label>parkrun Id (barcode numeric part only):\t</label>\n'+
     '    <input type="text" id="parkrunnerId"><br><br>\n'+
-    '  <label>Date of birth (for accurate %age grade):\t</label>\n'+
-    '    <input type="text" id="dob" pattern="'+ dobRegex.source+'" placeholder="'+dobPlace+'"><br><br>\n'+
+    '  <label>Date of birth (for verifying age-grade):\t</label>\n'+
+    '    <input type="text" id="dob" pattern="'+ dobRegex.source+'" placeholder="'+dobPlace+'"><br><br>\n';
+  if (thisCase != deleteCASE) formHTML += 
     '  <label>Email (optional, for delegating access):\t</label>\n'+
-    '    <input type="text" id="email"><br><br>\n'+
+    '    <input type="text" id="email"><br><br>\n';
+  formHTML +=
     '  <input type="submit" id="submitButton" value="'+thisCase.action+'"\n'+
     '    onclick="document.getElementById(\'submitButton\').disabled=true;\n'+
     '      document.getElementById(\'submitButton\').value=\'Processing...\';\n'+
     '    google.script.run.withSuccessHandler(function() { google.script.host.close(); }).'+
           thisCase.handler+'([document.getElementById(\'parkrunnerId\').value,\n'+
-    '      document.getElementById(\'dob\').value,\n'+
-    '      document.getElementById(\'email\').value]);">\n'+
-    '  <input type="button" value="Cancel"\n'+
+    '      document.getElementById(\'dob\').value';
+  if (thisCase != deleteCASE) formHTML +=
+    ',\n      document.getElementById(\'email\').value';
+  formHTML +=
+    ']);">\n         <input type="button" value="Cancel"\n'+
     '    onclick="google.script.host.close();">\n'+
     '  </form>\n';
   var form = ui.showModalDialog(HtmlService.createHtmlOutput(formHTML),thisCase.title);
   // return [parkrunnerId,dob,email];
+}
+
+function FindRunnerIndex(runnersRange,thisParkrunnerId,thisDob) {
+  let numRrunners = runnersRange.getNumRows();
+  for (let index=0; index<numRrunners; index++) {
+    let parkrunnerId = runnersRange.offset(index,parkrunnerIdINDEX).getValue();
+    let dob = runnersRange.offset(index,dobINDEX).getValue();
+    if (parkrunnerId == thisParkrunnerId && dob == thisDob) {
+      return index;
+    }
+  }
+  return -1;  // no match
+}
+
+const deleteCASE = {
+  title: 'Delete Family / Club Member',
+  desc:  'This deletes an existing member parkrunner from the current Spreadsheet with related impact. '
+        +'The runner row is removed from the Runners sheet with their sheet for their results (based '
+        +'on row index), where indices and result sheet names of runners below are affected.',
+  action: 'Delete',
+  handler: 'DoDeleteFamilyMember'
+};
+
+/**
+ * Deletes an existing runner from the current sheet after prompting for details:
+ *  1. Prompts for a new parkrunner id, & dob
+ *  2. Verifies runner matches row (with runner index)
+ *  3. Removes the results sheet (by runner index)for the existing runner
+ *  4. Removes runner's row from the 'Runners' sheet (impacting indices of others below)
+ *  5. Renames the results sheets of runners with higher indices.
+ */
+function DeleteFamilyMember() {
+  PromptNewRunner();    // default addCASE
+  // callback to DoAddFamilyMember with [parkrunnerId,dob,email] from form
+}
+
+function DoDeleteFamilyMember(parkrunnerId,dob) {
+  let runnersRange = allRunnersSheet.getRange(runnerNameCOLUMN+runnersStartROW+":"+parkrunnerIdCOLUMN);
+  // Verify runner matches row (with runner index)
+  let runnerIndex = FindRunnerIndex(runnersRange,parkrunnerId,dob);
+  if (runnerIndex<0)
+    Logger.log('ERROR: Unable to find matching runner, '+parkrunnerId);
+  else {
+    let firstname = runnersRange.offset(runnerIndex,0).getValue();
+    let runnerNameId = firstname+'_'+runnerIndex;
+    Logger.log('Deleting runner\'s result sheet, '+runnerNameId+' (for parkrunner, '+parkrunnerId);
+    let resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
+    if (resultsSheet)
+      resultsSheet.delete();    // delete runner's results sheet
+    allRunnersSheet.deleteRow(runnersStartROW+runnerIndex);   // delete runner (row) impacts...
+    let numRunners = allRunnersSheet.getNumRows();  // one less runner now
+    let impactRange = runnersRange.offset(runnerIndex,0,numRunners-runnerIndex,1);
+    for (let index=0; index<numRunners-runnerIndex; index++) {
+      firstname = impactRange.offset(index,0).getValue();
+      const oldName = firstname+'_'+(runnerIndex+index+1);    // ahead of expected
+      const newName = firstname+'_'+(runnerIndex+index);    // 
+      activeSpreadsheet.getSheetByName(oldName).setName(newName);
+      Logger.log('Runner\'s results sheet, '+oldName+' renamed as '+newName);
+    }
+    Logger.log('Removed runner, '+parkrunnerId+' with result sheet, '+runnerNameId);
+  }
 }
 
 /**
@@ -1369,10 +1434,6 @@ async function SyncPositionsPerRunner(
 const threadBatchFN = recurseBatchFN ='BatchPositionsForRunner';  // threaded & potentially recursed
 const lockINDEX = 'lockIndex';
 const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
-const runnerNameCOLUMN = "A";     // Runners name in Column A 
-const runnerSurnameCOLUMN = "B";  // Runners surname in Column B 
-const hasResultsCOLUMN = "K";     // ...results exist (D3:D), with Parkrunner Id in col J
-const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on genderPosnCOL
 
 function CleanupBatch(
   thisScript = threadBatchFN) 
@@ -1587,29 +1648,32 @@ async function AcceptCookies() {
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   var parkrunsMenu = ui.createMenu('parkrun')
-    .addItem("Import results on event date"+
-      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+0",
-      'ImportResultsOnEventDate')
     .addItem("Import result for each runner"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+1",
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
       'ImportResultForEachRunner')
-    .addItem("Generate charts from Groups"+
-      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+2",
-      'GenerateChartsFromGroups')
+    .addItem("Import results on event date"+
+      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
+      'ImportResultsOnEventDate')
+    .addItem("Catch-up all positions"+
+      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+3",
+      'CatchUpAllPositions')
     .addSeparator()
     .addItem("Protect results sheets per runner"+
-      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+3",
+      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+4",
       'ReprotectEachRunnerResultsSheets')
     .addItem("Colour legends in Groups"+
-      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+4",
+      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+5",
       'ColourLegendsInGroups')
-    .addItem("Catch-up all positions"+
-      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+6",
-      'CatchUpAllPositions')
+    .addItem("Generate charts from Groups"+
+      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
+      'GenerateChartsFromGroups')
     .addSeparator()
     .addItem("Add family (or club) member"+
       "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
       'AddFamilyMember')
+    .addItem("Delete family (or club) member"+
+      "\u00A0".repeat(12)+"Ctrl+Alt+Shift+8",
+      'DeleteFamilyMember')
     .addItem("Spawn new family (or club)"+
       "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
       'SpawnNewFamily')
