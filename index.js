@@ -36,13 +36,14 @@ let prevFilterURL;
 let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
-const launchSECS = 45;
+const sessionMINS = 60;  // browser session timeout about one hour
+const launchSECS = 50;  // initial first page load timeout
 const pageSECS = 3;     // Assume 10 seconds BETWEEN page accesses on parkrun site relies on stealth mode?
 const minRunnerTableCOUNT = 3;  // 3 for a 5k runner
-const loadSECS = 20;            // max time to load runner's result page
+const loadSECS = 30;            // max time to load each runner's results page
 const minClubTableCOUNT = 1;    // 1..10+ tables for event locations for a family/club? 
-const loadDetailSECS = 30;      // max time to load an event page or multiple locations globally
-let initPromise;      // browser "finished" after initialised (although still active
+const loadDetailSECS = 40;      // max time to load any event results page or global site consolidated club results page
+let initPromise;      // browser "finished" after initialised (although still active)
 
 /**
  *  Launches a headless Chrome browser with specified session limit.
@@ -51,7 +52,7 @@ let initPromise;      // browser "finished" after initialised (although still ac
  *  @sideeffect leaves the browser connected and returns a presistent WS endpoint for re-use
  */
 let cloudBrowser = async (
-  sessionMins = 60) =>
+  sessionMins = sessionMINS) =>
 {
   browserTimeout = sessionMins*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
