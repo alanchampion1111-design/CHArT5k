@@ -669,7 +669,7 @@ function GetCategories(
  *  @returns {boolean} Success flag
  */
 async function AppendPositionsForResult(runnerFullName,resultRange,
-  runnerIndex = -1,
+  runnerIndex = -1,   // by default, do NOT track importing positions for all runners
   cacheUrl = false)
 {
   const eventCOL = 1;           // column A is the event location
@@ -695,9 +695,11 @@ async function AppendPositionsForResult(runnerFullName,resultRange,
         // var resultsLink = GetResultsUrl(eventDateCell); // behind Date (in col B)
         // Adjust ageCategory to suit language at event - e.g. SW25-29 (uk) => SV25-29 (de)
         [genderCategory,ageCategory] = GetCategories(resultsLink,ageCategory); // e.g. JM10 => M => Male in uk
-        if (debug) Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
+        if (debug)
+          Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
         let extraPosns = await AssessPositions(runnerFullName,resultsLink,ageCategory,genderCategory,cacheUrl);
         if (extraPosns && extraPosns.length === 3) {
+          Logger.log('Positions captured for '+runnerFullName+' ('+resultsLink+'): '+extraPosns);
           IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
           if (runnerIndex >= 0) allRunnersSheet.getRange(importIndexCELL).setValue(runnerIndex+1);
           return true;
