@@ -621,8 +621,8 @@ function CleanFormatforPastedRunResults(
         When referencing a new Performances sheet...
           ClearPerformancesSheet
         GenerateGroupChartInSheet
-          FilterGroupRunnersDatedPerformances
-            CollateGroupRunnersDatedPerformances
+          FilterGroupDatedPerformances
+            CollateGroupDatedPerformances
           CopyGroupPerformancesToSheet
           EmbedGroupPerformancesChart
             ApplyFormatsOnGroupPerformancesCharts
@@ -643,35 +643,27 @@ const ageGradeFORMAT = '0.0%';  // for %age on graphs
  * Returns an array of selective runners performances versus event dates,
  *  ensuring event dates are unique (even if event location differs),
  *  based on most recent years (unless all performances override).
- *    @param {Array<Date>} allDates     - Array of non-unique event dates
- *    @param {Array<string>} runners    - 2D Array of selective runners' names with unique indices
- *    @param {Object} runnersPerfs      - Object of performances for each indexed runner on dates (subset of all dates)
+ *    @param {Array<Date>} filteredDates  - Array of non-unique event dates
+ *    @param {Array<string>} runners      - 2D Array of selective runners' names with unique indices
+ *    @param {Object} runnersPerfs        - Object of performances for each indexed runner on dates (subset of all dates)
  *    @param {number} [mostRecentYears=recentYRS] - Number of recent years to include (0 to get all)
  *  @returns {Array<Array>} as an Array of arrays containing dated performances (with nulls for absences)
  *           (potentially more efficient as a 2D array)
  */
-function CollateGroupRunnersDatedPerformances(filteredDates,runners,runnersPerfs)  // pre-filtered
-{
-  // Assume filteredDates = allDates.filter(date => new Date(date) > cutoff); // beforehand
-  let uniqueDates = [...new Set(filteredDates)]   // remove duplicates and return as Array
-    .sort((a,b) => new Date(a)-new Date(b));      // sort, oldest first (a-b)
-  var runnersDatedPerfs = [];
-  for (var i=0; i<uniqueDates.length; i++) {
-    var row = [uniqueDates[i]];
-    for (var j=0; j<runners.length; j++) {
-      let runnerNameId = runners[j].join('_');
-      if (runnersPerfs[runnerNameId] &&
-          runnersPerfs[runnerNameId][uniqueDates[i]] != 0 &&
-          runnersPerfs[runnerNameId][uniqueDates[i]] !== undefined) 
-      {
-        row.push(runnersPerfs[runnerNameId][uniqueDates[i]]);
-      } else {
-        row.push(null);   // blank result if runner missed that date
-      }
-    }
-    runnersDatedPerfs.push(row);
-  }
-  return runnersDatedPerfs;
+function CollateGroupDatedPerformances(filteredDates,runners,runnersPerfs) {  // pre-filtered
+  let uniqueDates = [...new Set(filteredDates.map( // remove duplicates and return as Array
+    date => new Date(date).getTime()))]
+      .map(timestamp => new Date(timestamp))  // use timestamps to be sure (assumimg midnight)
+      .sort((a,b) => a-b)                     // sort first and then return to be string
+      .map(date => Utilities.formatDate(date,
+        Session.getScriptTimeZone(),dateFORMAT));
+  return uniqueDates.map(date => [
+    date,
+    ...runners.map(runner => {
+      let runnerNameId = runner.join('_');
+      return runnersPerfs[runnerNameId]?.[date] || null;  
+    })
+  ]);
 }
 
 /**
@@ -683,7 +675,7 @@ function CollateGroupRunnersDatedPerformances(filteredDates,runners,runnersPerfs
  *    @param {number} [perfIndex=ageGradesINDEX]  - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
-function FilterGroupRunnersDatedPerformances(chartTitle,runners,
+function FilterGroupDatedPerformances(chartTitle,runners,
   mostRecentYears = recentYRS,   // assume all performances if zero years cut-off
   perfIndex = ageGradesINDEX)   // default presents values <1 as %ages
 {
@@ -716,16 +708,15 @@ function FilterGroupRunnersDatedPerformances(chartTitle,runners,
       let resultsRange = resultsSheet.getDataRange()
         .offset(resultsStartROW-1,0,numResults);
       var startResult;    // to find first result from the cutoff date
-      let dates = resultsRange.offset(0,datesINDEX,numResults,1)
+      let indexedDates = resultsRange.offset(0,datesINDEX,numResults,1)
         .getValues()      // of dates only (initially)
         .filter((date,result) => {
           if (new Date(date[0]) > cutoffDate) {
             startResult = startResult ?? result; // recall 1st index only
             return true;
           } else return false;
-        })
-        .map(date => date[0]);
-      let numFilteredResults = dates.length;    // = numResults-startResult;
+        });
+      let numFilteredResults = indexedDates.length;    // = numResults-startResult;
       if (startResult >= 0) {   // 0 if runner's very first result after cut-off date
         perfs = resultsRange.offset(startResult,perfIndex,numFilteredResults,1)
           [perfIndex == timesINDEX
@@ -733,18 +724,18 @@ function FilterGroupRunnersDatedPerformances(chartTitle,runners,
                         : 'getValues']
           ().map(result => result[0]);
         runnersPerfs[runnerNameId] = {};
-        for (var i=0; i<dates.length; i++) {
-          runnersPerfs[runnerNameId][dates[i]] = perfs[i];
+        for (var i=0; i<indexedDates.length; i++) {
+          runnersPerfs[runnerNameId][indexedDates[i]] = perfs[i];
         }
-        filteredDates = filteredDates.concat(dates);
+        filteredDates = filteredDates.concat(indexedDates);
       }
     } catch (err) {
       Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
   });
-  runnersDatedPerfs = CollateGroupRunnersDatedPerformances(
+  runnersDatedPerfs = CollateGroupDatedPerformances(
     filteredDates,runners,runnersPerfs);
-  Logger.log('Collated Runners Dated Performances: '+runners);
+  Logger.log('Collated Group Dated Performances: '+runners);
   return runnersDatedPerfs;
 }
 
@@ -796,8 +787,16 @@ function CopyGroupPerformancesToSheet(
     groupPerfsRow,groupPerfsCol,
     groupTable.length,groupTable[0].length);
   groupPerfsRange.setValues(groupTable);
-  groupPerfsRange.offset(0,1,1,groupPerfsRange.getLastColumn())
-    .setNumberFormat(dateFormat);
+  groupPerfsRange.offset(0,1,1,groupTable[0].length-1)  // exclude 1st column (containing 'Date')
+    .setNumberFormat(dateFormat);    // sets dates format as expected displayed on results sheets
+  var colsToClear = perfsSheet.getLastColumn()-(groupPerfsCol+groupTable[0].length-1);
+  if (colsToClear>0)
+    groupPerfsRange.offset(0,groupTable[0].length,  // clear any surplus from a previous run...
+      groupTable.length,colsToClear)                // ...where earliest event dates lapse (fewer results)
+        .clearContent();                            // ...OR if cut-off years reduced results considered
+  if (debug)
+    Logger.log('Formatted dates are:\n'
+      +groupPerfsRange.offset(0,1,1,groupTable[0].length-1).getDisplayValues());
   return groupPerfsRange;
 }
 
@@ -825,7 +824,8 @@ function ApplyFormatsOnGroupPerformancesChart (
   perfSheet.setRowHeight(perfChartRow,chartHeight+surroundFACTOR*offsetBorder
     -cellHeightSIZE*runnersLegend.length);  // Adjust for merging rows (later)
   perfSheet.setColumnWidth(perfChartCol,chartWidth+surroundFACTOR*offsetBorder);
-  Logger.log('Rows: '+groupPerfsRange.getNumRows()+', '+'Cols: '+groupPerfsRange.getNumColumns());
+  if (debug)
+    Logger.log('Rows: '+groupPerfsRange.getNumRows()+', '+'Cols: '+groupPerfsRange.getNumColumns());
   perfsRange = groupPerfsRange.offset(1,1,  // Get runners' performances only...
     groupPerfsRange.getNumRows()-1,         // ...ignoring the Date row
     Math.max(1,groupPerfsRange.getNumColumns()-1));     // ...and the runner name column
@@ -843,7 +843,7 @@ function ApplyFormatsOnGroupPerformancesChart (
   let numGroupPerfsRows = runnersLegend.length+1; // = num<group>PerfsROWS
   perfSheet.getRange(perfChartRow,perfChartCol,   // Merge the rows for the Chart
     numGroupPerfsRows,1).merge();       // ...adjusted to # of runners in the group
-  return { min: minPerf, max: maxPerf };
+  return {min: minPerf, max: maxPerf};
 }
 
 /**
@@ -892,7 +892,7 @@ function EmbedGroupPerformancesChart(
     chartTitle += ' (best ever)';
   perfSheet.getRange(perfChartRow-1,perfChartCol)
     .setValue(chartTitle)   // repeat the chart title in the row above...
-    .setFontSize(12)        // ... with highlights
+    .setFontSize(14)        // ...highlighted above chart (assuming not disabled)
     .setFontWeight('bold');
   if (stripIndex) {  // tweak to remove the unique index if desired on chart legend
     let numRunners = groupPerfsRange.getHeight()-1;
@@ -900,10 +900,6 @@ function EmbedGroupPerformancesChart(
     namesRange.setValues(namesRange.getValues()
       .map(name => [name[0].split('_')[0]]));
   }
-  // let colours = runnersLegend.map(colour=>colour[2]); // 3rd col
-  // let seriesOptions = Object.fromEntries(
-  //    colours.map((colour, i) => [i, { color: colour }])
-  // );
   let seriesOptions = Object.assign({},
     ...runnersLegend.map((colour,i) => ({
       [i]: {color: colour[2]}   // 3rd column of legend
@@ -1006,7 +1002,7 @@ function GenerateGroupChartInSheet(
   if (!perfSheet) return null;
   let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
   // runners are a subset! so index is EITHER from allRunners sheet OR in Legend
-  var runnersDatedPerfs = FilterGroupRunnersDatedPerformances(
+  var runnersDatedPerfs = FilterGroupDatedPerformances(
     chartTitle,runners,filterRecentYears,perfColumnIndex);
   if (!runnersDatedPerfs) return null;
   var groupPerfsRange = CopyGroupPerformancesToSheet(perfSheet,runners,
