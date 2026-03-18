@@ -1657,7 +1657,7 @@ function onOpen() {
     .addItem("Import results on event date"+
       "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
       'ImportResultsOnEventDate')
-    .addItem("Permit to add non-parkrun result",
+    .addItem("Permit to add non-parkrun result"+
       "\u00A0".repeat(10)+"Ctrl+Alt+Shift+2",
       "PermitToChangeResults")
     .addItem("Catch-up all positions"+
