@@ -32,6 +32,7 @@
  * @scope https://www.googleapis.com/auth/script.container.ui
  * @scope https://www.googleapis.com/auth/drive.readonly
  * @scope https://www.googleapis.com/auth/drive
+ * @scope https://www.googleapis.com/auth/userinfo.email
  */
 
 /* --------------------------------------------------------------------------
@@ -1656,6 +1657,9 @@ function onOpen() {
     .addItem("Import results on event date"+
       "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
       'ImportResultsOnEventDate')
+    .addItem("Permit to add non-parkrun result",
+      "\u00A0".repeat(10)+"Ctrl+Alt+Shift+2",
+      "PermitToChangeResults")
     .addItem("Catch-up all positions"+
       "\u00A0".repeat(28)+"Ctrl+Alt+Shift+3",
       'CatchUpAllPositions')
