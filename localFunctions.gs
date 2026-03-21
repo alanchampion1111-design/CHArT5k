@@ -25,6 +25,8 @@
  * @scope https://www.googleapis.com/auth/script.scriptapp
  * @scope https://www.googleapis.com/auth/spreadsheets
  * @scope https://www.googleapis.com/auth/script.container.ui
+ * @scope https://www.googleapis.com/auth/userinfo.email
+ * 
  */
 
 const resultTABLE = "Event"   // For any Runner Event results sheet
@@ -50,107 +52,125 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /
 /   The following definitions and functions support the automatic protection
 /   of each runner's result sheets to allow safe entry of results by others.
-/   The heirarchy of functions are:
-/     ReprotectEachRunnerResultsSheets
-/       EnsureBlankResultsRange (range for new results)
-/       ReallowRunnerResultsSheetWithException
-/         UnprotectResultsSheet
-/         ProtectResultsSheetWithException
-/       ReprotectResultsRange
-/         UnprotectResultsRangeOnSheet
-/         GetResultsAdders
-/         ProtectResultsRangeByEditor
+/   There are two use-case heirarchies of functions:
+/
+/     1.  ReprotectResultsSheetsPerRunner
+/           ReprotectRunnerResultsSheet*
+/             UnprotectResultsSheet (legacy if any)
+/             GetProtectResultsRanges (defined on Runners sheet)
+/             ReprotectResultsRanges
+/               UnprotectResultsRangesOnSheet
+//               After freeze-protecting earlier results...
+/                 GetResultsEditorsForRunner
+/                 ProtectResultsRangeByEditor (if any prior)
+/
+/     2a. AppendNonParkrunResult
+/           GetResultsEditorsForRunner
+//          If Editor permitted...
+/             AppendResultRow (for manual entry)
+/
+/     2b. onEditDetectNeedToReprotect
+/           After result entry has completed...
+/             ReprotectRunnerResultsSheet
+/               (*as in 1. above)
 /
 /  ---------------------------------------------------------------------------
 */
 
 /**
- * Ensures a specified number of blank rows exist at the end of the active sheet.
- *  If necessary, inserts new rows to accommodate the specified number.
- *    @param {number} numRows - The number of blank rows to ensure (default: 10)
- *  @return {string} The A1 notation of the range of blank rows
+ * Gets two range of results rows to be protected on the active sheet.
+ *    @param {number} numRowsChange - max number of rows changeable by Editors
+ *  @return {Array of strings} - two distinct ranges to protect: e.g. A1:W,X1:Z  
  */
-function EnsureBlankResultsRange(numRows=numBlankROWS) {
-  var sheet = SpreadsheetApp.getActiveSheet();
-  var runnerNameId = sheet.getName();
-  var resultRow = sheet.getLastRow();   // last non-blank row
-  var maxRows = sheet.getMaxRows();     // actual final row number
-  var numRowsToInsert = numRows-(maxRows-resultRow);
-  if (numRowsToInsert > 0)
-    sheet.insertRowsAfter(maxRows,numRowsToInsert);
-  var endColumn = sheet.getLastColumn();
-  var clearRange = sheet.getRange(resultRow+1,1,numRows,endColumn);
-  clearRange.clearContent();
-  var rangeNotation = clearRange.getA1Notation();
-  var logMessage = "Range for allowing results to be added is "+rangeNotation;
-  if (numRowsToInsert > 0)
-    logMessage += " (with "+numRowsToInsert+" rows appended)";
-  logMessage += " on results sheet, "+runnerNameId;
-  Logger.log(logMessage);
-  return rangeNotation;  var clearRange = sheet.getRange(resultRow+1,1,numRows,endColumn).clearContent();;
-  var rangeNotation = clearRange.getA1Notation();
+function GetProtectResultsRanges(
+  numRowsChange = maxChangeROWS)
+{
+  const resultsSheet = SpreadsheetApp.getActiveSheet();
+  const runnerNameId = resultsSheet.getName();
+  let lastColumn = resultsSheet.getLastColumn();
+  let lastRow = resultsSheet.getLastRow();
+  let maxRowsChange = Math.min(numRowsChange,lastRow-resultsStartROW);  // dividing line...
+  let lastRowFreeze = lastRow-maxRowsChange;
+  let rangeFreeze = resultsSheet
+    .getRange(1,1,lastRowFreeze,lastColumn)                             // ...all above
+    .getA1Notation();                       
+  let firstRowChange = lastRowFreeze+1;
+  let rangeChange = (maxRowsChange > 0)
+    ? resultsSheet
+        .getRange(firstRowChange,1,maxRowsChange,lastColumn)            // ...all below (if any)
+        .getA1Notation()
+    : undefined;
+  Logger.log("Protecting edit ranges on results sheet, "+runnerNameId+"...\n"+
+    'Owner-only range: '+rangeFreeze+'\n'+
+    'Editors range: '+rangeChange+' ('+maxRowsChange+' latest results)');
+  return [rangeFreeze,rangeChange];
 }
 
-/**
- * Unprotect entire sheet (including exceptions)
+/** LEGACY / SAFEGUARD
+ * Unprotect entire sheet if any protection (legacy solution interferes)
  */
-function UnprotectResultsSheet(sheet) {
-  var protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
-  if (protections.length > 0) protections[0].remove();
+function UnprotectResultsSheet(resultsSheet) {
+  var protections = resultsSheet
+    .getProtections(SpreadsheetApp.ProtectionType.SHEET);
+  protections.forEach(p => p.remove());
 }
 
-/**
- * Protect entire sheet with exception (pending permit)
+/** OBSOLETE
+ * Protect entire sheet with exception (legacy solution OBSOLETE)
  */
-function ProtectResultsSheetWithException(sheet,exceptionRange) {
-  var sheetProtection = sheet.protect();
+function ProtectResultsSheetWithException(resultsSheet,exceptionRange) {
+  var sheetProtection = resultsSheet.protect();
   // Only the worksheet owner is permitted to allow this range exception 
-  var protectionRange = sheet.getRange(exceptionRange);
+  var protectionRange = resultsSheet.getRange(exceptionRange);
   // Exception range to be restricted thereafter
   sheetProtection.setUnprotectedRanges([protectionRange]);
 }
 
-/**
- * Reallows editing on a specific range of a protected sheet.
+/**  OBSOLETE
+ * Reallows editing on a range of a protected sheet  (legacy solution OBSOLETE)
  *  Removes existing protection, adds an exception for the specified range,
  *  and reapplies protection with domain edit disabled.
  *    @param {string} rangeNotation - The A1 notation of the range to allow editing.
  */
 function ReallowRunnerResultsSheetWithException(rangeNotation) {
-  var sheet = SpreadsheetApp.getActiveSheet();
-  UnprotectResultsSheet(sheet);
-  ProtectResultsSheetWithException(sheet,rangeNotation);
-  var runnerNameId = sheet.getName();
-  Logger.log("Reprotected "+runnerName+"'s results except for the new results range, "+rangeNotation);
+  let resultsSheet = SpreadsheetApp.getActiveSheet();
+  UnprotectResultsSheet(resultsSheet);
+  ProtectResultsSheetWithException(resultsSheet,rangeNotation);
+  let runnerNameId = resultsSheet.getName();
+  if (debug)
+    Logger.log("Reprotected results in sheet, "+runnerNameId+
+      " sheet, except for the new results range, "+rangeNotation);
 }
 
 /**
- * Gets the list of users permitted to add results for a specific runner.
- *    @param {string} runnerName - The name of the runner.
- *  @return {string[]} An array of user names permitted to add results.
+ * Gets the list of users permitted to update results for a specific runner.
+ *    @param {string} runnerNameId - The unique indexed name of the runner (e.g. Tobias_0)
+ *  @return {string[]} An array of users (by email) permitted to update latest results.
  */
-function GetResultsAddersForRunner(runnerName) {
-  const addersCOLUMN = "D";     // Where the results adder(s) are in the Runners table
-  var indexRow = allRunnersSheet.getRange("A3:A").getValues().map(function(value) { 
-    return value[0];
-  }).indexOf(runnerName);
-  if (indexRow == -1) {
-    Logger.log("Individual runner, "+runnerName+" not found within the Runners sheet table");
-    return [];
+function GetResultsEditorsForRunner(runnerNameId) {
+  const editorsCOL = 4;     // col D in Runners sheet has permitted results editor(s)
+  const [runner,index] = runnerNameId.split('_');
+  if (isNaN(index)) {
+    Logger.log('ERROR: '+runnerNameId+' is not a valid results sheet');
+    return null;
+  } else {
+    var editorsCell = allRunnersSheet.getRange(runnersStartROW+parseInt(index),editorsCOL);
+    if (debug)
+      Logger.log(editorsCell.getA1Notation());    // e.g. "D16" for runner_index, Alan_13
+    var editorEmails = editorsCell.getValue().split(",");
+    editorEmails = editorEmails.map(email => email.trim());
+    if (debug)
+      Logger.log("Latest results on sheet, "+runnerNameId+" may be added/changed by:\n"
+        +editorEmails.join(","));
+    return editorEmails;
   }
-  var addersCell = allRunnersSheet.getRange(addersCOLUMN+(indexRow+runnersStartROW));
-  var adders = addersCell.getValue().split(",");
-  adders = adders.map(adder => adder.trim());
-  Logger.log("Results on " + runnerName + "'s result sheet may be added by "
-    +adders.join(", "));
-  return adders;
 }
 
 /**
- * Remove any range protections on a runner's sheet (typically one only)
+ * Remove any range protections on a runner's result sheet (typically two)
  */
-function UnprotectResultsRangeOnSheet(sheet) {
-  var protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+function UnprotectResultsRangesOnSheet(resultsSheet) {
+  var protections = resultsSheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
   protections.forEach(function(protection) {
     protection.remove();
   });
@@ -159,75 +179,174 @@ function UnprotectResultsRangeOnSheet(sheet) {
 /**
  * Allow the new range protection on a runner's sheet
  */
-function ProtectResultsRangeByEditor(editor,newProtection) {
+function ProtectResultsRangeByEditor(editor,rangeProtection) {
   try {
-    newProtection.addEditor(editor);
+    rangeProtection.addEditor(editor);
   } catch (err) {
-    Logger.log("ERROR: adding editor: "+editor+". ERROR: "+err+" because not a google email address");
+    Logger.log("ERROR: Adding editor, "+editor+"; a google (group) email is expected\n"+err);
   }
 }
 
 /**
- * Reprotects a specific range of a sheet, allowing only specified users to edit.
- *    @param {string} rangeNotation - The A1 notation of the range to protect.
- *  @return {string[]} An array of user names permitted to edit the range.
+ * Reprotect a results sheet, allowing a runner to add/change latest results only.
+ *    @param {string} rangeFreeze - The range that is to be frozen, e.g. A1:W
+ *    @param {string} rangeChange - The range that may be updated, e.g. X1:Z
+ *  @return {string[]} An array of runners (emails) permitted to apply changes.
  */
-function ReprotectResultsRange(rangeNotation) {
-  var sheet = SpreadsheetApp.getActiveSheet();
-  UnprotectResultsRangeOnSheet(sheet);
-  var protectionRange = sheet.getRange(rangeNotation);
-  var newProtection = protectionRange.protect();
-  var runnerName = sheet.getName();
-  var adders = GetResultsAddersForRunner(runnerName);
-  if (adders && adders.length > 0) {
-    adders.forEach(function(adder) {
-      ProtectResultsRangeByEditor(adder,newProtection);
-    });
-    Logger.log("Reprotected new range, "+rangeNotation+" on "+runnerName+
-      "'s results sheet, except by "+(adders.join(", ")));
-  } else {
-    SpreadsheetApp.getUi().alert('WARNING',"Without protection, any spreadsheet Editor can add results to "+
-      runnerName+"'s results sheet");
-    Logger.log("Unprotected new range, "+rangeNotation+" on "+runnerName+"'s results sheet");
-  }
-  return adders;
+function ReprotectResultsRanges(rangeFreeze,rangeChange) {
+  const resultsSheet = SpreadsheetApp.getActiveSheet();
+  UnprotectResultsRangesOnSheet(resultsSheet);
+  let freezeRange = resultsSheet.getRange(rangeFreeze);
+  let thisProtection = freezeRange
+    .protect()          // consider: freezeRange.setWarningOnly(true)
+    .setDescription('Freeze past results');
+  if (rangeChange) {    //  when only one result, prevent any edits
+    let changeRange = resultsSheet.getRange(rangeChange);
+    thisProtection = changeRange
+      .protect()        // default: edit rights limited to Owner
+      .setDescription('Edit latest result(s)');
+    let runnerNameId = resultsSheet.getName();
+    let editorsEmails = GetResultsEditorsForRunner(runnerNameId);
+    if (editorsEmails && editorsEmails.length > 0) {
+      editorsEmails.forEach(email => {        // edit rights extended to specific Editor
+        ProtectResultsRangeByEditor(email,thisProtection);
+      });
+      if (debug)
+        Logger.log("Changes permitted in range, "+changeRange+" only, on results sheet, "+
+          runnerNameId+", allowing changes by:\n"+(editorsEmails.join(",")));
+    } else {
+      SpreadsheetApp.getUi().alert(
+        'WARNING',"Without protection, any Editor can change any results in sheet, "+
+        runnerNameId,SpreadsheetApp.ButtonSet.OK);
+      Logger.log("WARNING: The results sheet, "+runnerNameId+" is unprotected");
+    }
+    return editorsEmails;
+  } else
+    return undefined;
 }
 
 /** 
- * Reprotects each runner's results sheet, to allow permitted users to add results.
- *  For each named runner...
- *    0. Get that runner's results sheet (or create if none)
- *    1. Ensure sufficient blank rows to add new result(s)
- *    2. Protect that results sheet except for the blank row range
- *    3. Protect that blank range for specific (editor) runners only to add results
+ *  For the named runner's result sheet...
+ *    0.  Get that runner's results sheet
+ *    1.  Unprotect results sheet (compatible with former solution)
+ *    2.  Determine owner/editor protection on ranges that may apply 
+ *    3.  Apply protection on results, either frozen (by owner) or changed by editors
  */
-function ReprotectEachRunnerResultsSheets() {
-  const runnersRANGE = runnerNameCOLUMN+resultsStartROW+":"+runnerSurnameCOLUMN;
-  var runnerFullNames = allRunnersSheet.getRange(runnersRANGE)
-    .getValues().filter(function(value) {
-    return value[0] != "";
-  }).map(function(value) {
-    return [value[0],value[1]]; 
-  });
-  runnerFullNames.forEach(function(
-    runnerFullName,index)
-  {
-    var runnerName = runnerFullName[0];
-    var runnerNameId = runnerName+'_'+index;
-    var resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
-    if (!resultsSheet) {
-      var thisRow = index+runnersStartROW;
-      var parkrunnerId = allRunnersSheet.getRange(
-        thisRow,parkrunnerIdCOL).getValue();
-      // resultsSheet = CreateRunnerResultsSheet(runnerFullName,parkrunnerId);
-      if (!resultsSheet) return;
-    } 
+function ReprotectResultsSheet(
+  runnerNameId = 'Alan_13')
+{
+  const resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
+  if (resultsSheet) {
     resultsSheet.activate();
-    var rangeNotation = EnsureBlankResultsRange(numBlankROWS);
-    ReallowRunnerResultsSheetWithException(rangeNotation);
-    var adders = ReprotectResultsRange(rangeNotation);
-  });
-  Logger.log("Protection complete on each runner's results sheet");
+    UnprotectResultsSheet(resultsSheet);  // whether legacy/temporary
+    let [rangeFreeze,rangeChange] = GetProtectResultsRanges(maxChangeROWS);
+    ReprotectResultsRanges(rangeFreeze,rangeChange);
+    if (debug)
+      Logger.log("Reprotections applied on results sheet, "+runnerNameId);
+  }
+}
+
+/** 
+ * Reprotects results sheet for each runner, allowing permitted users
+ * to add/change latest results.
+ */
+function ReprotectResultsSheetPerRunner() {   // entry-point usage
+  const runnersRANGE = runnerNameCOLUMN+resultsStartROW+":"+runnerSurnameCOLUMN;
+  let runnerFullNames = allRunnersSheet.getRange(runnersRANGE)
+    .getValues()
+    .filter(name => name[0] != "")
+    .map(name => [name[0],name[1]]);
+  runnerFullNames.forEach((runnerFullName,index) => {
+      var runnerName = runnerFullName[0];
+      var runnerNameId = runnerName+'_'+index;
+      ReprotectResultsSheet(runnerNameId);
+    }
+  );
+  Logger.log("Reprotection completed on each results sheet");
+}
+
+//------------------------------------------------------------------------------------------
+
+const editCOLUMN = "N";   // on the RHS of the results (at the bottom)
+const onEditCOL = editCOLUMN.charCodeAt(0)-64 ;
+const activeVALUE = '...entering';
+const activeNOTE = 'If available, please include a HYPERLINK formula to any official result '+
+  '(behind the date of the event) and enter your age-based grading (after calculating) together '+
+  'with your gender position, before entering DONE here (ready for protection to be re-applied)';
+
+/**
+ * Appends a new result row to a runner's results sheet (without degrading MAP formulae)
+ *    @param {GoogleAppsScript.Spreadsheet.Sheet} resultsSheet - for appending blank row
+ */
+function AppendResultRow(resultsSheet) {
+  resultsSheet.appendRow([""]);
+  let lastResultRow = resultsSheet.getLastRow();
+  resultsSheet.getRange(lastResultRow,PBtickBoxCOL)
+    .clearContent();  // ensure undefined (instead of FALSE) for MAP to be effective
+  resultsSheet.setActiveSelection('A'+lastResultRow);
+  return lastResultRow;
+}
+
+/**
+ *  Appends a non-parkrun result row to the active results sheet if user is permitted
+ *  to allow them to add their result manually and "return" via an onEdit function 
+ */
+function AppendNonParkrunResult() {     // user 
+  const resultsSheet = SpreadsheetApp.getActiveSheet();   // Applies to active (results) sheet...
+  const runnerNameId = resultsSheet.getName();
+  let [runnerName,index] = runnerNameId.split('_');
+  if (isNaN(index)) {
+    Logger.log('ERROR: '+runnerNameId+' is NOT a results sheet (like Alan_13)');
+    return;
+  } else if (debug)
+    Logger.log('Attempting to add non-parkrun result to '+runnerNameId+'...');
+  let userEmail = Session.getEffectiveUser().getEmail();  // user permitted?
+  let protection = resultsSheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)[1];
+  // const ownerEmail = activeSpreadsheet.getOwner().getEmail();
+  let editorEmails = (protection)   // get actual list of editors from existing protection
+    ? protection.getEditors().map(editor => editor.getEmail())
+    : GetResultsEditorsForRunner(runnerNameId);   // ...OR get expected list (if not already set)
+   if (debug)
+    Logger.log('Checking user, '+userEmail+' is in the authorised list:\n'+
+      editorEmails+'\n'+', which includes the spreadsheet owner');
+  if (editorEmails && editorEmails.includes(userEmail)) { 
+    let lastResultRow = AppendResultRow(resultsSheet);
+    resultsSheet.getRange(editCOLUMN+lastResultRow)    // N<lastRow>
+      .setValue(activeVALUE)
+      .setFontStyle('italic')
+      .setNote(activeNOTE);
+    resultsSheet.getRange(lastResultRow,1).activate();
+    // CAUTION: An Editor (non-Owner) is unable to re-apply protections (relies on owner's onEdit trigger)
+    //  ReprotectResultsSheet(runnerNameId);
+  } else
+    Logger.log('ERROR: Runner has not been granted permission to add/change results in sheet, '+runnerNameId);
+}
+
+/**
+ * This need to reprotect is triggered (for the Owner), typically after AppendNonParkrunResult (by User)
+ * in order to reprotect their results sheet.
+ *    @param {Object} event - Google Sheets onEdit trigger event
+ */
+function onEditDetectNeedToReprotect(event) {  // trigger on Edit runs as spreadsheet owner
+  const col = event.range.getColumn();
+  if (debug)
+    Logger.log('Column: '+col+'; Row: '+event.range.getRow()+'; Value: '+event.value);
+  if (col !== onEditCOL || event.value === activeVALUE)
+    return;   // exit ASAP to reduce interruption from interim/other edits
+  let resultsSheet = event.range.getSheet();
+  let runnerNameId = event.source.getName();    // OR resultsSheet.getName()
+  const resultRow = event.range.getRow();
+  if (resultsSheet.getRange(resultRow,2).getDisplayValue()) {
+    if (debug)
+      Logger.log('Reprotecting results sheet, '+runnerNameId+'...');
+    resultsSheet.activate();      // pre-requisite to get range
+    ReprotectResultsSheet(runnerNameId);  // shift protection down 1 row
+    event.range.clearContent();  // Reset FULLY inactive when DONE with latest 
+  } else {
+    resultsSheet.deleteRow(resultRow);
+    Logger.log('WARNING: Deleted empty/incomplete result appended to sheet, '+runnerNameId+
+      '; entry of date and time is essential');
+  }
 }
 
 /* ----------------------------------------------------------------------------
@@ -256,19 +375,22 @@ function ScrollBeyondLastResult() {
   const functionNAME = "ScrollBeyondLastResult";
   // Select the first empty row in preparation for pasting a non-parkrun entry
   // Conveniently used to skip to the bottom of the table below the latest result
-  var sheet = SpreadsheetApp.getActiveSheet();
-  Logger.log('Running '+functionNAME+' on sheet: '+sheet.getName());
-  var lastRow = sheet.getLastRow();
+  var resultsSheet = SpreadsheetApp.getActiveSheet();
+  if (debug)
+    Logger.log('Running '+functionNAME+' on sheet: '+resultsSheet.getName());
+  var lastRow = resultsSheet.getLastRow();
   if (lastRow <= firstResultROW) return; // table has no results yet
   // Find an empty row from the bottom of the table since more efficient
   var i = lastRow;
   for (; i>firstResultROW; i--) 
-    if (sheet.getRange(i,pasteCOL).getValue()) break;
+    if (resultsSheet.getRange(i,pasteCOL).getDisplayValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
-  if (i == lastRow)       
-    sheet.appendRow([""]);
+  if (i == lastRow) {
+    var newRow = resultsSheet.appendRow([""]);
+    resultsSheet.getRange(newRow.getLastRow(),PBtickBoxCOL).clearContent();
+  }
   // Always select the row below the last result
-  sheet.getRange(i+1,pasteCOL).activate();
+  resultsSheet.getRange(i+1,pasteCOL).activate();
 }
 
 /**
@@ -283,17 +405,19 @@ function ScrollBeyondLastResult() {
  *        - Save
  */
 function onSelectionChange(e) { 
-  var sheet = e.source.getActiveSheet();
   var range = e.range;
-  // Ignore sheet quickly if table does not contain Event results
-  if (sheet.getRange(eventHeaderCELL).getValue() !== resultTABLE) return;
-  // Skip also if first result has not been entered (and cleaned manually)
-  if (sheet.getRange(firstResultCELL).getValue() === "") return;
   // Only effective when selecting a cell just to the right of the table
   // assuming a down-arrow image is on the right of that Event result header
-  if (range.getColumn() === scrollCOL)
-    ScrollBeyondLastResult();
+  if (range.getColumn() !== scrollCOL) return
+  var resultsSheet = e.source.getActiveSheet();
+  // Skip sheet if table does not contain Event results
+  if (resultsSheet.getRange(eventHeaderCELL).getValue() !== resultTABLE) return;
+  // Skip also if first result has not been entered (and cleaned manually)
+  if (resultsSheet.getRange(firstResultCELL).getValue() === "") return;
+  ScrollBeyondLastResult();
 }
+
+// ------------------------------------------------------------
 
 function convertHoursToMinutes(timeStr) {
   // Results are 60 times slower, hh:mm and need to be mm:ss
@@ -612,20 +736,22 @@ function CleanFormatforPastedRunResults(
         ))
       )
 
-    Thereafter, each challenge block may be hiddenm when a new block is added with a new date.
+    Thereafter, each challenge section may be hidden, when a new section is added with a new planned date.
 
     For maintenance needs, here is the hierarchy of functions for the comparative charts:
 
       GenerateChartsFromGroups
-        ExtractGroupRunners
-        When referencing a new Performances sheet...
-          ClearPerformancesSheet
-        GenerateGroupChartInSheet
-          FilterGroupDatedPerformances
-            CollateGroupDatedPerformances
-          CopyGroupPerformancesToSheet
-          EmbedGroupPerformancesChart
-            ApplyFormatsOnGroupPerformancesCharts
+        PrepassBlocksOfGroups
+        For each block of groups...
+          For each group required, related to same target sheet...
+            ClearPerformancesCharts (on the target sheet)
+            ExtractGroupRunners (per group)
+            GenerateGroupChartInSheet
+              FilterGroupDatedPerformances
+                CollateGroupDatedPerformances
+              CopyGroupPerformancesToSheet
+              EmbedGroupPerformancesChart
+                ApplyFormatsOnGroupPerformancesCharts
 
       When any change of hex colour codes in the top Legends table...
         ColourLegendsInGroups
@@ -701,7 +827,7 @@ function FilterGroupDatedPerformances(chartTitle,runners,
       if (!resultsSheet) {
         SpreadsheetApp.getUi().alert('Error',
           'No results in unique runner sheet, '+runnerNameId,
-          SpreadsheetApp.getUi().ButtonSet.OK);
+          SpreadsheetApp.ButtonSet.OK);
         return;
       }
       let numResults = resultsSheet.getLastRow()-runnersStartROW+1;
@@ -1020,97 +1146,115 @@ function GenerateGroupChartInSheet(
   }
 }
 
+const numGroupROWS = 4;     // Group of selected runners info in 4 rows 
+const numRunnerROWS = numGroupROWS-1;
+const groupsStartROW = 9;   // Title, header + lookup legends by gender 
+const runnersStartCOL = 3;  // Output sheet name & Group with...
+const paramsCOUNT = 11;     // ...parameters of Group start in col 3
+var defaultPerfSheetName = 'Performances';    // may vary if overridden
+
 /**
- * Generates charts in performance sheet(s) based on config in the Groups sheet.
+ * Builds block (array) of group params (arrays) from Groups sheet configuration..
+ * Assume null for parameter (if empty) - see notes on Groups sheet
+ *    @param {Sheet} groupsSheet - e.g. for Groups sheet in GAS spreadsheet 
+ *  @returns {Object} grpBlocks - with perfs sheet names as keys, each with an array of group params
+ * Note: a blank perfs sheet name (in col A) implies that of the group above
+ *  - initially 'Performances' if col A completely empty (not recommended; not so in template)
+ */
+function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
+  var grpBlocks = {};
+  for (var i=0; i<groupsCount; i++) {
+    var group1stRow = groupsStartROW+numGroupROWS*i;
+    var paramsRange = groupsSheet.getRange(group1stRow,1,1,paramsCOUNT);
+    var params = paramsRange.getValues()[0];
+    let perfSheetName = params[0] || defaultPerfsSheetName;
+    defaultPerfsSheetName = perfSheetName;
+    if (!grpBlocks[perfSheetName])
+      	grpBlocks[perfSheetName] = [];
+    var grpParams = {};
+    for (var j=1; j<paramsCOUNT; j++) {
+      switch (j) {    // from columns B..K in 1st row 
+        case 1: grpParams.groupName = params[1]; break;
+        case 2: grpParams.groupTitle = params[2]; break;
+        case 3: grpParams.perfColumnTitle = params[3] || chartYAxisTITLE; break;
+        case 4: grpParams.perfColumnIndex = params[4] || undefined; break;
+        case 5: grpParams.perfFormat = params[5] || undefined; break;
+        case 6: grpParams.filterRecentYears = params[6] || undefined; break;
+        case 7: grpParams.showDates = params[7] == true || false; break;
+        case 8: grpParams.reverseTrend = params[8] == true ? -1 : 1; break;
+        case 9: grpParams.stripIndex = params[9] == true || false; break;
+        case 10: grpParams.disableDraw = params[10] == true || false; break;
+      }
+    }
+    let maxRunnersCount = groupsSheet.getLastColumn()-runnersStartCOL+1;
+    grpParams.runnersRange = groupsSheet.getRange(
+      group1stRow+1,runnersStartCOL,
+      numRunnerROWS,maxRunnersCount);
+    grpBlocks[perfSheetName].push(grpParams);
+  }
+  return grpBlocks;
+}
+
+/**
+ * Generates charts in performance sheets based on config in the Groups sheet.
+ * Groups are organised into blocks, each with a different target sheet - e.g Leagues
  *    @param {string} [groupsSheetName="Groups"] - existing sheet with Groups config
  */
 function GenerateChartsFromGroups(
-  groupsSheetName = "Groups")
+  groupsSheetName = 'Groups',
+  perfSheetNames = ['Performances','Leagues','Families','Gender'])
 {
-  var groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
+  const groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
-  const numGroupROWS = 4;       // Group of related runners info spread over 4 rows 
-  const numRunnerROWS = numGroupROWS-1;
-  const groupsStartROW = 9;     // Title & header rows sandwich 2*3-row lookup male/female tables
-  const runnersStartCOL = 3;     // Output sheet name & Group titleprecede  
-  const groupsEndROW = groupsSheet.getLastRow();
-  const maxGroupsCOUNT = parseInt((groupsEndROW-groupsStartROW+1)/numGroupROWS);
-  const maxRunnersCOUNT = groupsSheet.getLastColumn()-runnersStartCOL+1;
-  const paramsCOUNT = 11;       // Assume parameters of Group in Columns A..K
-  var defaultPerfSheet = null;  // Assume default Performance Sheet unless specified
-  var is1stGroup = true;
-  // For each Group, there are THREE ordered steps to generate the chart...
-  for (var i=0; i<maxGroupsCOUNT; i++) {
-    var group1stRow = groupsStartROW+numGroupROWS*i; // Assumes no blank rows between
-    
-    // 1. Establish valid Group in runners (2D-Array) with colours on two rows...
-    var runnersRange = groupsSheet.getRange(group1stRow+1,  // Runner names on 2nd row
-      runnersStartCOL,numRunnerROWS,maxRunnersCOUNT);   // incl. runner index & legend (2..4)
-    var runnersLegend = ExtractGroupRunners(runnersRange);
-    if (!runnersLegend || runnersLegend.length == 0) continue; // skip after step 2 if no runners
+  let groupsEndRow = groupsSheet.getLastRow();
+  let groupsCount = (groupsEndRow-groupsStartROW+1)/numGroupROWS;
 
-    // 2. Extract Group parameters from 1st row, with chart position in Col. A of 2nd row
-    //    Assume null for function defaults (if empty) - see notes on Groups sheet
-    var paramsRange = groupsSheet.getRange(group1stRow,1,1,paramsCOUNT);
-    var perfSheet,perfSheetName,groupName,groupTitle,
-      showDates,reverseTrend,stripIndex,disableDraw,
-      filterRecentYears,
-      perfColumnTitle,perfColumnIndex,perfFormat;
-    var params = paramsRange.getValues()[0];
-    for (var j=0; j<params.length; j++) {   // ensure all parameters considered
-      switch (j) {
-      case 0:     // column A (of Groups sheet)
-        perfSheetName = params[0] || defaultPerfSheet;
-        if (is1stGroup || perfSheetName != defaultPerfSheet) {  // target is 'Performances' sheet
-          perfSheet = ClearPerformancesCharts(perfSheetName);
-          defaultPerfSheet = perfSheetName;   // if explicit assume default thereafter
-          is1stGroup = false;
-        } else {
-          perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
-        }                                             break;
-      case 1:     // column B
-        groupName = params[1];                        break;
-      case 2:     // column C
-        groupTitle = params[2];                       break;
-      case 3:     // column D
-        // used for vertical & main titles , AND
-        // ... criteria matches a header in results sheets
-        perfColumnTitle = params[3] || chartYAxisTITLE;  break;
-      case 4:     // column E
-        perfColumnIndex = params[4] || undefined;     break;
-      case 5:     // column F
-        perfFormat = params[5] || undefined;          break;
-      case 6:     // column G
-        filterRecentYears = params[6] || undefined;   break;
-      case 7:     // column H
-        showDates = params[7] == true || false;       break;
-      case 8:     // column I - TODO ineffective on reverse
-        reverseTrend = params[8] == true ? -1 : 1;    break;
-      case 9:     // column J 
-        stripIndex = params[9] == true || false;      break;
-      case 10:     // column K
-        disableDraw = params[10] == true || false;    break;
-      }
-    } // end of parameters for one Group from Groups sheet
-    var perfChartRow = paramsRange.offset(1,0)    // in col A on 2nd row
-      .getValue() || undefined;  
-    var perfChartCol = paramsRange.offset(1,1)    // in col B (default col B)
-      .getValue() || undefined;
-    var firstRunner = paramsRange.offset(1,2) 	  // in col C
-      .getValue() || undefined;  
-    if (disableDraw || !groupName || firstRunner === "#N/A")
-      continue;   // skip if no runners (after having cleared since last run)
+  // Stage 1: Identify blocks of groups (per sheet output) with parameters from Groups sheet
+  let grpBlocks = PrepassBlocksOfGroups(groupsSheet,groupsCount);
+  for (var perfSheetName in grpBlocks) {
+    if (!perfSheetNames.includes(perfSheetName))
+      continue;   // split scope into separate tasks: two blocks per sscope
+    Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
+    if (grpBlocks[perfSheetName].every(g => g.disableDraw))
+      continue;
+    // ONLY clear a perf chart sheet if one or more charts NOT disabled
+    var perfSheet = ClearPerformancesCharts(perfSheetName);
+    grpBlocks[perfSheetName].forEach(function(grpParams,index) {
+      if (debug)
+        Logger.log('Group '+index+': '+JSON.stringify(grpParams));
 
-    // 3. Place Group performances data on sheet before creating Group chart
-    var chartTitle = groupName+" ("+groupTitle+") "+perfColumnTitle;
-    GenerateGroupChartInSheet(
-      perfSheet,chartTitle,runnersLegend,
-      perfChartRow,perfChartCol,
-      showDates,reverseTrend,stripIndex,
-      filterRecentYears,
-      perfColumnTitle,perfColumnIndex,perfFormat);
-  } // end of Groups from Groups sheet
-  return perfSheet;
+      // Stage 2a. Establish valid group of runners with colour legend...
+      if (grpParams.disableDraw || !grpParams.groupName)
+        return;
+      let runnersLegend = ExtractGroupRunners(grpParams.runnersRange);
+      if (!runnersLegend || runnersLegend.length == 0)
+        return;
+      let groupRange = groupsSheet.getRange(grpParams.runnersRange.getRow()-1,1);
+      let perfChartRow = groupRange.offset(1,0).getValue() || undefined;
+      let perfChartCol = groupRange.offset(1,1).getValue() || undefined;
+      let firstRunner = groupRange.offset(1,2).getValue() || undefined;
+      if (firstRunner === "#N/A")
+        return;
+
+      // Stage 2b. Place Group performances data on sheet prior to creating Group chart
+      var chartTitle = grpParams.groupName+" ("+grpParams.groupTitle+") "+grpParams.perfColumnTitle;
+      GenerateGroupChartInSheet(
+        perfSheet,chartTitle,runnersLegend,
+        perfChartRow,perfChartCol,
+        grpParams.showDates,grpParams.reverseTrend,grpParams.stripIndex,
+        grpParams.filterRecentYears,grpParams.perfColumnTitle,
+        grpParams.perfColumnIndex,grpParams.perfFormat
+      );
+    });
+  }
+}
+
+function GenScopePGChartsFromGroups() {
+  GenerateChartsFromGroups('Groups',['Performances','Gender']);
+}
+
+function GenScopeLFChartsFromGroups() {
+  GenerateChartsFromGroups('Groups',['Leagues','Families']);
 }
 
 function ColourLegendsInGroups(
