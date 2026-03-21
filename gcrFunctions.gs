@@ -32,7 +32,6 @@
  * @scope https://www.googleapis.com/auth/script.container.ui
  * @scope https://www.googleapis.com/auth/drive.readonly
  * @scope https://www.googleapis.com/auth/drive
- * @scope https://www.googleapis.com/auth/userinfo.email
  */
 
 /* --------------------------------------------------------------------------
@@ -100,6 +99,8 @@
 /           >CleanBatch
 /  -------------------------------------------------------------------------
 */
+
+const titleNameCELL = "A1";               // club/family name (with link to consolidated results)
 
 async function OpenChromeBrowser() {
   const initBrowserURL = browserURL+'/initBrowser';
@@ -269,7 +270,6 @@ async function CopyResultForRunner(
 }
 
 let hyperLinks = [];  // Preserves the links from the runner's page
-const PBtickBoxCOL = 8; // column H is a read-only tick-box, derived from column G (if PB present)
 
 /**
  *  Clean (each) cell, perhaps double clean if necessary)
@@ -763,7 +763,8 @@ async function GetEventsResults(eventDate) {
  */
 function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
-  eventDate = undefined)  // undefined means latest date - return to this state otherwise
+  eventDate = undefined,  // undefined means latest Saturday - return to this state otherwise
+  startId = 0, stopId = 99)
 {
   if (!eventDate)
     eventDate = GetLastSaturday();
@@ -1635,54 +1636,4 @@ async function AcceptCookies() {
     Logger.log(err);
     return err;
   }
-}
-
-/**
- * Sets up the Parkruns menu on opening the spreadsheet.
- *  Instructions to set up (and execute?) the trigger:
- *    1. Go to the Apps Script (Macros) editor.
- *    2. Click on the clock icon (Triggers) in the left sidebar.
- *    3. Click on "Create trigger".
- *    4. Set up the trigger with the following settings:
- *        - Choose function: onOpen
- *        - Select event type: On open
- *        - Save
- */
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  var parkrunsMenu = ui.createMenu('parkrun')
-    .addItem("Import result for each runner"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
-      'ImportResultForEachRunner')
-    .addItem("Import results on event date"+
-      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
-      'ImportResultsOnEventDate')
-    .addItem("Permit to add non-parkrun result"+
-      "\u00A0".repeat(10)+"Ctrl+Alt+Shift+2",
-      "PermitToChangeResults")
-    .addItem("Catch-up all positions"+
-      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+3",
-      'CatchUpAllPositions')
-    .addSeparator()
-    .addItem("Protect results sheets per runner"+
-      "\u00A0".repeat(9)+"Ctrl+Alt+Shift+4",
-      'ReprotectEachRunnerResultsSheets')
-    .addItem("Colour legends in Groups"+
-      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+5",
-      'ColourLegendsInGroups')
-    .addItem("Generate charts from Groups"+
-      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
-      'GenerateChartsFromGroups')
-    .addSeparator()
-    .addItem("Add family (or club) member"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
-      'AddFamilyMember')
-    .addItem("Delete family (or club) member"+
-      "\u00A0".repeat(12)+"Ctrl+Alt+Shift+8",
-      'DeleteFamilyMember')
-    .addItem("Spawn new family (or club)"+
-      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
-      'SpawnNewFamily')
-    // .insertMenu(ui,5)   // ideally before Tools 
-    .addToUi();
 }
