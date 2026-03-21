@@ -35,16 +35,16 @@
       "functionName": "ImportResultsOnEventDate",
       "defaultShortcut": "Ctrl+Alt+Shift+1"
     }, {
-      "menuName": "Permit to add non-parkrun result",
-      "functionName": "PermitToChangeResults",
+      "menuName": "Append non-parkrun result",
+      "functionName": "AppendNonParkrunResult",
       "defaultShortcut": "Ctrl+Alt+Shift+2"
     }, {
     "menuName": "Catch up all positions",
       "functionName": "CatchUpAllPositions",
       "defaultShortcut": "Ctrl+Alt+Shift+3"
     }, {
-    "menuName": "Protect results sheets per runner",
-      "functionName": "ReprotectEachRunnerResultsSheets",
+    "menuName": "Protect results sheet per runner",
+      "functionName": "ReprotectResultsSheetPerRunner",
       "defaultShortcut": "Ctrl+Alt+Shift+4"
     }, {
     "menuName": "Colour legends in Groups",
