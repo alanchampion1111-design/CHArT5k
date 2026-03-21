@@ -9,7 +9,6 @@ if (debug) Logger.log('Current Spreadsheet Id: '+activeSpreadsheetId);
 const runnersSheetNAME = 'Runners';
 var allRunnersSheet = activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(runnersSheetNAME);      // ...for new runners from initiating Spreadsheet 
-const titleNameCELL = "A1";               // club/family name (with link to consolidated results)
 const importDateCELL = "I1";              // Runners cell for the last import date (dd/MM/yyyy)
 const importIndexCELL = "K1";             // Runners cell with index of runner to continue import
 const importTotalCELL = "L1";             // Runners cell with number of runners on import date
@@ -33,12 +32,13 @@ const dobINDEX = 4;               // in column E on Runners sheet (for arrays or
 const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
 const parkrunnerIdCOL = 10;       // in column J on Runners sheet
 const resultsStartROW = 3;        // start after title & header rows (2)
-const genderPosnCOL = 9;          // column I on each runner Results sheet (until on parkrun results page?)
-const ageCatPosnCOL = 10;         // column J on each runner Results sheet
-const ageGradePosnCOL = 11;       // column K on each runner Results sheet
+const PBtickBoxCOL = 8;           // column H tick-box on Results sheets, ticked if value in G is PB
+const genderPosnCOL = 9;          // column I on each Results sheet (until on parkrun results page?)
+const ageCatPosnCOL = 10;         // column J on each Results sheet
+const ageGradePosnCOL = 11;       // column K on each Results sheet
 const ageCatCOL = 12;             // column L is the Age Category on event date (derived from DoB)
 const PBtoAgeCatNumCOLS = 5;      // cols H..L for I..K positions between derived cols, H & L
-const numChangeROWS = 3;          // restrict changes to recent results
+const maxChangeROWS = 3;          // restrict changes to recent results
 const groupPerfsCOL = 4;          // column D on each Performances chart sheet (e.g. Leagues)
 const chartColOFFSET = -2;        // column B from D on any Performances chart sheet
 const trendColOFFSET = 12;        // column N from B on runner's own trend chart sheet
@@ -50,3 +50,53 @@ const runnerSurnameCOLUMN = "B";  // Runners surname in column B
 const parkrunnerIdCOLUMN = "J";   // Runners parkrunner ID in column J
 const hasResultsCOLUMN = "K";     // ...results exist (D3:D), with Parkrunner Id in col J
 const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on genderPosnCOL
+
+/**
+ * Sets up the Parkruns menu on opening the spreadsheet.
+ *  Instructions to set up (and execute?) the trigger:
+ *    1. Go to the Apps Script (Macros) editor.
+ *    2. Click on the clock icon (Triggers) in the left sidebar.
+ *    3. Click on "Create trigger".
+ *    4. Set up the trigger with the following settings:
+ *        - Choose function: onOpen
+ *        - Select event type: On open
+ *        - Save
+ */
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  var parkrunsMenu = ui.createMenu('parkrun')
+    .addItem("Import result for each runner"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
+      'ImportResultForEachRunner')
+    .addItem("Import results on event date"+
+      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
+      'ImportResultsOnEventDate')
+    .addItem("Append non-parkrun result"+
+      "\u00A0".repeat(20)+"Ctrl+Alt+Shift+2",
+      "AppendNonParkrunResult")
+    .addItem("Catch-up all positions"+
+      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+3",
+      'CatchUpAllPositions')
+    .addSeparator()
+    .addItem("Protect results sheet per runner"+
+      "\u00A0".repeat(11)+"Ctrl+Alt+Shift+4",
+      'ReprotectResultsSheetPerRunner')
+    .addItem("Colour legends in Groups"+
+      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+5",
+      'ColourLegendsInGroups')
+    .addItem("Generate charts from Groups"+
+      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
+      'GenerateChartsFromGroups')
+    .addSeparator()
+    .addItem("Add family (or club) member"+
+      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
+      'AddFamilyMember')
+    .addItem("Delete family (or club) member"+
+      "\u00A0".repeat(12)+"Ctrl+Alt+Shift+8",
+      'DeleteFamilyMember')
+    .addItem("Spawn new family (or club)"+
+      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
+      'SpawnNewFamily')
+    // .insertMenu(ui,5)   // ideally before Tools 
+    .addToUi();
+}
