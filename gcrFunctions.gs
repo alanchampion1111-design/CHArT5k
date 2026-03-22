@@ -100,6 +100,10 @@
 /  -------------------------------------------------------------------------
 */
 
+// import * as is from './common';  
+// then try: is.dateFORMAT
+// assuming: export const dateFORMAT = 'd-MMM-yy';
+
 const titleNameCELL = "A1";               // club/family name (with link to consolidated results)
 
 async function OpenChromeBrowser() {
@@ -993,10 +997,10 @@ function CreateRunnerResultsSheet(
 }
 
 /*
-/  Hierarchy for two use-cases of a new runner:
+/  Hierarchy for two use-cases prompting for a runner:
 /
 /   1.  AddFamilyMember (as a member of your family/club)
-/         PromptNewRunner(addCASE)-> to get parkrun id, Dob,..
+/         PromptForRunner(addCASE)-> to get parkrun id, Dob,..
 /         :
 /       DoAddFamilyMember
 /         OpenChromeBrowser->   
@@ -1015,7 +1019,7 @@ function CreateRunnerResultsSheet(
 //          Trigger task, BatchPositionsForRunner...
 /
 /   2.  SpawnNewFamily (to be owned by first member)
-/         PromptNewRunner(spawnCASE)-> to get parkrun id, Dob,..
+/         PromptForRunner(spawnCASE)-> to get parkrun id, Dob,..
 /         :
 /       DoSpawnNewFamily
 /         OpenChromeBrowser->
@@ -1035,6 +1039,16 @@ function CreateRunnerResultsSheet(
 /             AppendAllResults
 /         LockCallerForwardsTo-> (triggers)
 //          Trigger task, BatchPositionsForRunner...
+/
+/   3.  DeleteFamilyMember (as a member of your family/club)
+/         PromptForRunner(deleteCASE)-> to get parkrun id, Dob,..
+/         :
+/       DoDeleteFamilyMember
+/         FindRunnerIndex (matching parkrunner Id)
+/         If runner found in Runners table matching DoB on the form...
+/           ...delete runner's results page
+/           ...delete ruuner's (indexed) row in Runners table
+/           ...rename runners (indexed) sheets below that
 /
 */
 
@@ -1072,7 +1086,7 @@ const addCASE = {
   handler: 'DoAddFamilyMember'
 };
 
-function PromptNewRunner(
+function PromptForRunner(
   thisCase = addCASE)
 {
   const ui = SpreadsheetApp.getUi();
@@ -1083,7 +1097,7 @@ function PromptNewRunner(
     '    document.getElementById(\'dob\').focus();return false;}">\n'+
     '  <div>'+thisCase.desc+'</div><br>\n'+
     '  <label>parkrun Id (barcode numeric part only):\t</label>\n'+
-    '    <input type="text" id="parkrunnerId"><br><br>\n'+
+    '    <input type="number" id="parkrunnerId"><br><br>\n'+
     '  <label>Date of birth (for verifying age-grade):\t</label>\n'+
     '    <input type="text" id="dob" pattern="'+ dobRegex.source+'" placeholder="'+dobPlace+'"><br><br>\n';
   if (thisCase != deleteCASE) formHTML += 
@@ -1106,14 +1120,29 @@ function PromptNewRunner(
   // return [parkrunnerId,dob,email];
 }
 
+/**
+ * Find matching runner index in Runners sheet range
+ *    @param {Range} runnersRange - 
+ *    @param {number} thisParkrunnerId - parkrunner barcode (numeric!)
+ *    @param {Date} thisDob (string) - form format, d-Mmm-yy or dd-Mmm-yyyy
+ *  @returns {number} index - unique index (0+) in Runners sheet (-1 if rare no match)
+ */
 function FindRunnerIndex(runnersRange,thisParkrunnerId,thisDob) {
   let numRrunners = runnersRange.getNumRows();
-  for (let index=0; index<numRrunners; index++) {
+  let timestamp = new Date(thisDob); timestamp = timestamp.getTime();   // safe, as separate steps
+  if (isNaN(thisParkrunnerId)) 
+    Logger.log('ERROR: Numeric barcode expected for parkrunner ['+
+      typeof thisParkrunnerId+' to ensure matching');
+  else for (let index=0; index<numRrunners; index++) {
     let parkrunnerId = runnersRange.offset(index,parkrunnerIdINDEX).getValue();
-    let dob = runnersRange.offset(index,dobINDEX).getValue();
-    if (parkrunnerId == thisParkrunnerId && dob == thisDob) {
-      return index;
-    }
+    let dob = runnersRange.offset(index,dobINDEX)
+      .getValue().getTime();    // timstamp
+    if (parkrunnerId === thisParkrunnerId)
+      if (dob === timestamp)
+        return index;
+      else
+        Logger.log('WARNING: Matched runner ['+parkrunnerId+
+          '] expects matching DoB? [not '+thisDob+']');
   }
   return -1;  // no match
 }
@@ -1136,34 +1165,45 @@ const deleteCASE = {
  *  5. Renames the results sheets of runners with higher indices.
  */
 function DeleteFamilyMember() {
-  PromptNewRunner();    // default addCASE
-  // callback to DoAddFamilyMember with [parkrunnerId,dob,email] from form
+  PromptForRunner(deleteCASE);    // default addCASE
+  // callback to DoDeleteFamilyMember with [parkrunnerId,dob] from form
 }
 
-function DoDeleteFamilyMember(parkrunnerId,dob) {
+function DoDeleteFamilyMember(
+  form = ['357161','1-Nov-87'])      // as a callback, values are passed as strings
+{
+  let [parkrunnerId,dob] = form;
+  parkrunnerId = +parkrunnerId; // number expected for matching
   let runnersRange = allRunnersSheet.getRange(runnerNameCOLUMN+runnersStartROW+":"+parkrunnerIdCOLUMN);
   // Verify runner matches row (with runner index)
   let runnerIndex = FindRunnerIndex(runnersRange,parkrunnerId,dob);
-  if (runnerIndex<0)
-    Logger.log('ERROR: Unable to find matching runner, '+parkrunnerId);
+  if (runnerIndex < 0)
+    Logger.log('ERROR: Unable to find matching runner, '+parkrunnerId+
+    '\n - with matching DoB, '+new Date(dob).toDateString());
   else {
-    let firstname = runnersRange.offset(runnerIndex,0).getValue();
-    let runnerNameId = firstname+'_'+runnerIndex;
-    Logger.log('Deleting runner\'s result sheet, '+runnerNameId+' (for parkrunner, '+parkrunnerId);
+    let forename = runnersRange.offset(runnerIndex,0).getValue();
+    let runnerNameId = forename+'_'+runnerIndex;
+    if (debug)
+      Logger.log('Deleting runner\'s result sheet, '+runnerNameId+
+        ' (for parkrunner, '+parkrunnerId+')');
     let resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
     if (resultsSheet)
-      resultsSheet.delete();    // delete runner's results sheet
-    allRunnersSheet.deleteRow(runnersStartROW+runnerIndex);   // delete runner (row) impacts...
-    let numRunners = allRunnersSheet.getNumRows();  // one less runner now
-    let impactRange = runnersRange.offset(runnerIndex,0,numRunners-runnerIndex,1);
-    for (let index=0; index<numRunners-runnerIndex; index++) {
-      firstname = impactRange.offset(index,0).getValue();
-      const oldName = firstname+'_'+(runnerIndex+index+1);    // ahead of expected
-      const newName = firstname+'_'+(runnerIndex+index);    // 
-      activeSpreadsheet.getSheetByName(oldName).setName(newName);
-      Logger.log('Runner\'s results sheet, '+oldName+' renamed as '+newName);
+      activeSpreadsheet.deleteSheet(resultsSheet);    // delete runner's results sheet
+    allRunnersSheet.deleteRow(runnersStartROW+runnerIndex);   // 1 less row impacts others...
+    let numRunnersImpacted = allRunnersSheet.getLastRow()+1      // e.g. 3 = (60+1)...
+      -(runnersStartROW+runnerIndex);                           // ...-(3+55)
+    Logger.log('Removed runner, '+parkrunnerId+
+      ' entry with result sheet, '+runnerNameId+
+      ' where '+numRunnersImpacted+' runner\'s Ids are impacted'); 
+    let impactRange = runnersRange.offset(runnerIndex,0,numRunnersImpacted,1);
+    for (let index=0; index<numRunnersImpacted; index++) {
+      forename = impactRange.offset(index,0).getValue();
+      let oldSheetName = forename+'_'+(runnerIndex+index+1);    // e.g. _56.._58
+      let newSheetName = forename+'_'+(runnerIndex+index);      //  =>  _55.._57
+      activeSpreadsheet.getSheetByName(oldSheetName).setName(newSheetName);
+      Logger.log('Runner\'s results sheet, '+oldSheetName+
+        ' renamed as '+newSheetName);
     }
-    Logger.log('Removed runner, '+parkrunnerId+' with result sheet, '+runnerNameId);
   }
 }
 
@@ -1177,12 +1217,13 @@ function DoDeleteFamilyMember(parkrunnerId,dob) {
  *  6. Triggers the Batch process to append positions
  */
 function AddFamilyMember() {
-  PromptNewRunner();    // default addCASE
+  PromptForRunner();    // default addCASE
   // callback to DoAddFamilyMember with [parkrunnerId,dob,email] from form
 }
 
 async function DoAddFamilyMember(form) {
   let [parkrunnerId,dob,email] = form;
+  parkrunnerId = +parkrunnerId;
   if (debug) Logger.log('1. Prompt: '+form);
   return OpenChromeBrowser()
     .then(() => {   // allow time to open browser on server
@@ -1319,7 +1360,7 @@ const spawnCASE = {
  *  5. Add First Member in new Spreadsheet (with results)
  */
 function SpawnNewFamily() {
-  PromptNewRunner(spawnCASE); 
+  PromptForRunner(spawnCASE); 
   // callback to DoSpawnNewFamily with [parkrunnerId,dob,email] from form
 }
 
@@ -1327,6 +1368,7 @@ function DoSpawnNewFamily(
   form = ['21283','30-Jan-1969',undefined]
 ) {
   let [parkrunnerId,dob,email] = form;
+  parkrunnerId = +parkrunnerId;
   if (debug) Logger.log('1. Prompt: '+form);
   return OpenChromeBrowser()
     .then(() => {   // allow time to open browser on server
