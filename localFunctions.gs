@@ -67,7 +67,7 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /     2a. AppendNonParkrunResult
 /           GetResultsEditorsForRunner
 //          If Editor permitted...
-/             AppendResultRow (for manual entry)
+/             AppendNewResultRow (for manual entry)
 /
 /     2b. onEditDetectNeedToReprotect
 /           After result entry has completed...
@@ -278,7 +278,7 @@ const activeNOTE = 'If available, please include a HYPERLINK formula to any offi
  * Appends a new result row to a runner's results sheet (without degrading MAP formulae)
  *    @param {GoogleAppsScript.Spreadsheet.Sheet} resultsSheet - for appending blank row
  */
-function AppendResultRow(resultsSheet) {
+function AppendNewResultRow(resultsSheet) {
   resultsSheet.appendRow([""]);
   let lastResultRow = resultsSheet.getLastRow();
   resultsSheet.getRange(lastResultRow,PBtickBoxCOL)
@@ -310,7 +310,7 @@ function AppendNonParkrunResult() {     // user
     Logger.log('Checking user, '+userEmail+' is in the authorised list:\n'+
       editorEmails+'\n'+', which includes the spreadsheet owner');
   if (editorEmails && editorEmails.includes(userEmail)) { 
-    let lastResultRow = AppendResultRow(resultsSheet);
+    let lastResultRow = AppendNewResultRow(resultsSheet);
     resultsSheet.getRange(editCOLUMN+lastResultRow)    // N<lastRow>
       .setValue(activeVALUE)
       .setFontStyle('italic')
