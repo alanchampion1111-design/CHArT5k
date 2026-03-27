@@ -54,13 +54,13 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /   of each runner's result sheets to allow safe entry of results by others.
 /   There are two use-case heirarchies of functions:
 /
-/     1.  ReprotectResultsSheetsPerRunner
-/           ReprotectRunnerResultsSheet*
+/     1.  ReprotectResultsSheetPerRunner
+/           ReprotectResultsSheet*
 /             UnprotectResultsSheet (legacy if any)
 /             GetProtectResultsRanges (defined on Runners sheet)
-/             ReprotectResultsRanges
+/             ReprotectResultsRanges <------------¬
 /               UnprotectResultsRangesOnSheet
-//               After freeze-protecting earlier results...
+//              After freeze-protecting earlier results...
 /                 GetResultsEditorsForRunner
 /                 ProtectResultsRangeByEditor (if any prior)
 /
@@ -71,8 +71,8 @@ const recentYRS = 3;          // filter comparison graphs based to most recent y
 /
 /     2b. onEditDetectNeedToReprotect
 /           After result entry has completed...
-/             ReprotectRunnerResultsSheet
-/               (*as in 1. above)
+/             ReprotectResultsSheet
+/               (*as in 1. above)----------^
 /
 /  ---------------------------------------------------------------------------
 */
@@ -334,6 +334,8 @@ function onEditDetectNeedToReprotect(event) {  // trigger on Edit runs as spread
   if (col !== onEditCOL || event.value === activeVALUE)
     return;   // exit ASAP to reduce interruption from interim/other edits
   let resultsSheet = event.range.getSheet();
+  // Skip sheet if table does not contain Event results
+  if (resultsSheet.getRange(eventHeaderCELL).getValue() !== resultTABLE) return;
   let runnerNameId = event.source.getName();    // OR resultsSheet.getName()
   const resultRow = event.range.getRow();
   if (resultsSheet.getRange(resultRow,2).getDisplayValue()) {
