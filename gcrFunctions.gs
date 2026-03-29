@@ -53,21 +53,21 @@
 /           >AccessPage
 //        Recursively iterate for each active member...
 /           >ImportRunnerResult
-/           >CopyResultForRunner (dated)->
-/             >GetRunnerResultsPage
-/               >AccessPage
-/             GetResultRow
-//          When latest is a new result...
-/             >PasteResultForRunner ->
-//              Loop for each cell...
-/                 CleanValue (apply links as hyperlinks)
-/               FormatDate (may be redundant)
-/               AppendResultRow
-/             >AppendPositionsForResult ->
-/               GetResultUrl (assume always parkrun)
-/               GetCategories (for language-based filter)
-/               ExtendRange
-/               >AssessPositions (for one runner)
+/             >CopyResultForRunner (dated)->
+/               >GetRunnerResultsPage
+/                 >AccessPage
+/               GetResultRow
+//            When latest is a new result...
+/               >PasteResultForRunner ->
+//                Loop for each cell...
+/                   CleanValue (apply links as hyperlinks)
+/                 FormatDate (may be redundant)
+/                 AppendResultRow
+/               >AppendPositionsForResult ->
+/                 GetResultUrl (assume always parkrun)
+/                 GetCategories (for language-based filter)
+/                 ExtendRange
+/                 >AssessPositions (for one runner)
 /               IncludePositions
 /         >CloseChromeBrowser
 /
@@ -416,28 +416,36 @@ function AppendResultRow(
     Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' to be able to match new result');
     return null;
   }
-  var matchingResults = previousResults.map(function(row) {
+  let matchingResults = previousResults.map(function(row) {
     return row[locationINDEX]+'&'+row[dateINDEX];
   });
-  var matchIndex = matchingResults.indexOf(thisLocation+'&'+thisDate);  // check duplicate?
+  let matchIndex = matchingResults.indexOf(thisLocation+'&'+thisDate);  // check duplicate?
   if (matchIndex > -1) {   // existing result, but is it complete?
     hyperLinks = [];  // discard pending hyperlinks since redundant for duplicate result
-    if (debug) Logger.log('Previously captured result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId);
-    var partialResult = previousResultsRange.offset(matchIndex,0,1);
+    if (debug)
+      Logger.log('Previously captured result at '+thisLocation+' on '+thisDate+
+        ' for unique runner, '+runnerNameId);
+    let partialResult = previousResultsRange.offset(matchIndex,0,1);
     // Check whether existing result has had positions
-    var genderPositionKnown = previousResults[matchIndex][genderPosnCOL-1];  // 0-indexed
+    let genderPositionKnown = previousResults[matchIndex][genderPosnCOL-1];  // 0-indexed
     // let genderPositionKnown = partialResult.getCell(1,genderPosnCOL).getValue();
-    if (debug) Logger.log('genderPositionKnown [row]: '+genderPositionKnown
-      +' ['+matchIndex+' from '+firstPrevRow+']');
-    if (genderPositionKnown !== "") 
+    if (debug)
+      Logger.log('genderPositionKnown [row]: '+genderPositionKnown
+        +' ['+matchIndex+' from '+firstPrevRow+']');
+    if (genderPositionKnown !== "") {
+      Logger.log('Previously imported result at '+thisLocation+' on '+thisDate+
+        ' already added (with positions) for unique runner, '+runnerNameId);
       return null;    // No update needed if positions already known
-    else {
-     if (debug) Logger.log('Matched result at '+thisLocation+' on '+thisDate+' for unique runner, '+runnerNameId+' except for positions');
+    } else {
+     if (debug)
+      Logger.log('Matched result at '+thisLocation+' on '+thisDate+
+        ' for unique runner, '+runnerNameId+' except for positions');
       return partialResult;   // continue as if new result because positions omitted
     }
   } else {    // new result
     var pastedResult = AppendResultRow(thisResult,resultsSheet);
-    Logger.log('New result at '+thisLocation+' on '+thisDate+' added for unique runner, '+runnerNameId);
+    Logger.log('New result at '+thisLocation+' on '+thisDate+
+      ' added for unique runner, '+runnerNameId);
     return pastedResult;
   }       
 }
@@ -1079,7 +1087,7 @@ function GetRunnerDetails(thisPage) {
 const addCASE = {
   title: 'Add Family / Club Member',
   desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
-        +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the'
+        +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the '
         +'results of that new parkrun family member (based on their first name and unique row index), '
         +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
@@ -1341,7 +1349,7 @@ async function InstantiateFamilySpreadSheet(
 const spawnCASE = {
   title: 'Spawn New Family / Club',
   desc: 'This spawns a new family/club Spreadsheet that captures all results for that first '
-        +'member. The surname of this parkrunner is taken as the name of the new Spreadsheet file'
+        +'member. The surname of this parkrunner is taken as the name of the new Spreadsheet file '
         +'within which they will appear in the 1st row of the Runners sheet, with a separate sheet '
         +'(&lt;first name&gt;_0) containing their results, with detailed positions eventially '
         +'appearing (via a background batch process).',
