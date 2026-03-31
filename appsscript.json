@@ -19,11 +19,11 @@
       "functionName": "AddFamilyMember",
       "defaultShortcut": "Ctrl+Alt+Shift+7"
     }, {
-    "menuName": "Delete family (or club) member",
+      "menuName": "Delete family (or club) member",
       "functionName": "DeleteFamilyMember",
       "defaultShortcut": "Ctrl+Alt+Shift+8"
     }, {
-    "menuName": "Spawn new family (or club)",
+      "menuName": "Spawn new family (or club)",
       "functionName": "SpawnNewFamily",
       "defaultShortcut": "Ctrl+Alt+Shift+9"
     }, {
@@ -39,24 +39,26 @@
       "functionName": "AppendNonParkrunResult",
       "defaultShortcut": "Ctrl+Alt+Shift+2"
     }, {
-    "menuName": "Catch up all positions",
+      "menuName": "Catch up all positions",
       "functionName": "CatchUpAllPositions",
       "defaultShortcut": "Ctrl+Alt+Shift+3"
     }, {
-    "menuName": "Protect results sheet per runner",
+      "menuName": "Protect results sheet per runner",
       "functionName": "ReprotectResultsSheetPerRunner",
       "defaultShortcut": "Ctrl+Alt+Shift+4"
     }, {
-    "menuName": "Colour legends in Groups",
+      "menuName": "Colour legends in Groups",
       "functionName": "ColourLegendsInGroups",
       "defaultShortcut": "Ctrl+Alt+Shift+5"
     }, {
-      "menuName": "Generate charts from Groups",
-      "functionName": "GenerateChartsFromGroups",
-      "defaultShortcut": "Ctrl+Alt+Shift+6"
-    }, {
       "menuName": "AcceptCookies",
       "functionName": "AcceptCookies"
+    }, {
+      "menuName": "Generate charts from Groups (Leagues \u0026 Families)",
+      "functionName": "GenScopeLFChartsFromGroups"
+    }, {
+      "menuName": "Generate charts from Groups (Age Groups \u0026 Gender)",
+      "functionName": "GenScopeAGChartsFromGroups"
     }]
   }
 }
