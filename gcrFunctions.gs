@@ -53,21 +53,21 @@
 /           >AccessPage
 //        Recursively iterate for each active member...
 /           >ImportRunnerResult
-/             >CopyResultForRunner (dated)->
-/               >GetRunnerResultsPage
-/                 >AccessPage
-/               GetResultRow
-//            When latest is a new result...
-/               >PasteResultForRunner ->
-//                Loop for each cell...
-/                   CleanValue (apply links as hyperlinks)
-/                 FormatDate (may be redundant)
-/                 AppendResultRow
-/               >AppendPositionsForResult ->
-/                 GetResultUrl (assume always parkrun)
-/                 GetCategories (for language-based filter)
-/                 ExtendRange
-/                 >AssessPositions (for one runner)
+/           >CopyResultForRunner (dated)->
+/             >GetRunnerResultsPage
+/               >AccessPage
+/             GetResultRow
+//          When latest is a new result...
+/             >PasteResultForRunner ->
+//              Loop for each cell...
+/                 CleanValue (apply links as hyperlinks)
+/               FormatDate (may be redundant)
+/               AppendResultRow
+/             >AppendPositionsForResult ->
+/               GetResultUrl (assume always parkrun)
+/               GetCategories (for language-based filter)
+/               ExtendRange
+/               >AssessPositions (for one runner)
 /               IncludePositions
 /         >CloseChromeBrowser
 /
@@ -433,18 +433,18 @@ function AppendResultRow(
       Logger.log('genderPositionKnown [row]: '+genderPositionKnown
         +' ['+matchIndex+' from '+firstPrevRow+']');
     if (genderPositionKnown !== "") {
-      Logger.log('Previously imported result at '+thisLocation+' on '+thisDate+
+      Logger.log('Previously imported result for '+thisLocation+' on '+thisDate+
         ' already added (with positions) for unique runner, '+runnerNameId);
       return null;    // No update needed if positions already known
     } else {
-     if (debug)
-      Logger.log('Matched result at '+thisLocation+' on '+thisDate+
-        ' for unique runner, '+runnerNameId+' except for positions');
+      if (debug)
+        Logger.log('Matched result at '+thisLocation+' on '+thisDate+
+          ' for unique runner, '+runnerNameId+' except for positions');
       return partialResult;   // continue as if new result because positions omitted
     }
   } else {    // new result
     var pastedResult = AppendResultRow(thisResult,resultsSheet);
-    Logger.log('New result at '+thisLocation+' on '+thisDate+
+    Logger.log('New result imported for '+thisLocation+' on '+thisDate+
       ' added for unique runner, '+runnerNameId);
     return pastedResult;
   }       
