@@ -746,14 +746,14 @@ function CleanFormatforPastedRunResults(
         PrepassBlocksOfGroups
         For each block of groups...
           For each group required, related to same target sheet...
-            ClearPerformancesCharts (on the target sheet)
+            ClearGroupChartsOnSheet (on the target sheet)
             ExtractGroupRunners (per group)
             GenerateGroupChartInSheet
-              FilterGroupDatedPerformances
-                CollateGroupDatedPerformances
-              CopyGroupPerformancesToSheet
-              EmbedGroupPerformancesChart
-                ApplyFormatsOnGroupPerformancesCharts
+              FilterDatedGroupResults
+                CollateDatedGroupResults
+              CopyGroupResultsToSheet
+              EmbedGroupResultsChart
+                ApplyFormatsOnGroupResultsCharts
 
       When any change of hex colour codes in the top Legends table...
         ColourLegendsInGroups
@@ -778,7 +778,7 @@ const ageGradeFORMAT = '0.0%';  // for %age on graphs
  *  @returns {Array<Array>} as an Array of arrays containing dated performances (with nulls for absences)
  *           (potentially more efficient as a 2D array)
  */
-function CollateGroupDatedPerformances(filteredDates,runners,runnersPerfs) {  // pre-filtered
+function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-filtered
   let uniqueDates = [...new Set(filteredDates.map( // remove duplicates and return as Array
     date => new Date(date).getTime()))]
       .map(timestamp => new Date(timestamp))  // use timestamps to be sure (assumimg midnight)
@@ -803,7 +803,7 @@ function CollateGroupDatedPerformances(filteredDates,runners,runnersPerfs) {  //
  *    @param {number} [perfIndex=ageGradesINDEX]  - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
-function FilterGroupDatedPerformances(chartTitle,runners,
+function FilterDatedGroupResults(chartTitle,runners,
   mostRecentYears = recentYRS,   // assume all performances if zero years cut-off
   perfIndex = ageGradesINDEX)   // default presents values <1 as %ages
 {
@@ -861,9 +861,9 @@ function FilterGroupDatedPerformances(chartTitle,runners,
       Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
   });
-  runnersDatedPerfs = CollateGroupDatedPerformances(
+  runnersDatedPerfs = CollateDatedGroupResults(
     filteredDates,runners,runnersPerfs);
-  Logger.log('Collated Group Dated Performances: '+runners);
+  Logger.log('Collated Dated Group Results: '+runners);
   return runnersDatedPerfs;
 }
 
@@ -882,7 +882,7 @@ function TransposeArray(array) {
  *    @param {number} [decimalPlaces=4]         - Floating precision (unless integer)
  * @returns {Range} where performances are on the sheet (beyond subsequent charts)
  */
-function CopyGroupPerformancesToSheet(
+function CopyGroupResultsToSheet(
   perfsSheet,runners,runnersPerfs,
   groupPerfsRow = 2,
   groupPerfsCol = groupPerfsCOL,
@@ -940,7 +940,7 @@ function CopyGroupPerformancesToSheet(
  *     @param {number} chartWidth      - The width of the chart
  *     @param {number} offsetBorder    - The offset border size (in pixels)
  */
-function ApplyFormatsOnGroupPerformancesChart (
+function ApplyFormatsOnGroupResultsChart (
   perfSheet,groupPerfsRange,runnersLegend,
   perfChartRow,perfChartCol,perfFormat,
   chartHeight,chartWidth,offsetBorder=offsetBORDER)
@@ -982,7 +982,7 @@ function ApplyFormatsOnGroupPerformancesChart (
  *  to be created on this same sheet.
  *    @param perfSheet         - The sheet (object) to embed the chart in
  *    @param {string} chartTitle    - The title of the chart
- *    @param {range} groupPerfsRange      - Performances range on RHS of chart position
+ *    @param {range} groupPerfsRange      - Results range on RHS of chart position
  *    @param {Array<Array<string>>} runnersLegend - A 2D array of names, indices & colours.
  *    @param {number} [perfChartRow=2]    - The row number to place the chart at
  *                                           (avoid subsequent charts coinciding)
@@ -996,7 +996,7 @@ function ApplyFormatsOnGroupPerformancesChart (
  *                                                    (typically Age Grade in results)
  *    @param {string} [perfFormat=ageGradeFORMAT]   - Format the performance (e.g. %age)
  */
-function EmbedGroupPerformancesChart(
+function EmbedGroupResultsChart(
   perfSheet,chartTitle,groupPerfsRange,runnersLegend,
   perfChartRow = 2,
   perfChartCol = 2,
@@ -1008,7 +1008,7 @@ function EmbedGroupPerformancesChart(
   const chartWIDTH = 800;
   const chartHEIGHT = 350;
   const offsetBORDER = 5; // pixels
-  var perfLimits = ApplyFormatsOnGroupPerformancesChart(
+  var perfLimits = ApplyFormatsOnGroupResultsChart(
     perfSheet,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,perfFormat,
     chartHEIGHT,chartWIDTH,offsetBORDER);
@@ -1063,13 +1063,13 @@ function EmbedGroupPerformancesChart(
 }
 
 /**
- * Retrieves the Performances sheet and clears any charts from it.
- *  A blank sheet is created if the Performances sheet does not exit
- *    @param {string} [perfSheetName="Performances"] - The name of the sheet to retrieve and clear.
+ * Retrieves the Group Results sheet and clears any charts from it.
+ *  A blank sheet is created if the Group results sheet does not exit
+ *    @param {string} [perfSheetName="Leagues"] - The name of the sheet to retrieve and clear.
  *  @returns {Spreadsheet.Sheet} The cleared sheet object.
  */
-function ClearPerformancesCharts(
-  perfSheetName = "Performances")
+function ClearGroupChartsOnSheet(
+  perfSheetName = "Leagues")
 {
   var perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
   if (!perfSheet) {
@@ -1130,13 +1130,13 @@ function GenerateGroupChartInSheet(
   if (!perfSheet) return null;
   let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
   // runners are a subset! so index is EITHER from allRunners sheet OR in Legend
-  var runnersDatedPerfs = FilterGroupDatedPerformances(
+  var runnersDatedPerfs = FilterDatedGroupResults(
     chartTitle,runners,filterRecentYears,perfColumnIndex);
   if (!runnersDatedPerfs) return null;
-  var groupPerfsRange = CopyGroupPerformancesToSheet(perfSheet,runners,
+  var groupPerfsRange = CopyGroupResultsToSheet(perfSheet,runners,
     runnersDatedPerfs,perfChartRow);
   if (!groupPerfsRange) return null;
-  var perfChart = EmbedGroupPerformancesChart(
+  var perfChart = EmbedGroupResultsChart(
     perfSheet,chartTitle,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,
     showDates,reverseTrend,stripIndex,
@@ -1153,7 +1153,7 @@ const numRunnerROWS = numGroupROWS-1;
 const groupsStartROW = 9;   // Title, header + lookup legends by gender 
 const runnersStartCOL = 3;  // Output sheet name & Group with...
 const paramsCOUNT = 11;     // ...parameters of Group start in col 3
-var defaultPerfSheetName = 'Performances';    // may vary if overridden
+var defaultPerfSheetName = 'Age Groups';    // may vary if overridden
 
 /**
  * Builds block (array) of group params (arrays) from Groups sheet configuration..
@@ -1161,7 +1161,7 @@ var defaultPerfSheetName = 'Performances';    // may vary if overridden
  *    @param {Sheet} groupsSheet - e.g. for Groups sheet in GAS spreadsheet 
  *  @returns {Object} grpBlocks - with perfs sheet names as keys, each with an array of group params
  * Note: a blank perfs sheet name (in col A) implies that of the group above
- *  - initially 'Performances' if col A completely empty (not recommended; not so in template)
+ *  - initially 'Age Groups' if col A completely empty (not recommended; not so in template)
  */
 function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
   var grpBlocks = {};
@@ -1204,7 +1204,7 @@ function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
  */
 function GenerateChartsFromGroups(
   groupsSheetName = 'Groups',
-  perfSheetNames = ['Performances','Leagues','Families','Gender'])
+  perfSheetNames = ['Age Groups','Leagues','Families','Gender'])
 {
   const groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
@@ -1220,7 +1220,7 @@ function GenerateChartsFromGroups(
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
     // ONLY clear a perf chart sheet if one or more charts NOT disabled
-    var perfSheet = ClearPerformancesCharts(perfSheetName);
+    var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
     grpBlocks[perfSheetName].forEach(function(grpParams,index) {
       if (debug)
         Logger.log('Group '+index+': '+JSON.stringify(grpParams));
@@ -1251,8 +1251,8 @@ function GenerateChartsFromGroups(
   }
 }
 
-function GenScopePGChartsFromGroups() {
-  GenerateChartsFromGroups('Groups',['Performances','Gender']);
+function GenScopeAGChartsFromGroups() {
+  GenerateChartsFromGroups('Groups',['Age Groups','Gender']);
 }
 
 function GenScopeLFChartsFromGroups() {
@@ -1325,7 +1325,7 @@ function GetChartRange(
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
 function GetPerfCharts(
-  perfSheetNames = ['Performances','Leagues','Families','Gender'],
+  perfSheetNames = ['Age Groups','Leagues','Families','Gender'],
   runnerNameId ='Alan_2')
   // perfSheetNames = ['Families','Gender'])    // for testing
 {
