@@ -106,13 +106,57 @@ let cloudBrowser = async (
 }
 
 /**
- *  Initializes the browser and returns the WebSocket endpoint.
- *    @returns {Promise<void>} before continuing
- *    @sideeffect - preserve the browser WS endpoint and re0usable page ID for re-use
+ * Kills the current browser instance and resets globals in case still active.
+ *  @returns {Promise<boolean>} true if browser terminated, otherwise already terminated (perhaps error logged)
+ */
+let killBrowser = async () => {
+  try {
+    if (thisBrowserWSEp) {
+      var thisBrowser = await puppeteer
+        .connect({ browserWSEndpoint: thisBrowserWSEp });
+      if (thisPageId) {
+        var thisPage = (await thisBrowser.pages())
+          .find(page => page.target()._targetId === thisPageId);
+        if (thisPage) {
+          await thisPage.close();
+          console.log('Page closed successfully - Page Id:',thisPageId);
+        } else {
+          console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
+        }
+      }
+      if (thisBrowser?.isConnected()) {
+        await thisBrowser.close();
+        console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
+        return true;
+      } else {
+        console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
+        return false;
+      }
+    } else {
+      console.warn('WARNING: Browser previously terminated - WS endpoint:',thisBrowserWSEp);
+      return false;
+    }
+  } catch (err) {
+    console.error('ERROR: Failed to close page and/or terminate browser:',err);
+    return false;
+  } finally {  // executed in all cases, even before the returns
+    initPromise = undefined;
+    thisBrowserWSEp = null;
+    thisPageId = null;
+    console.log('INFO: Expected browser page with promise (',initPromise,') also closed :',thisPageId);
+    clearTimeout(browserTimer);
+  }
+}
+
+/**
+ * Entry point: initialises browser with a new WebSocket endpoint (clearing existing if such exists)
+ *    @param {Object} _ - void request
+ *    @param {Object} res - HTTP fetch response to send
+ *  @sideeffect - preserve the browser WS endpoint and reusable page ID for re-use
  */
 exports.initBrowser = async (_,res) => {
-  await exports.stopBrowser(_, res);  // fresh start whenever re-open BUT MUST wait for stop to finish
-  if (!initPromise) {    // and thus, after stop has completed ok
+  await killBrowser();    // fresh start whenever re-open...
+  if (!initPromise) {     // ...after all resources released
     initPromise = (async () => {
       try {
         await cloudBrowser(60);  // Launched ok, but browser active in background
@@ -131,6 +175,19 @@ exports.initBrowser = async (_,res) => {
     res.status(200).send(thisBrowserWSEp);
   }
 }
+
+/**
+ * Entry point: stops the browser. Returns 200 if terminated, 204 if already terminated.
+ *    @param {Object} _ - void request
+ *    @param {Object} res - HTTP fetch response to send 200 if terminated, otherwise 204 if not so or not needed.
+ */
+exports.stopBrowser = async (_, res) => {
+  let terminatedOk = await killBrowser();
+  if (terminatedOk)
+    res.status(200).send('Browser terminated successfully');
+  else
+    res.status(204).send('WARNING: Browser previously terminated or timed out');
+};
 
 /** ______________________________________________________________________________________
 /
@@ -624,45 +681,6 @@ exports.filterUrl = async (req,res) => {
     } finally {
       // TODO: await thisPage.close();  // re-use page may fail??, consider new Page for each parkrun results instance
     }
-  }
-}
-
-exports.stopBrowser = async (_,res) => {
-  try {
-    if (thisBrowserWSEp) {
-      var thisBrowser = await puppeteer
-        .connect({ browserWSEndpoint: thisBrowserWSEp });
-      if (thisPageId) {
-        var thisPage = (await thisBrowser.pages())
-          .find(page => page.target()._targetId === thisPageId);
-        if (thisPage) {
-          await thisPage.close();
-          console.log('Page closed successfully - Page Id:',thisPageId);
-        } else {
-          console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
-        }
-      }
-      if (thisBrowser?.isConnected()) {
-        await thisBrowser.close();
-        console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
-        res.status(200).send('Browser terminated successfully');
-      } else {
-        console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
-        res.status(204).send('WARNING: Browser previously aborted or timed out');
-      }
-    } else {
-      console.warn('WARNING: Browser previously terminated - WS endpoint:',thisBrowserWSEp);
-      res.status(204).send('WARNING: Browser previously terminated');
-    }
-  } catch (err) {
-    console.error('ERROR: Failed to close page and/or terminate browser:',err);
-    res.status(500).send('ERROR: Failed to close page and/or terminate browser, '+err);
-  } finally {  // executed in all cases, even before the returns
-    initPromise = undefined;
-    thisBrowserWSEp = null;
-    thisPageId = null;
-    console.log('INFO: Expected browser page with promise (',initPromise,') also closed :',thisPageId);
-    clearTimeout(browserTimer);
   }
 }
 
