@@ -111,6 +111,7 @@ let cloudBrowser = async (
  *    @sideeffect - preserve the browser WS endpoint and re0usable page ID for re-use
  */
 exports.initBrowser = async (_,res) => {
+  exports.stopBrowser(_,res);  // force a fresh start whenever re-open
   if (!initPromise) {
     initPromise = (async () => {
       try {
@@ -126,7 +127,7 @@ exports.initBrowser = async (_,res) => {
         console.log('Returning immediately after (attempt at) launching browser');
       }
     })();
-  } else {  // do nothing because browser previously launched
+  } else {  // REDUNDANT - do nothing because browser would normally have been previously launched
     res.status(200).send(thisBrowserWSEp);
   }
 }
@@ -641,7 +642,7 @@ exports.stopBrowser = async (_,res) => {
           console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
         }
       }
-      if (thisBrowser && thisBrowser.isConnected()) {
+      if (thisBrowser?.isConnected()) {
         await thisBrowser.close();
         console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
         res.status(200).send('Browser terminated successfully');
