@@ -661,6 +661,7 @@ exports.stopBrowser = async (_,res) => {
     initPromise = undefined;
     thisBrowserWSEp = null;
     thisPageId = null;
+    console.log('INFO: Expected browser page with promise (',initPromise,') also closed :',thisPageId);
     clearTimeout(browserTimer);
   }
 }
