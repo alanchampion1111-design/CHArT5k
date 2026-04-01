@@ -111,8 +111,8 @@ let cloudBrowser = async (
  *    @sideeffect - preserve the browser WS endpoint and re0usable page ID for re-use
  */
 exports.initBrowser = async (_,res) => {
-  exports.stopBrowser(_,res);  // force a fresh start whenever re-open
-  if (!initPromise) {
+  await exports.stopBrowser(_, res);  // fresh start whenever re-open BUT MUST wait for stop to finish
+  if (!initPromise) {    // and thus, after stop has completed ok
     initPromise = (async () => {
       try {
         await cloudBrowser(60);  // Launched ok, but browser active in background
