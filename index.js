@@ -269,13 +269,17 @@ async function loadUrl(thisUrl,
 
 /**
  *  Gets the entire HTML content for a URL, typically all of results for a specific parkrunner 
- *    @param {string} url - e.g. 
+ *    @param {string} url - e.g. https://www.parkrun.com/results/consolidatedclub/?clubNum=2548&eventdate=2026-07-03
+ *  Note that the URL passes through any &eventdate parameter (if specified for consolidated results)
  *  @returns {string} as HTML content
  */
 exports.getUrl = async (req,res) => {
   // Default for testing sample parkrunner 5k results OR sample consolidated results 
   // let thisUrl = req.query?.url || 'https://www.parkrun.org.uk/parkrunner/777764/5k/';
-  let thisUrl = req.query?.url || 'https://www.parkrun.com/results/consolidatedclub/?clubNum=2548&eventdate=2026-07-03';
+  var thisUrl = req.query?.url || 'https://www.parkrun.com/results/consolidatedclub/?clubNum=2548';
+  let eventDate = req.query?.eventdate || null;    // '&eventdate=2026-07-03';
+  if (eventDate)
+    thisUrl = thisUrl+'&eventdate='+eventDate;
   let clubResults = thisUrl.includes('consolidatedclub');
   let [minTableCount,timeoutSecs] = (clubResults)
     ? [minClubTableCOUNT,loadDetailSECS] : [minRunnerTableCOUNT,loadSECS]; 
@@ -646,7 +650,7 @@ exports.filterUrl = async (req,res) => {
   console.log('Test: '+testCmd);
   var thisPage;
   if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
-    console.log('Mo. of cached pages since caching: '+Object.keys(cachedPages).length);
+    console.log('No. of cached pages since caching: '+Object.keys(cachedPages).length);
     console.log('Re-using detailed cached results for URL, '+thisUrl);
     thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
   } else {
