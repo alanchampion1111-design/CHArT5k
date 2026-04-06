@@ -1476,7 +1476,7 @@ async function SyncPositionsPerRunner(
       Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
         +' (out of '+totalEvents+' in this batch)'+morePositions);
       if (updatesApplied === 0)
-        throw new Error('ERROR: Batching aborted  because no updates');
+        throw new Error('ERROR: Batching aborted to avoid infinite looping because no updates');
       return moreBatches;
     });
   } else {
@@ -1489,6 +1489,10 @@ const threadBatchFN = recurseBatchFN ='BatchPositionsForRunner';  // threaded & 
 const lockINDEX = 'lockIndex';
 const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
 
+/**
+ * Cleans up triggers and script properties after batching for each runner has completed
+ *  @param {string} [thisScript=threadBatchFN] - script to clean up
+ */
 function CleanupBatch(
   thisScript = threadBatchFN) 
 {
@@ -1500,9 +1504,6 @@ function CleanupBatch(
   });
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
   PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
-  return CloseChromeBrowser();
-  // if (debug)
-    Logger.log('Cleared batch status (including triggered scripts) and closed browser');
 }
 
 /**
@@ -1620,57 +1621,46 @@ function BatchPositionsForRunner() {
   })
   .catch(err => {
     Logger.log('ERROR: Failed to trigger recursed batches: '+err);
-    return CloseChromeBrowser();
   })
   .finally(() => {
     // Perhaps need to wait on closure before re-opening on next batch?
-    // return CloseChromeBrowser();   // open on each batch avoids unexpected session end
+    return CloseChromeBrowser();   // open on each batch avoids unexpected session end
   });
 }
 
 /**
- * Retrospectively update Positions for each runner via separately triggered processes
- * in parallel, where batching also may be necessary to avoid exceeding 6 seconds max per set.
+ * Triggers batch processing for runners needing position catch-up, always  in series
  */
 function CatchUpAllPositions() {
   let runnersStatus = [];
-  return OpenChromeBrowser().then(() => {   // Browser always launched beforehand...
-    let runners = allRunnersSheet.getRange(runnerNameCOLUMN+runnersStartROW+":"+runnerNameCOLUMN)
-      .getValues().map(x => x[0]).filter(String);
-    var runnersResults = allRunnersSheet.getRange(hasResultsCOLUMN+runnersStartROW+":"+hasResultsCOLUMN)
-      .getValues().map(x => x[0]);
-    // Ensure ALL threads use the same status so that closure is when done for ALL runners
-    runnersStatus = allRunnersSheet.getRange(hasPosnsCOLUMN+runnersStartROW+":"+hasPosnsCOLUMN)
-      .getValues().map(x => x[0]);
-    // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
-    for (var [runnerIndex,runnerName] of runners.entries()) {
-      if (runnersResults[runnerIndex]) {    // if runner has at least one result
-        if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
-          let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
-          Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
-          LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
-          break; // batch the first incomplete runner only until done to avoid conflict
-        }
-        else if (debug) 
-          Logger.log('Positions up-to-date for runner: '+runnerName+' ['+runnerIndex+']');
-      } else {
-        if (!runnersStatus[runnerIndex]) {   // Since no results, then already caught-up
-          runnersStatus = MarkRunnerPositionsDone(runnerIndex);   // avoids impact on not finishing
-        }
+  let runners = allRunnersSheet.getRange(runnerNameCOLUMN+runnersStartROW+":"+runnerNameCOLUMN)
+    .getValues().map(x => x[0]).filter(String);
+  var runnersResults = allRunnersSheet.getRange(hasResultsCOLUMN+runnersStartROW+":"+hasResultsCOLUMN)
+    .getValues().map(x => x[0]);
+  // Ensure ALL threads use the same status so that closure is when done for ALL runners
+  runnersStatus = allRunnersSheet.getRange(hasPosnsCOLUMN+runnersStartROW+":"+hasPosnsCOLUMN)
+    .getValues().map(x => x[0]);
+  // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
+  for (var [runnerIndex,runnerName] of runners.entries()) {
+    if (runnersResults[runnerIndex]) {    // if runner has at least one result
+      if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
+        let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
+        Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
+        LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
+        break; // batch the first incomplete runner only until done to avoid conflict
+      }
+      else if (debug) 
+        Logger.log('Positions up-to-date for runner: '+runnerName+' ['+runnerIndex+']');
+    } else {
+      if (!runnersStatus[runnerIndex]) {   // Since no results, then already caught-up
+        runnersStatus = MarkRunnerPositionsDone(runnerIndex);   // avoids impact on not finishing
       }
     }
-  })
-  .catch(err =>  {
-    Logger.log('ERROR: Failed to trigger any catch-up in batches: '+err);
-    return CloseChromeBrowser();
-  })
-  .finally(() => {
-    if (AllPositionsDone(runnersStatus)) {
-      CleanupBatch(threadBatchFN);
-      return;
-    }
-    // else return CloseChromeBrowser();  // even though each batch re-opens
-  });
+  }
+  if (AllPositionsDone(runnersStatus)) {
+    CleanupBatch(threadBatchFN);
+    return;
+  }
 }
 
 /**
