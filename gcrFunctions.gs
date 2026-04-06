@@ -584,7 +584,7 @@ const genderMAP = {
   'fi': { M: 'Miehet', N: 'Naiset' },     // confirmed
   'lt': { V: 'Vyras', M: 'Moteris' },     // confirmed
   'no': { M: 'Mann', K: 'Kvinne' },       // confirmed
-  'pl': { M: 'Mężczyzna', K: 'Kobieta' },
+  'pl': { M: 'Mężczyzna', W: 'Kobieta' },
   'se': { M: 'Man', K: 'Kvinna' },
   'jp': { M: '男子', W: '女子' }    // pronounced Danshi or Joshi
 };
@@ -599,7 +599,7 @@ const toUK= {
   'fi': { 'M': 'M', 'N': 'W' },     // confirmed
   'lt': { 'V': 'M', 'M': 'W' },     // confirmed
   'no': { 'M': 'M', 'K': 'W' },
-  'pl': { 'M': 'M', 'K': 'W' },
+  'pl': { 'M': 'M', 'W': 'W' },
   'se': { 'M': 'M', 'K': 'W' },
   'jp': { 'M': 'M', 'W': 'W' }      // confirmed as en
 };
