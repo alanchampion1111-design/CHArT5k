@@ -16,7 +16,8 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 const url = require('url');
-let thisBrowserWSEp;  // browser persists on server   
+let thisBrowserWSEp;  // re-use same browser session on server   
+let thisPageId;       // re-use same page per session
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
@@ -31,8 +32,8 @@ const allParkrunCERTS =
   './www.parkrun.ca.pem,'+
   './www.parkrun.jp.pem';
 
-let thisPageId;       // re-use same page
-let prevFilterURL;
+let prevPage;         // retain thisPage on weekly import (minimal cache => single page)
+let prevFilterURL;    // recall previous event URL determines re-use of retained prevPage
 let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
@@ -643,31 +644,34 @@ exports.filterUrl = async (req,res) => {
   console.log('gcCat: '+genderCat);      // WARNING: Values differ per language/country
   console.log('ageGrade: '+ageGrade);
   console.log('caching: '+caching);
-  console.log('caching type: '+typeof caching);
-  var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
-    +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
-    +'-H "Content-Type: application/json"';
-  console.log('Test: '+testCmd);
+  // console.log('caching type: '+typeof caching);
   var thisPage;
-  if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
-    console.log('No. of cached pages since caching: '+Object.keys(cachedPages).length);
-    console.log('Re-using detailed cached results for URL, '+thisUrl);
-    thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
-  } else {
-    try {
+  // TODO: Instead of caching multiple pages per import, need to consider session-based multiple pages per spreadsheet!
+  // if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
+    // console.log('No. of cached pages since caching: '+Object.keys(cachedPages).length);
+    // console.log('Re-using detailed cached results for URL, '+thisUrl);
+    // thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
+  // } else {
+    // cachedPages[thisUrl] = thisPage;
+    // console.log('Cached results page for URL, '+thisUrl);
+    // console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
+  // }
+  try {
+    if (caching && thisUrl == prevFilterURL) {
+      thisPage = prevPage;
+      console.log('Filter positions using same page for this runner, '+matchRunner' since same event URL, '+thisUrl);
+    } else {
       thisPage = await loadUrl(thisUrl,-1,loadDetailSECS,caching);
-      if (caching) {
-        cachedPages[thisUrl] = thisPage;
-        console.log('Cached results page for URL, '+thisUrl);
-        console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
-      }
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
-    } finally {
-      // delay between calls while browser remains active (assume delay handled in stealth mode)
-      // await new Promise(resolve => setTimeout(resolve,pageSECS));
+      prevFilterURL = thisUrl;
+      prevPage = thisPage;
+      var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
+        +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
+        +'-H "Content-Type: application/json"';
+      console.log('Test: '+testCmd);
     }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
   }
   if (thisPage) {
     try {  // Get 2 (or more) positions in series?
