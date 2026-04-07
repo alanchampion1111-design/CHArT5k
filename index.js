@@ -661,9 +661,9 @@ exports.filterUrl = async (req,res) => {
     // console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
   // }
   try {
-    if (caching && thisUrl == prevFilterUrl) {
+    if (caching && prevPage && thisUrl == prevFilterUrl) {
       thisPage = prevPage;
-      console.log('Filter positions using same page for this runner, '+matchRunner' since same event URL, '+thisUrl);
+      console.log('Filter positions using same page for runner, '+matchRunner+' since common event URL, '+thisUrl);
     } else {
       thisPage = await loadUrl(thisUrl,-1,loadDetailSECS,caching);
       prevFilterUrl = thisUrl;
