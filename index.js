@@ -33,7 +33,7 @@ const allParkrunCERTS =
   './www.parkrun.jp.pem';
 
 let prevPage;         // retain thisPage on weekly import (minimal cache => single page)
-let prevFilterURL;    // recall previous event URL determines re-use of retained prevPage
+let prevFilterUrl;    // recall previous event URL determines re-use of retained prevPage
 let browserTimeout;   // for browser session
 let browserTimer;
 let cachedPages = {};    // stores separate open URL pages when caching
@@ -82,6 +82,8 @@ let cloudBrowser = async (
       initPromise = undefined;
       thisBrowserWSEp = null;
       thisPageId = null;
+      prevPage = undefined;
+      prevFilterUrl = undefined;
       clearTimeout(browserTimer);
     }
   }, browserTimeout);
@@ -144,6 +146,8 @@ let killBrowser = async () => {
     initPromise = undefined;
     thisBrowserWSEp = null;
     thisPageId = null;
+    prevPage = undefined;
+    prevFilterUrl = undefined;
     console.log('INFO: Expected browser page with promise (',initPromise,') also closed :',thisPageId);
     clearTimeout(browserTimer);
   }
@@ -657,12 +661,12 @@ exports.filterUrl = async (req,res) => {
     // console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
   // }
   try {
-    if (caching && thisUrl == prevFilterURL) {
+    if (caching && thisUrl == prevFilterUrl) {
       thisPage = prevPage;
       console.log('Filter positions using same page for this runner, '+matchRunner' since same event URL, '+thisUrl);
     } else {
       thisPage = await loadUrl(thisUrl,-1,loadDetailSECS,caching);
-      prevFilterURL = thisUrl;
+      prevFilterUrl = thisUrl;
       prevPage = thisPage;
       var testCmd = 'curl -X GET "'+browserURL+'/filterUrl'+'?url='+thisUrl+'&rn='+matchRunner+'&ac='+ageCat+'&gc='+genderCat+'&cache='+caching+'" \\'
         +'-H "Authorization: bearer $(gcloud auth print-identity-token)" \\'
