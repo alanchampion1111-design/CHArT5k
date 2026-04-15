@@ -787,14 +787,16 @@ exports.acceptCookies = async (_,res) => {
       await thisPage.goto(domainUrl,{waitUntil: 'domcontentloaded',timeout: 10000});
       const acceptButton = `button.cm__btn[data-role="all"]`;
       try {
-        let accept = await thisPage.$(acceptButton,{timeout: 5000});
-        await thisPage.waitForSelector(acceptButton);
+        await thisPage.waitForSelector(acceptButton, {timeout: 5000});
+        let accept = await thisPage.$(acceptButton);
         await thisPage.setCookie({
           name: 'psc',
           value: 'some-value',
           domain: domainUrl
         });
-        await thisPage.click(accept);
+        if (accept) 
+          // await accept.click();
+          await thisPage.click(accept);
         let result = 'Cookies accepted for site, '+domainUrl;
         console.log(result);
         results.push(result);
