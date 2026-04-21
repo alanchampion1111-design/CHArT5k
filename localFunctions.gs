@@ -29,24 +29,47 @@
  * 
  */
 
-const resultTABLE = "Event"   // For any Runner Event results sheet
-const eventHeaderCELL = "A2"; //  where the header row is below the Runner name title
-const firstResultCELL = "A3"; //  and at least one Result has been cleanly entered
-const firstResultROW = 3;     //  where new Results MUST be below this first result
-const scrollCOL = 13;      // Scroll down when selecting column M beyond the table
-const pasteCOL = 1;        // Paste Event result starting in 1st column (A)
-const timeCOL = 5;         // Event result time is in the 5th column (E)
+// Global constants and varaibles must be defined within a this file IF potentially a triggered
+// TODO: Sync gcrFunctions.gs with localFunctions.gs
+const lc = {
+  debug: false,               // WARNING: may slow down performance if true
+  resultsStartROW: 3,
+  locationINDEX: 0,       // column A on each Results sheet
+  dateINDEX: 1,           // column B on each Results sheet
+  timeINDEX: 4,          // column E on each Results sheet
+  ageGradesINDEX: 5,      // column F on each Results sheet
+  eventCOL: 1,            // column A is the event location
+  dateCOL: 2,             // column B is the date of event
+  runNumCOL: 3,           // column C is the instance # at event
+  groupPerfsCOL: 4,       // column D on each Performances chart sheet (e.g. Leagues)
+  PBtickBoxCOL: 8,        // column H tick-box on Results sheets, ticked if value in G is PB
+  PBtoAgeCatNumCOLS: 5,   // cols H..L for I..K positions between derived cols, H & L
+  genderPosnCOL: 9,       // column I on each Results sheet (until on parkrun results page?)
+  ageCatPosnCOL: 10,      // column J on each Results sheet
+  ageGradePosnCOL: 11,    // column K on each Results sheet
+  ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
+  pasteCOL: 1,            // Paste Event result starting in 1st column (A)
+  dateFORMAT: 'd-MMM-yy',
+  parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
+  universalDateFORMAT: 'yyyy-MM-dd',
+  runnersSheetNAME: 'Runners',
+  resultTABLE: 'Event',   // First Header title in Results sheet
+  eventHeaderCELL: "A2",  // Header row is below the Runner name title
+  firstResultCELL: "A3", //  and at least one Result has been cleanly entered
+  offsetBORDER: 5,        // number pixels around chart
+  paramsCOUNT: 11,        // Parameters of Group start in col 3
+  recentYRS: 2            // filter comparison graphs based to most recent years only
+};
+var lv = {
+  activeSpreadsheet: SpreadsheetApp
+    .getActiveSpreadsheet(),      // allows dynamic shift to new context
+};
+lv.activeSpreadsheetId = lv.activeSpreadsheet.getId();       // the originator ID
+lv.allRunnersSheet = lv.activeSpreadsheet
+  .getSheetByName(lc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
+if (lc.debug) Logger.log('Current Spreadsheet Id: '+lv.activeSpreadsheetId);  
 
-// Junior parkrun thresholds?
-const min2kmTIME = 6;         // Minimum time for 2km in minutes (after repair)
-const max2kmTIME = 23;        // Maximum time for 2km (less than 24 "hours" = minutes)
-// Table designed for 5k run times
-const min5kmTIME = 13;        // Minimum time for 5km in minutes (after repair)
-const max5kmTIME = 37;        // Maximum time for 5km (24 "hours"" after min5kmTIME)
-// If ever for 10km runs, needs adapting to use display times (instead of date values)
-const min10kmTIME = 27;       // Minimum time for 10km in minutes  (after repair)
-const max10kmTIME = 51;       // Maximum time for 10km (24 "hours" after min10kmTIME)
-const recentYRS = 3;          // filter comparison graphs based to most recent years only
+const scrollCOL = 13;         // Scroll down when selecting column M beyond the table
 
 /* ---------------------------------------------------------------------------
 /
@@ -89,7 +112,7 @@ function GetProtectResultsRanges(
   const runnerNameId = resultsSheet.getName();
   let lastColumn = resultsSheet.getLastColumn();
   let lastRow = resultsSheet.getLastRow();
-  let maxRowsChange = Math.min(numRowsChange,lastRow-resultsStartROW);  // dividing line...
+  let maxRowsChange = Math.min(numRowsChange,lastRow-lc.resultsStartROW);  // dividing line...
   let lastRowFreeze = lastRow-maxRowsChange;
   let rangeFreeze = resultsSheet
     .getRange(1,1,lastRowFreeze,lastColumn)                             // ...all above
@@ -137,7 +160,7 @@ function ReallowRunnerResultsSheetWithException(rangeNotation) {
   UnprotectResultsSheet(resultsSheet);
   ProtectResultsSheetWithException(resultsSheet,rangeNotation);
   let runnerNameId = resultsSheet.getName();
-  if (debug)
+  if (lc.debug)
     Logger.log("Reprotected results in sheet, "+runnerNameId+
       " sheet, except for the new results range, "+rangeNotation);
 }
@@ -154,12 +177,12 @@ function GetResultsEditorsForRunner(runnerNameId) {
     Logger.log('ERROR: '+runnerNameId+' is not a valid results sheet');
     return null;
   } else {
-    var editorsCell = allRunnersSheet.getRange(runnersStartROW+parseInt(index),editorsCOL);
-    if (debug)
+    var editorsCell = lv.allRunnersSheet.getRange(runnersStartROW+parseInt(index),editorsCOL);
+    if (lc.debug)
       Logger.log(editorsCell.getA1Notation());    // e.g. "D16" for runner_index, Alan_13
     var editorEmails = editorsCell.getValue().split(",");
     editorEmails = editorEmails.map(email => email.trim());
-    if (debug)
+    if (lc.debug)
       Logger.log("Latest results on sheet, "+runnerNameId+" may be added/changed by:\n"
         +editorEmails.join(","));
     return editorEmails;
@@ -211,7 +234,7 @@ function ReprotectResultsRanges(rangeFreeze,rangeChange) {
       editorsEmails.forEach(email => {        // edit rights extended to specific Editor
         ProtectResultsRangeByEditor(email,thisProtection);
       });
-      if (debug)
+      if (lc.debug)
         Logger.log("Changes permitted in range, "+changeRange+" only, on results sheet, "+
           runnerNameId+", allowing changes by:\n"+(editorsEmails.join(",")));
     } else {
@@ -241,7 +264,7 @@ function ReprotectResultsSheet(
     UnprotectResultsSheet(resultsSheet);  // whether legacy/temporary
     let [rangeFreeze,rangeChange] = GetProtectResultsRanges(maxChangeROWS);
     ReprotectResultsRanges(rangeFreeze,rangeChange);
-    if (debug)
+    if (lc.debug)
       Logger.log("Reprotections applied on results sheet, "+runnerNameId);
   }
 }
@@ -251,8 +274,8 @@ function ReprotectResultsSheet(
  * to add/change latest results.
  */
 function ReprotectResultsSheetPerRunner() {   // entry-point usage
-  const runnersRANGE = runnerNameCOLUMN+resultsStartROW+":"+runnerSurnameCOLUMN;
-  let runnerFullNames = allRunnersSheet.getRange(runnersRANGE)
+  const runnersRANGE = runnerNameCOLUMN+lc.resultsStartROW+":"+runnerSurnameCOLUMN;
+  let runnerFullNames = lv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
     .filter(name => name[0] != "")
     .map(name => [name[0],name[1]]);
@@ -281,7 +304,7 @@ const activeNOTE = 'If available, please include a HYPERLINK formula to any offi
 function AppendNewResultRow(resultsSheet) {
   resultsSheet.appendRow([""]);
   let lastResultRow = resultsSheet.getLastRow();
-  resultsSheet.getRange(lastResultRow,PBtickBoxCOL)
+  resultsSheet.getRange(lastResultRow,lc.PBtickBoxCOL)
     .clearContent();  // ensure undefined (instead of FALSE) for MAP to be effective
   resultsSheet.setActiveSelection('A'+lastResultRow);
   return lastResultRow;
@@ -298,7 +321,7 @@ function AppendNonParkrunResult() {     // user
   if (isNaN(index)) {
     Logger.log('ERROR: '+runnerNameId+' is NOT a results sheet (like Alan_13)');
     return;
-  } else if (debug)
+  } else if (lc.debug)
     Logger.log('Attempting to add non-parkrun result to '+runnerNameId+'...');
   let userEmail = Session.getEffectiveUser().getEmail();  // user permitted?
   let protection = resultsSheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)[1];
@@ -306,7 +329,7 @@ function AppendNonParkrunResult() {     // user
   let editorEmails = (protection)   // get actual list of editors from existing protection
     ? protection.getEditors().map(editor => editor.getEmail())
     : GetResultsEditorsForRunner(runnerNameId);   // ...OR get expected list (if not already set)
-   if (debug)
+   if (lc.debug)
     Logger.log('Checking user, '+userEmail+' is in the authorised list:\n'+
       editorEmails+'\n'+', which includes the spreadsheet owner');
   if (editorEmails && editorEmails.includes(userEmail)) { 
@@ -329,17 +352,17 @@ function AppendNonParkrunResult() {     // user
  */
 function onEditDetectNeedToReprotect(event) {  // trigger on Edit runs as spreadsheet owner
   const col = event.range.getColumn();
-  if (debug)
+  if (lc.debug)
     Logger.log('Column: '+col+'; Row: '+event.range.getRow()+'; Value: '+event.value);
   if (col !== onEditCOL || event.value === activeVALUE)
     return;   // exit ASAP to reduce interruption from interim/other edits
   let resultsSheet = event.range.getSheet();
   // Skip sheet if table does not contain Event results
-  if (resultsSheet.getRange(eventHeaderCELL).getValue() !== resultTABLE) return;
+  if (resultsSheet.getRange(lc.eventHeaderCELL).getValue() !== lc.resultTABLE) return;
   let runnerNameId = event.source.getName();    // OR resultsSheet.getName()
   const resultRow = event.range.getRow();
   if (resultsSheet.getRange(resultRow,2).getDisplayValue()) {
-    if (debug)
+    if (lc.debug)
       Logger.log('Reprotecting results sheet, '+runnerNameId+'...');
     resultsSheet.activate();      // pre-requisite to get range
     ReprotectResultsSheet(runnerNameId);  // shift protection down 1 row
@@ -351,48 +374,26 @@ function onEditDetectNeedToReprotect(event) {  // trigger on Edit runs as spread
   }
 }
 
-/* ----------------------------------------------------------------------------
-/
-/   The following definitions and functions support the efficient manual entry
-/   and "cleaning" of new results into the (permitted) runner's results sheet..
-/   The functions involved are significantly disjointed, relying on manual steps,
-/   and reliant on permission being granted beforehand
-/
-/     Loop manually for each runner...
-/       Copy the latest result rows (if missing set)...
-/         onSelectionChange (by pressing down arrow icon)
-/           ScrollBeyondLastResult (may create rows if permitted)
-/         Paste manually into the runner's result sheet...
-/           CleanFormatforPastedRunResults (after copying row from parkrun event)
-/             ClearBordersOnRange
-/             ApplyFormatFromRowAboveOnRange
-/             ApplyFormulaFromRowAboveBeyondRange
-/             RepairDurationTimesInRangeColumn
-/               TranslateDurationFromHoursToMinutes
-/               
-/  ----------------------------------------------------------------------------
-*/
-
 function ScrollBeyondLastResult() {
   const functionNAME = "ScrollBeyondLastResult";
   // Select the first empty row in preparation for pasting a non-parkrun entry
   // Conveniently used to skip to the bottom of the table below the latest result
   var resultsSheet = SpreadsheetApp.getActiveSheet();
-  if (debug)
+  if (lc.debug)
     Logger.log('Running '+functionNAME+' on sheet: '+resultsSheet.getName());
   var lastRow = resultsSheet.getLastRow();
-  if (lastRow <= firstResultROW) return; // table has no results yet
+  if (lastRow <= lc.resultsStartROW) return; // table has no results yet
   // Find an empty row from the bottom of the table since more efficient
   var i = lastRow;
-  for (; i>firstResultROW; i--) 
-    if (resultsSheet.getRange(i,pasteCOL).getDisplayValue()) break;
+  for (; i>lc.resultsStartROW; i--) 
+    if (resultsSheet.getRange(i,lc.pasteCOL).getDisplayValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
   if (i == lastRow) {
     var newRow = resultsSheet.appendRow([""]);
-    resultsSheet.getRange(newRow.getLastRow(),PBtickBoxCOL).clearContent();
+    resultsSheet.getRange(newRow.getLastRow(),lc.PBtickBoxCOL).clearContent();
   }
   // Always select the row below the last result
-  resultsSheet.getRange(i+1,pasteCOL).activate();
+  resultsSheet.getRange(i+1,lc.pasteCOL).activate();
 }
 
 /**
@@ -413,185 +414,10 @@ function onSelectionChange(e) {
   if (range.getColumn() !== scrollCOL) return
   var resultsSheet = e.source.getActiveSheet();
   // Skip sheet if table does not contain Event results
-  if (resultsSheet.getRange(eventHeaderCELL).getValue() !== resultTABLE) return;
+  if (resultsSheet.getRange(lc.eventHeaderCELL).getValue() !== lc.resultTABLE) return;
   // Skip also if first result has not been entered (and cleaned manually)
-  if (resultsSheet.getRange(firstResultCELL).getValue() === "") return;
+  if (resultsSheet.getRange(lc.firstResultCELL).getValue() === "") return;
   ScrollBeyondLastResult();
-}
-
-// ------------------------------------------------------------
-
-function convertHoursToMinutes(timeStr) {
-  // Results are 60 times slower, hh:mm and need to be mm:ss
-  var showMinutes = timeStr.toString().split(':');
-  Logger.log('Minutes shown is '+showMinutes+' in the cell for string, '+timeStr); 
-  return parseInt(showMinutes[0])/60;
-}
-
-/**
- * Clears the borders from the specified range.
- *    @param {Range} range - The range to apply the format to
- */
-function ClearBordersOnRange(range) {
-  var firstRow = range.getRow();
-  var lastRow = range.getLastRow();
-  var numRows = range.getNumRows();
-  var numCols = range.getNumColumns();
-  range.setBorder(false,false,false,false,false,false);
-  Logger.log('1. Cleared borders on new row(s), '+firstRow+' to '+lastRow+
-    ' (for '+numRows+' rows and '+numCols+' columns)');
-}
-
-/**
- * Applies the format from the row above to the specified range.
- *    @param {Range} range - The range to apply the format to
- */
-function ApplyFormatFromRowAboveOnRange(range) {
-  var firstRow = range.getRow();
-  var firstCol = range.getColumn();
-  var prevRow = firstRow-1;
-  var numRows = range.getNumRows();
-  var numCols = range.getNumColumns();
-  var aboveRange = range.offset(-1,0,numRows,numCols);
-  var lastRow = firstRow+numRows-1;
-  var lastCol = firstCol+numCols-1;
-  var sheet = range.getSheet();
-  aboveRange.copyFormatToRange(sheet,firstCol,lastCol,firstRow,lastRow);
-  Logger.log('2. Formatted the new row(s), '+firstRow+' to '+lastRow+
-      ' (for '+numRows+' rows and '+numCols+' columns)'+
-      ' based on format in above row, '+prevRow);
-}
-
-/**
- * Applies formulas (including any values) and data validation from the row above
- *  to the specified range, beyond the original range.
- *    @param {Range} range - The range to extend formulas and data validation from
- */
-function ApplyFormulaFromRowAboveBeyondRange(range) {
-  const prevRowOFFSET = -1;
-  var firstRow = range.getRow();
-  var firstCol = range.getColumn();  // typically column 1 (A) up to column G (7) pasted
-  var formCol = range.getLastColumn()+1; // next column, typically column 8 (H)
-  var numRows = range.getNumRows();
-  var endColumn = range.getSheet().getLastColumn(); // sheet end Column (with data), typically 13 (M)
-    // typically offset by 7 to column H upto end column M (13) means 6 columns
-  var offsetCol = formCol-firstCol;
-  var numCols = endColumn-offsetCol; 
-  var aboveRange = range.offset(prevRowOFFSET,
-    offsetCol,1,numCols);  // modelled on one row
-  var beyondRange = range.offset(0,
-    offsetCol,numRows,numCols); // for new row(s)
-  var formulae = aboveRange.getFormulas();
-  // var lastRow = firstRow+numRows-1;
-  aboveRange.copyTo(beyondRange,SpreadsheetApp.CopyPasteType.PASTE_FORMULA);
-  aboveRange.copyTo(beyondRange,SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION);
-  Logger.log('3. Inherited formulae (incl, check boxes & drop-downs) from column, '+
-      String.fromCharCode(64+formCol)+' (for '+numCols+' columns)'+
-      ' from row, '+firstRow+' (for '+numRows+' rows)');
-}
-
-/**
- * Translates an elapsed duration time in hours as if minutes,
- *  e.g. 27:55:00.000 means 00:27:55. assuming time less than an hour
- *    @param {time}   date/time object value in hh:mm format
- *  @returns {duration} as a string, 00:mm:00 for correct re-entry
- */
-function TranslateDurationFromHoursToMinutes(time) {
-  var newMinutes = time.getHours();   // previously shifted left incorrectly 
-  var newSeconds = time.getMinutes();
-  // ASSUMPTION: sub-14 minutes close to world record!
-  if (newMinutes < min5kmTIME)
-    newMinutes += 24;  // Assume "date" is effectively 24 hours later!
-  eHours = "00";
-  eMinutes = newMinutes.toString().padStart(2,'0');
-  eSeconds = newSeconds.toString().padStart(2,'0')+'.000';
-  var durationStr = eHours+":"+eMinutes+":"+eSeconds;
-  Logger.log('Duration translated from hh:mm to mm:ss duration as '+durationStr); 
-  return durationStr;
-}
-
-/**
- * Repairs duration times in a specified column of a range,
- *  translating each value from hh:mm to 00:mm:ss (i.e. 60 times faster!)
- *    @param {Range} - The range containing the duration times to repair
- *    @param {number} [timeCol=timeCOL] - Column containing the duration times
- */
-function RepairDurationTimesInRangeColumn(range,
-  timeCol = timeCOL)
-{
-  var firstRow = range.getRow();
-  var numRows = range.getNumRows();
-  var lastRow = firstRow+numRows-1;
-  // time pasted as hh:mm (instead of mm:ss
-  var timeRange = range.offset(0,timeCol-1,numRows,1);  // offset from column A
-  var timeValues = timeRange.getValues();
-  // Prepend each results' duration with 00: (for hh:) since 20 hours means 20 minutes
-  var timeRepairs = timeValues.map(function(row) {
-    return [TranslateDurationFromHoursToMinutes(row[0])];
-  });
-  timeRange.setValues(timeRepairs);
-  Logger.log('4. Repaired time(s) in column, '+
-    String.fromCharCode(64+timeCol)+' for new row(s), '+
-    firstRow+' to '+lastRow+' (for '+numRows+' rows),'+
-    ' to be mm:ss duration, instead of hh:mm (60 times longer)');
-}
-
-/**
- * REDUNDANT - Clean up one or more pasted run results in 4 steps
- *    @param {Range} -optionally pre-selected range (otherwise null)
- *  Preconditions:
- *    - Result(s) from parkrun(s) pasted below existing clean result(s)
- *    - Earlier result is below the runner title & header rows
- *  Steps to follow before running this macro:
- *    A. Open the URL on the right of the first row (in M1)
- *        or from your Surname on the Runners sheet
- *    B. Scroll to All Results, select the entire row from your latest result, and Copy
- *        or, for multiple results, Sort by Date, select missing rows at the bottom, and Copy
- *    C. Skip to 1st empty row on your named sheet, and Paste result(s) into 1st column
- *        or press the green arrow button (in K3), and Paste into 1st empty cell
- *    D. Execute macro via Extension >> Macros >> Clean Format for Pasted Run Result(s)
- *        or press defined hotkey combination, Ctrl+Alt+Shift+1
- */
-function CleanFormatforPastedRunResults(
-  pastedResults)    // optional range, pre-selected
-{
-  const functionNAME = "CleanFormatforPastedRunResults";
-  // Used to clean up one or more results in 4 steps (1..4), AFTER A, B & C beforehand 
-  var sheet = activeSpreadsheet.getActiveSheet();
-  Logger.log('Running '+functionNAME+' on sheet: '+sheet.getName());
-  // Preconditions: ensure result(s) from parkrun(s) pasted below existing clean result(s)
-    if (!pastedResults)   // if range specified, assume also already active
-      pastedResults = sheet.getActiveRange();   // ...such that it should match
-    var firstRow = pastedResults.getRow();
-    if (firstRow <= firstResultROW) {
-      SpreadsheetApp.getUi().alert('Error','Ensure that there is a precedent clean result immediately above the newly pasted result(s) to be cleaned (assuming that earlier result is below the runner title & header rows)',SpreadsheetApp.getUi().ButtonSet.OK);
-      return;
-    }
-    var pastedValue = sheet.getRange(firstRow,pasteCOL).getValue();  
-    if (!pastedValue) {
-      SpreadsheetApp.getUi().alert('Error','Ensure that the result(s) have been copied from the All Results table'+
-        '(with the Event Name and PB?) and that the pasted result(s) to be cleaned remain selected',
-        SpreadsheetApp.getUi().ButtonSet.OK);
-      return;
-    }
-    var pastedColumn = pastedResults.getColumn();
-    if (pastedColumn !== pasteCOL) {
-      SpreadsheetApp.getUi().alert('Error','Ensure that the result(s) have been pasted into the first column (A) and that they remain selected',
-        SpreadsheetApp.getUi().ButtonSet.OK);
-      return;   
-    }
-    var firstTimeString = sheet.getRange(firstRow,timeCOL).getDisplayValue();
-    var firstElapsedTime = convertHoursToMinutes(firstTimeString);
-    if (firstElapsedTime < min5kmTIME) {
-      SpreadsheetApp.getUi().alert('Error', 'Elapsed time (after repair) expected to exceed world record for 5km',
-        SpreadsheetApp.getUi().ButtonSet.OK);
-      return;
-    }
-  // Steps 1-4 handled by sub-functions:
-  ClearBordersOnRange(pastedResults);
-  ApplyFormatFromRowAboveOnRange(pastedResults);
-  ApplyFormulaFromRowAboveBeyondRange(pastedResults);
-  RepairDurationTimesInRangeColumn(pastedResults,timeCOL);
 }
 
 /* ---------------------------------------------------------------------------
@@ -602,12 +428,12 @@ function CleanFormatforPastedRunResults(
 /   These include standard comparative graphs for different groups that may be
 /   customised to suit what best inspires a family or club.
 /   There are eight samples of filtered charts (mostly by Age-Grade %age):
-      Juniors (over past 1.5yrs)
-      Seniors (all time)
-      Veterans (under 50, over past 2 yrs)
+      Juniors (over past year)
+      Seniors (over past year)
+      Veterans (under 50, over past year)
       Supervets (50+,over past year)
-      By FAMILY surname (past year)
-      Females (by Gender position, over past 2 years)
+      By FAMILY surname (overpast year)
+      Females (by Gender position, over past year)
     Note that these are formulae to filter the selection but can be manually set also  
     By example, here is a sample Group runner selection formula for Veterans under 50
 
@@ -742,18 +568,28 @@ function CleanFormatforPastedRunResults(
 
     For maintenance needs, here is the hierarchy of functions for the comparative charts:
 
-      GenerateChartsFromGroups
+      GenerateChartsFromGroups (four Group sheets)
         PrepassBlocksOfGroups
         For each block of groups...
           For each group required, related to same target sheet...
-            ClearGroupChartsOnSheet (on the target sheet)
+            ClearGroupChartsOnSheet (e.g. Age Groups)
             ExtractGroupRunners (per group)
             GenerateGroupChartInSheet
               FilterDatedGroupResults
                 CollateDatedGroupResults
               CopyGroupResultsToSheet
               EmbedGroupResultsChart
-                ApplyFormatsOnGroupResultsCharts
+                ApplyFormatsOnGroupResultsChart
+
+      GenScopeAGChartsFromGroups    
+        GenerateChartsFromGroups (Age-Groups & Gender)
+
+       GenScopeLFChartsFromGroups    
+        GenerateChartsFromGroups (Leagues & Families)
+
+      GenBatchChartsFromGroups
+        triggers -> GenScopeAGChartsFromGroups
+        triggers -> GenScopeLFChartsFromGroups (after a minute)
 
       When any change of hex colour codes in the top Legends table...
         ColourLegendsInGroups
@@ -761,9 +597,6 @@ function CleanFormatforPastedRunResults(
 / ---------------------------------------------------------------------------
 */
 
-const datesINDEX = 1;           // for col B on runners' results sheet
-const timesINDEX = 4;           // for col E on runners' results sheet
-const ageGradesINDEX = 5;       // for col F on runners' results sheet
 const chartYAxisTITLE = 'Age Grade';
 const ageGradeFORMAT = '0.0%';  // for %age on graphs
 
@@ -784,7 +617,7 @@ function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-
       .map(timestamp => new Date(timestamp))  // use timestamps to be sure (assumimg midnight)
       .sort((a,b) => a-b)                     // sort first and then return to be string
       .map(date => Utilities.formatDate(date,
-        Session.getScriptTimeZone(),dateFORMAT));
+        Session.getScriptTimeZone(),lc.dateFORMAT));
   return uniqueDates.map(date => [
     date,
     ...runners.map(runner => {
@@ -797,15 +630,15 @@ function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-
 /**
  * Retrieves and collates dated performances for the specified runners from their results sheets.
  * This filters by date BEFORE collating instead of filtering during the collation of results
- *    @param {string}                             - chart title,only used for tracking distinct groups
- *    @param {Array<string>}                      - runners - Array of runner names & indices from Group
- *    @param {number} [mostRecentYears=recentYRS] - Number of recent years to include (0 to get all)
- *    @param {number} [perfIndex=ageGradesINDEX]  - Column index of performance values (Age Grade, Time, etc.)
+ *    @param {string}                                - chart title,only used for tracking distinct groups
+ *    @param {Array<string>}                         - runners - Array of runner names & indices from Group
+ *    @param {number} [mostRecentYears=lc.recentYRS] - Number of recent years to include (0 to get all)
+ *    @param {number} [perfIndex=lc.ageGradesINDEX]  - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
 function FilterDatedGroupResults(chartTitle,runners,
-  mostRecentYears = recentYRS,   // assume all performances if zero years cut-off
-  perfIndex = ageGradesINDEX)   // default presents values <1 as %ages
+  mostRecentYears = lc.recentYRS,   // assume all performances if zero years cut-off
+  perfIndex = lc.ageGradesINDEX)   // default presents values <1 as %ages
 {
   const NOW = new Date();
   let cutoffDate = mostRecentYears == 0 
@@ -832,28 +665,33 @@ function FilterDatedGroupResults(chartTitle,runners,
           SpreadsheetApp.ButtonSet.OK);
         return;
       }
-      let numResults = resultsSheet.getLastRow()-runnersStartROW+1;
+      let numResults = resultsSheet.getLastRow()-lc.resultsStartROW+1;
       let resultsRange = resultsSheet.getDataRange()
-        .offset(resultsStartROW-1,0,numResults);
-      var startResult;    // to find first result from the cutoff date
-      let indexedDates = resultsRange.offset(0,datesINDEX,numResults,1)
-        .getValues()      // of dates only (initially)
+        .offset(lc.resultsStartROW-1,0,numResults);
+      var startResult = -1;    // to find first result from the cutoff date
+      let indexedDates = resultsRange.offset(0,lc.dateINDEX,numResults,1)
+        .getValues()      // for dates only to filter
         .filter((date,result) => {
+          if (startResult >= 0)
+            return true
           if (new Date(date[0]) > cutoffDate) {
-            startResult = startResult ?? result; // recall 1st index only
+            startResult = result;
             return true;
           } else return false;
-        });
-      let numFilteredResults = indexedDates.length;    // = numResults-startResult;
+        });       // reversing before and after is slower
+      let numFilteredResults = indexedDates.length;   // = numResults-startResult;
       if (startResult >= 0) {   // 0 if runner's very first result after cut-off date
-        perfs = resultsRange.offset(startResult,perfIndex,numFilteredResults,1)
-          [perfIndex == timesINDEX
+        let perfs = resultsRange.offset(startResult,perfIndex,numFilteredResults,1)
+          [perfIndex == lc.timeINDEX
                         ? 'getDisplayValues'
                         : 'getValues']
-          ().map(result => result[0]);
+          ().map((result,i) => resultsSheet.isRowHiddenByUser(lc.resultsStartROW+startResult+i)
+            ? null    /// although date retained for alignment, blankout if distorts chart
+            : result[0]);
         runnersPerfs[runnerNameId] = {};
         for (var i=0; i<indexedDates.length; i++) {
-          runnersPerfs[runnerNameId][indexedDates[i]] = perfs[i];
+          if (perfs[i] !== null) // skip hidden rows
+            runnersPerfs[runnerNameId][indexedDates[i]] = perfs[i];
         }
         filteredDates = filteredDates.concat(indexedDates);
       }
@@ -861,9 +699,12 @@ function FilterDatedGroupResults(chartTitle,runners,
       Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
   });
+  if (lc.debug)
+    Logger.log('Filtered Dated Group Results: '+runners);
   runnersDatedPerfs = CollateDatedGroupResults(
     filteredDates,runners,runnersPerfs);
-  Logger.log('Collated Dated Group Results: '+runners);
+  if (lc.debug)
+    Logger.log('Collated Dated Group Results: '+runners);
   return runnersDatedPerfs;
 }
 
@@ -877,16 +718,16 @@ function TransposeArray(array) {
  *    @param {Array<string>} runners            - Array of specified runners' names
  *    @param {Array<Array>} runnersPerfs        - Array of arrays containing runners' collated & dated performances
  *    @param {number} [groupPerfsRow=2]         - Row index where to start placing performances on the sheet
- *    @param {number} [groupPerfsCol=4]         - Column index likewise
- *    @param {string} [dateFormat=dateFORMAT]   - Format used for displayed dates
+ *    @param {number} [groupPerfsCol=lc.groupPerfsCOL]         - Group Column in each Performances sheet
+ *    @param {string} [dateFormat=lc.dateFORMAT]   - Format used for displayed dates
  *    @param {number} [decimalPlaces=4]         - Floating precision (unless integer)
  * @returns {Range} where performances are on the sheet (beyond subsequent charts)
  */
 function CopyGroupResultsToSheet(
   perfsSheet,runners,runnersPerfs,
   groupPerfsRow = 2,
-  groupPerfsCol = groupPerfsCOL,
-  dateFormat = dateFORMAT,     // aligned  with display format
+  groupPerfsCol = lc.groupPerfsCOL,
+  dateFormat = lc.dateFORMAT,     // aligned  with display format
   decimalPlaces = 4)
 {
   var dates = ['Date', ...runnersPerfs.map(date => date[0])];
@@ -922,7 +763,7 @@ function CopyGroupResultsToSheet(
     groupPerfsRange.offset(0,groupTable[0].length,  // clear any surplus from a previous run...
       groupTable.length,colsToClear)                // ...where earliest event dates lapse (fewer results)
         .clearContent();                            // ...OR if cut-off years reduced results considered
-  if (debug)
+  if (lc.debug)
     Logger.log('Formatted dates are:\n'
       +groupPerfsRange.offset(0,1,1,groupTable[0].length-1).getDisplayValues());
   return groupPerfsRange;
@@ -943,7 +784,7 @@ function CopyGroupResultsToSheet(
 function ApplyFormatsOnGroupResultsChart (
   perfSheet,groupPerfsRange,runnersLegend,
   perfChartRow,perfChartCol,perfFormat,
-  chartHeight,chartWidth,offsetBorder=offsetBORDER)
+  chartHeight,chartWidth,offsetBorder=lc.offsetBORDER)
 {
   const padFACTOR = 0.05;       // adjust min/max values to encourage "growth"
   const cellHeightSIZE = 21;    // cell height accounts for merged cells on chart
@@ -952,7 +793,7 @@ function ApplyFormatsOnGroupResultsChart (
   perfSheet.setRowHeight(perfChartRow,chartHeight+surroundFACTOR*offsetBorder
     -cellHeightSIZE*runnersLegend.length);  // Adjust for merging rows (later)
   perfSheet.setColumnWidth(perfChartCol,chartWidth+surroundFACTOR*offsetBorder);
-  if (debug)
+  if (lc.debug)
     Logger.log('Rows: '+groupPerfsRange.getNumRows()+', '+'Cols: '+groupPerfsRange.getNumColumns());
   perfsRange = groupPerfsRange.offset(1,1,  // Get runners' performances only...
     groupPerfsRange.getNumRows()-1,         // ...ignoring the Date row
@@ -991,8 +832,8 @@ function ApplyFormatsOnGroupResultsChart (
  *    @param {boolean} [showDates=false]  - Allow non-contiguous dates on the horizontal
  *    @param {boolean} [reverseTrend=1]   - Trends in reverse: rising to low values
  *    @param {boolean} [stripIndex=false] - Simplify legend if first name context unique
- *    @param {number} [filterRecentYears=recentYRS] - The cut-off years for results 
- *    @param {string} [perfTitle=chartYAxisTITLE]   - Performance title on vertical
+ *    @param {number} [filterRecentYears=lc.recentYRS] - The cut-off years for results 
+ *    @param {string} [perfTitle=lc.chartYAxisTITLE]   - Performance title on vertical
  *                                                    (typically Age Grade in results)
  *    @param {string} [perfFormat=ageGradeFORMAT]   - Format the performance (e.g. %age)
  */
@@ -1001,17 +842,16 @@ function EmbedGroupResultsChart(
   perfChartRow = 2,
   perfChartCol = 2,
   showDates=false,reverseTrend=1,stripIndex=false,
-  filterRecentYears = recentYRS,
-  perfTitle = chartYAxisTITLE,
-  perfFormat = ageGradeFORMAT)
+  filterRecentYears = lc.recentYRS,
+  perfTitle = lc.chartYAxisTITLE,
+  perfFormat = lc.ageGradeFORMAT)
 {
   const chartWIDTH = 800;
   const chartHEIGHT = 350;
-  const offsetBORDER = 5; // pixels
   var perfLimits = ApplyFormatsOnGroupResultsChart(
     perfSheet,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,perfFormat,
-    chartHEIGHT,chartWIDTH,offsetBORDER);
+    chartHEIGHT,chartWIDTH,lc.offsetBORDER);
   if (filterRecentYears === 1)
     chartTitle += ' (past year)';
   else if (filterRecentYears > 0)
@@ -1040,7 +880,7 @@ function EmbedGroupResultsChart(
     // .setHiddenDimensionStrategy(Charts.ChartHiddenDimensionStrategy.IGNORE_BOTH) // always shows
     .setTransposeRowsAndColumns(true)         // data on same sheet in D column?
     .setNumHeaders(1)
-    .setPosition(perfChartRow,perfChartCol,offsetBORDER,offsetBORDER)
+    .setPosition(perfChartRow,perfChartCol,lc.offsetBORDER,lc.offsetBORDER)
     .setXAxisTitle('Date')
     .setYAxisTitle(perfTitle)
     .setOption('useFirstColumnAsDomain',true) // Dates on x-axis (in 1st Row before transpose)
@@ -1125,7 +965,7 @@ function GenerateGroupChartInSheet(
   perfChartRow,perfChartCol,
   showDates=false,reverseTrend=1,stripIndex=false,
   filterRecentYears,
-  perfColumnTitle=chartYAxisTITLE,perfColumnIndex,perfFormat)
+  perfColumnTitle=lc.chartYAxisTITLE,perfColumnIndex,perfFormat)
 {
   if (!perfSheet) return null;
   let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
@@ -1152,7 +992,6 @@ const numGroupROWS = 4;     // Group of selected runners info in 4 rows
 const numRunnerROWS = numGroupROWS-1;
 const groupsStartROW = 9;   // Title, header + lookup legends by gender 
 const runnersStartCOL = 3;  // Output sheet name & Group with...
-const paramsCOUNT = 11;     // ...parameters of Group start in col 3
 var defaultPerfSheetName = 'Age Groups';    // may vary if overridden
 
 /**
@@ -1167,18 +1006,18 @@ function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
   var grpBlocks = {};
   for (var i=0; i<groupsCount; i++) {
     var group1stRow = groupsStartROW+numGroupROWS*i;
-    var paramsRange = groupsSheet.getRange(group1stRow,1,1,paramsCOUNT);
+    var paramsRange = groupsSheet.getRange(group1stRow,1,1,lc.paramsCOUNT);
     var params = paramsRange.getValues()[0];
     let perfSheetName = params[0] || defaultPerfsSheetName;
     defaultPerfsSheetName = perfSheetName;
     if (!grpBlocks[perfSheetName])
       	grpBlocks[perfSheetName] = [];
     var grpParams = {};
-    for (var j=1; j<paramsCOUNT; j++) {
+    for (var j=1; j<lc.paramsCOUNT; j++) {
       switch (j) {    // from columns B..K in 1st row 
         case 1: grpParams.groupName = params[1]; break;
         case 2: grpParams.groupTitle = params[2]; break;
-        case 3: grpParams.perfColumnTitle = params[3] || chartYAxisTITLE; break;
+        case 3: grpParams.perfColumnTitle = params[3] || lc.chartYAxisTITLE; break;
         case 4: grpParams.perfColumnIndex = params[4] || undefined; break;
         case 5: grpParams.perfFormat = params[5] || undefined; break;
         case 6: grpParams.filterRecentYears = params[6] || undefined; break;
@@ -1205,6 +1044,7 @@ function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
 function GenerateChartsFromGroups(
   groupsSheetName = 'Groups',
   perfSheetNames = ['Age Groups','Leagues','Families','Gender'])
+  // perfSheetNames = ['Age Groups'])    // test performance
 {
   const groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
@@ -1213,16 +1053,21 @@ function GenerateChartsFromGroups(
 
   // Stage 1: Identify blocks of groups (per sheet output) with parameters from Groups sheet
   let grpBlocks = PrepassBlocksOfGroups(groupsSheet,groupsCount);
+  if (lc.debug)
+    Logger.log('Pre-pass '+groupsCount+' groups of charts for four separate target sheets');
   for (var perfSheetName in grpBlocks) {
     if (!perfSheetNames.includes(perfSheetName))
-      continue;   // split scope into separate tasks: two blocks per sscope
-    Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
+      continue;   // split scope into separate tasks: two blocks per scope
+    if (lc.debug)
+      Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
     // ONLY clear a perf chart sheet if one or more charts NOT disabled
     var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
+    if (lc.debug)
+      Logger.log('Cleared all charts from sheet, '+perfSheetName);
     grpBlocks[perfSheetName].forEach(function(grpParams,index) {
-      if (debug)
+      if (lc.debug)
         Logger.log('Group '+index+': '+JSON.stringify(grpParams));
 
       // Stage 2a. Establish valid group of runners with colour legend...
@@ -1257,6 +1102,17 @@ function GenScopeAGChartsFromGroups() {
 
 function GenScopeLFChartsFromGroups() {
   GenerateChartsFromGroups('Groups',['Leagues','Families']);
+}
+
+function GenBatchChartsFromGroups() {
+  ScriptApp.newTrigger('GenScopeAGChartsFromGroups')
+    .timeBased()
+    .after(500)
+    .create();
+  ScriptApp.newTrigger('GenScopeLFChartsFromGroups')
+    .timeBased()
+    .after(60 * 1000) // 30-second delay
+    .create();
 }
 
 function ColourLegendsInGroups(
@@ -1339,7 +1195,7 @@ function GetPerfCharts(
         let chartTitle = perfChart.getOptions().get('title');
         let resultsRange = perfChart.getRanges()[0];   // only one range exists
         let resultsCells = resultsRange.getA1Notation();
-        // if (debug) {
+        // if (lc.debug) {
           let numRunners = resultsRange.getNumRows()-1;
           Logger.log('Sheet: '+perfSheet.getName()+' ['+numRunners+'@'+resultsCells+'], Chart ID: '+chartId+', Chart: '+chartTitle);
         // }
