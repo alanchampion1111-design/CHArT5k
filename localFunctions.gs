@@ -32,12 +32,12 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const lc = {
-  debug: false,               // WARNING: may slow down performance if true
+  debug: false,            // WARNING: may slow down performance
   resultsStartROW: 3,
   locationINDEX: 0,       // column A on each Results sheet
   dateINDEX: 1,           // column B on each Results sheet
-  timeINDEX: 4,          // column E on each Results sheet
-  ageGradesINDEX: 5,      // column F on each Results sheet
+  timeINDEX: 4,           // column E on each Results sheet
+  ageGradeINDEX: 5,       // column F on each Results sheet
   eventCOL: 1,            // column A is the event location
   dateCOL: 2,             // column B is the date of event
   runNumCOL: 3,           // column C is the instance # at event
@@ -52,12 +52,20 @@ const lc = {
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
+  ageGradeFORMAT: '0.0%', // for %age on graphs
+  chartYAxisTITLE: 'Age Grade',
+  numGroupROWS: 4,        // Group of selected runners info in 4 rows 
+  numRunnerROWS: 3,       // ...within group
+  groupsStartROW: 9,      // Title, header + lookup legends by gender 
+  runnersStartCOL: 3,     // Performance Output sheet start column
   runnersSheetNAME: 'Runners',
   resultTABLE: 'Event',   // First Header title in Results sheet
   eventHeaderCELL: "A2",  // Header row is below the Runner name title
-  firstResultCELL: "A3", //  and at least one Result has been cleanly entered
+  firstResultCELL: "A3",  //  ...and at least one Result has been cleanly entered
   offsetBORDER: 5,        // number pixels around chart
-  paramsCOUNT: 11,        // Parameters of Group start in col 3
+  groupStringsCOUNT: 5,   // String parameters from Groups sheet up to and including Compare Format
+  groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
+  paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
   recentYRS: 2            // filter comparison graphs based to most recent years only
 };
 var lv = {
@@ -67,8 +75,8 @@ var lv = {
 lv.activeSpreadsheetId = lv.activeSpreadsheet.getId();       // the originator ID
 lv.allRunnersSheet = lv.activeSpreadsheet
   .getSheetByName(lc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
-if (lc.debug) Logger.log('Current Spreadsheet Id: '+lv.activeSpreadsheetId);  
-
+if (lc.debug)
+  Logger.log('Current Spreadsheet Id: '+lv.activeSpreadsheetId);  
 const scrollCOL = 13;         // Scroll down when selecting column M beyond the table
 
 /* ---------------------------------------------------------------------------
@@ -384,16 +392,16 @@ function ScrollBeyondLastResult() {
   var lastRow = resultsSheet.getLastRow();
   if (lastRow <= lc.resultsStartROW) return; // table has no results yet
   // Find an empty row from the bottom of the table since more efficient
-  var i = lastRow;
-  for (; i>lc.resultsStartROW; i--) 
-    if (resultsSheet.getRange(i,lc.pasteCOL).getDisplayValue()) break;
+  var ri = lastRow;
+  for (; ri>lc.resultsStartROW; ri--) 
+    if (resultsSheet.getRange(ri,lc.pasteCOL).getDisplayValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
-  if (i == lastRow) {
+  if (ri == lastRow) {
     var newRow = resultsSheet.appendRow([""]);
     resultsSheet.getRange(newRow.getLastRow(),lc.PBtickBoxCOL).clearContent();
   }
   // Always select the row below the last result
-  resultsSheet.getRange(i+1,lc.pasteCOL).activate();
+  resultsSheet.getRange(ri+1,lc.pasteCOL).activate();
 }
 
 /**
@@ -597,9 +605,6 @@ function onSelectionChange(e) {
 / ---------------------------------------------------------------------------
 */
 
-const chartYAxisTITLE = 'Age Grade';
-const ageGradeFORMAT = '0.0%';  // for %age on graphs
-
 /**
  * Returns an array of selective runners performances versus event dates,
  *  ensuring event dates are unique (even if event location differs),
@@ -633,12 +638,12 @@ function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-
  *    @param {string}                                - chart title,only used for tracking distinct groups
  *    @param {Array<string>}                         - runners - Array of runner names & indices from Group
  *    @param {number} [mostRecentYears=lc.recentYRS] - Number of recent years to include (0 to get all)
- *    @param {number} [perfIndex=lc.ageGradesINDEX]  - Column index of performance values (Age Grade, Time, etc.)
+ *    @param {number} [perfIndex=lc.ageGradeINDEX]  - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
 function FilterDatedGroupResults(chartTitle,runners,
   mostRecentYears = lc.recentYRS,   // assume all performances if zero years cut-off
-  perfIndex = lc.ageGradesINDEX)   // default presents values <1 as %ages
+  perfIndex = lc.ageGradeINDEX)   // default presents values <1 as %ages
 {
   const NOW = new Date();
   let cutoffDate = mostRecentYears == 0 
@@ -650,7 +655,8 @@ function FilterDatedGroupResults(chartTitle,runners,
     );
   var filteredDates = [];
   var runnersPerfs = {};
-  runners.forEach(function(runner) { 
+  for (var mi=0; mi<runners.length; mi++) {
+    runner = runners[mi];
     let [runnerName,runnerIndex] = runner;
     if (runnerName.includes("N/A")) {
       Logger.log('WARNING: Missing runners in this group chart ('+chartTitle+'_');
@@ -680,31 +686,32 @@ function FilterDatedGroupResults(chartTitle,runners,
           } else return false;
         });       // reversing before and after is slower
       let numFilteredResults = indexedDates.length;   // = numResults-startResult;
+      // Logger.log('2b1A-start. Start dated result, '+startResult+ ' for runner,'+runnerName);
       if (startResult >= 0) {   // 0 if runner's very first result after cut-off date
         let perfs = resultsRange.offset(startResult,perfIndex,numFilteredResults,1)
           [perfIndex == lc.timeINDEX
                         ? 'getDisplayValues'
                         : 'getValues']
-          ().map((result,i) => resultsSheet.isRowHiddenByUser(lc.resultsStartROW+startResult+i)
-            ? null    /// although date retained for alignment, blankout if distorts chart
+          ().map((result,mi) => resultsSheet.isRowHiddenByUser(lc.resultsStartROW+startResult+mi)
+            ? null    // although date retained for alignment, blankout if distorts chart
             : result[0]);
         runnersPerfs[runnerNameId] = {};
-        for (var i=0; i<indexedDates.length; i++) {
-          if (perfs[i] !== null) // skip hidden rows
-            runnersPerfs[runnerNameId][indexedDates[i]] = perfs[i];
-        }
+        // Logger.log('2b1A-shown. Gathered visible results for runner,'+runnerName);
+        for (var di=0; di<indexedDates.length; di++)
+          runnersPerfs[runnerNameId][indexedDates[di]] = perfs[di];
+        // Logger.log('2b1A-for. Recorded results for runner,'+runnerName);
         filteredDates = filteredDates.concat(indexedDates);
       }
     } catch (err) {
       Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
-  });
+  }
   if (lc.debug)
-    Logger.log('Filtered Dated Group Results: '+runners);
+    Logger.log('Filtered Dated Group Results for all: '+runners);
   runnersDatedPerfs = CollateDatedGroupResults(
     filteredDates,runners,runnersPerfs);
-  if (lc.debug)
-    Logger.log('Collated Dated Group Results: '+runners);
+ if (lc.debug)
+    Logger.log('Collated Dated Group Results for all: '+runners);
   return runnersDatedPerfs;
 }
 
@@ -732,9 +739,9 @@ function CopyGroupResultsToSheet(
 {
   var dates = ['Date', ...runnersPerfs.map(date => date[0])];
   var groupTable = [dates];   // 'Date' with d-MMM-YY dates are headers
-  for (var i=1; i<=runners.length; i++) {
-    var runnerPerfs = runnersPerfs.map(result => result[i]);
-    var [runnerName,runnerIndex] = runners[i-1];
+  for (var ci=1; ci<=runners.length; ci++) {
+    var runnerPerfs = runnersPerfs.map(result => result[ci]);
+    var [runnerName,runnerIndex] = runners[ci-1];
     var runnerNameId = runnerName+'_'+runnerIndex;  // strip Index later if required?
     var perfRow = [runnerNameId];
     runnerPerfs.forEach(value => {
@@ -835,7 +842,7 @@ function ApplyFormatsOnGroupResultsChart (
  *    @param {number} [filterRecentYears=lc.recentYRS] - The cut-off years for results 
  *    @param {string} [perfTitle=lc.chartYAxisTITLE]   - Performance title on vertical
  *                                                    (typically Age Grade in results)
- *    @param {string} [perfFormat=ageGradeFORMAT]   - Format the performance (e.g. %age)
+ *    @param {string} [perfFormat=lc.ageGradeFORMAT]   - Format the performance (e.g. %age)
  */
 function EmbedGroupResultsChart(
   perfSheet,chartTitle,groupPerfsRange,runnersLegend,
@@ -937,10 +944,10 @@ function ExtractGroupRunners(runnersRange) {
   var runnersIndices = groupRunners[1];
   var runnersColours =  groupRunners[2];
   var runnersLegend = [];
-  for (var j=0; j<runnersNames.length; j++) {
-    if (runnersNames[j] != "") {
-      runnersLegend.push([runnersNames[j],runnersIndices[j],runnersColours[j]]);
-    }
+  for (var gj=0; gj<runnersNames.length; gj++) {
+    if (runnersNames[gj] == "")
+      break;
+    runnersLegend.push([runnersNames[gj],runnersIndices[gj],runnersColours[gj]]);
   }
   return runnersLegend;   // 2-D array
 }
@@ -988,10 +995,6 @@ function GenerateGroupChartInSheet(
   }
 }
 
-const numGroupROWS = 4;     // Group of selected runners info in 4 rows 
-const numRunnerROWS = numGroupROWS-1;
-const groupsStartROW = 9;   // Title, header + lookup legends by gender 
-const runnersStartCOL = 3;  // Output sheet name & Group with...
 var defaultPerfSheetName = 'Age Groups';    // may vary if overridden
 
 /**
@@ -1002,35 +1005,42 @@ var defaultPerfSheetName = 'Age Groups';    // may vary if overridden
  * Note: a blank perfs sheet name (in col A) implies that of the group above
  *  - initially 'Age Groups' if col A completely empty (not recommended; not so in template)
  */
-function PrepassBlocksOfGroups(groupsSheet,groupsCount) {
+function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
   var grpBlocks = {};
-  for (var i=0; i<groupsCount; i++) {
-    var group1stRow = groupsStartROW+numGroupROWS*i;
-    var paramsRange = groupsSheet.getRange(group1stRow,1,1,lc.paramsCOUNT);
-    var params = paramsRange.getValues()[0];
-    let perfSheetName = params[0] || defaultPerfsSheetName;
-    defaultPerfsSheetName = perfSheetName;
+  for (var gi=0; gi<groupsCount; gi++) {
+    var group1stRow = lc.groupsStartROW+lc.numGroupROWS*gi;
+    var params = groupsSheet.getRange(group1stRow,1,1,lc.groupStringsCOUNT)
+      .getDisplayValues()[0]
+      .concat(
+        groupsSheet.getRange(group1stRow,lc.groupStringsCOUNT+1,1,lc.groupValuesCOUNT)
+          .getValues()[0]
+      );
+    let perfSheetName = params[0] || defaultPerfSheetName;
+    defaultPerfSheetName = perfSheetName;
+    if (!perfSheetNames.includes(perfSheetName))
+      continue;   // skip groups in this block because out of scope
     if (!grpBlocks[perfSheetName])
       	grpBlocks[perfSheetName] = [];
     var grpParams = {};
-    for (var j=1; j<lc.paramsCOUNT; j++) {
-      switch (j) {    // from columns B..K in 1st row 
-        case 1: grpParams.groupName = params[1]; break;
-        case 2: grpParams.groupTitle = params[2]; break;
-        case 3: grpParams.perfColumnTitle = params[3] || lc.chartYAxisTITLE; break;
-        case 4: grpParams.perfColumnIndex = params[4] || undefined; break;
-        case 5: grpParams.perfFormat = params[5] || undefined; break;
-        case 6: grpParams.filterRecentYears = params[6] || undefined; break;
-        case 7: grpParams.showDates = params[7] == true || false; break;
-        case 8: grpParams.reverseTrend = params[8] == true ? -1 : 1; break;
-        case 9: grpParams.stripIndex = params[9] == true || false; break;
-        case 10: grpParams.disableDraw = params[10] == true || false; break;
+      for (var pi=0; pi<lc.paramsCOUNT; pi++) {
+        switch (pi) {    // from columns B..K in 1st row
+          case 0: grpParams.sheetName = perfSheetName; break;   // for completeness
+          case 1: grpParams.groupName = params[1]; break;
+          case 2: grpParams.groupTitle = params[2]; break;
+          case 3: grpParams.perfColumnTitle = params[3] || lc.chartYAxisTITLE; break;
+          case 4: grpParams.perfFormat = params[4] || undefined; break;
+          case 5: grpParams.perfColumnIndex = params[5] || undefined; break;
+          case 6: grpParams.filterRecentYears = params[6] || undefined; break;
+          case 7: grpParams.showDates = (params[7] == true); break;
+          case 8: grpParams.reverseTrend = (params[8] == true) ? -1 : 1; break;
+          case 9: grpParams.stripIndex = (params[9] == true); break;
+          case 10: grpParams.disableDraw = (params[10] == true); break;
+        }
       }
-    }
-    let maxRunnersCount = groupsSheet.getLastColumn()-runnersStartCOL+1;
+    let maxRunnersCount = groupsSheet.getLastColumn()-lc.runnersStartCOL+1;
     grpParams.runnersRange = groupsSheet.getRange(
-      group1stRow+1,runnersStartCOL,
-      numRunnerROWS,maxRunnersCount);
+      group1stRow+1,lc.runnersStartCOL,
+      lc.numRunnerROWS,maxRunnersCount);
     grpBlocks[perfSheetName].push(grpParams);
   }
   return grpBlocks;
@@ -1049,10 +1059,10 @@ function GenerateChartsFromGroups(
   const groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
   let groupsEndRow = groupsSheet.getLastRow();
-  let groupsCount = (groupsEndRow-groupsStartROW+1)/numGroupROWS;
+  let groupsCount = (groupsEndRow-lc.groupsStartROW+1)/lc.numGroupROWS;
 
   // Stage 1: Identify blocks of groups (per sheet output) with parameters from Groups sheet
-  let grpBlocks = PrepassBlocksOfGroups(groupsSheet,groupsCount);
+  let grpBlocks = PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount);
   if (lc.debug)
     Logger.log('Pre-pass '+groupsCount+' groups of charts for four separate target sheets');
   for (var perfSheetName in grpBlocks) {
@@ -1121,15 +1131,15 @@ function ColourLegendsInGroups(
   var sheet = activeSpreadsheet.getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
-  for (var i=0; i<values.length; i++) {
-    if (values[i][1] === "Legend") {
-      for (var j=1; j<values[i].length; j++) {
-        var hexValue = values[i][j];
+  for (var gi=0; gi<values.length; gi++) {
+    if (values[gi][1] === "Legend") {
+      for (var lj=1; lj<values[gi].length; lj++) {
+        var hexValue = values[gi][lj];
         if (typeof hexValue === "string"
-            && hexValue.match(/^#[0-9A-F]{6}$/i))
+            && hexValue.match(/^#[0-9A-F]{6}$/gi))
         {
-          sheet.getRange(i+1,j+1).setBackground(hexValue);
-          sheet.getRange(i+1,j+1).setFontColor("#ffffff");  // TODO or #000000 for contrast?
+          sheet.getRange(gi+1,lj+1).setBackground(hexValue);
+          sheet.getRange(gi+1,lj+1).setFontColor("#ffffff");  // TODO or #000000 for contrast?
         }
       }
     }
