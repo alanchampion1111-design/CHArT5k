@@ -55,17 +55,23 @@
       "functionName": "GenerateChartsFromGroups",
       "defaultShortcut": "Ctrl+Alt+Shift+6"
     }, {
-      "menuName": "AcceptCookies",
+      "menuName": "Accept Cookies",
       "functionName": "AcceptCookies"
     }, {
-      "menuName": "Generate charts from Groups (in 2 batches)",
+      "menuName": "Generate charts from Groups (in 4 batches)",
       "functionName": "GenBatchChartsFromGroups"
     }, {
-      "menuName": "Generate charts from Groups (Age Groups \u0026 Gender)",
-      "functionName": "GenScopeAGChartsFromGroups"
+      "menuName": "Generate Age Group charts",
+      "functionName": "GenerateAgeGroupCharts"
     }, {
-      "menuName": "Generate charts from Groups (Leagues \u0026 Families)",
-      "functionName": "GenScopeLFChartsFromGroups"
+      "menuName": "Generate League Group charts)",
+      "functionName": "GenerateLeagueGroupCharts"
+    }, {
+      "menuName": "Generate Gender Group charts",
+      "functionName": "GenerateGenderGroupCharts"
+    }, {
+      "menuName": "Generate Family Group charts",
+      "functionName": "GenerateFamiliesGroupCharts"
     }]
   }
 }
