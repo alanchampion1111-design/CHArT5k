@@ -581,14 +581,16 @@ function onSelectionChange(e) {
         PrepassBlocksOfGroups
         For each block of groups...
           For each group required, related to same target sheet...
-            ClearGroupChartsOnSheet (e.g. Age Groups)
+            ClearGroupChartsOnSheet (e.g. Age Groups, unless continuing)
             ExtractGroupRunners (per group)
-            GenerateGroupChartInSheet
+            GenerateGroupChartInSheet (if enough time)
               FilterDatedGroupResults
                 CollateDatedGroupResults
               CopyGroupResultsToSheet
               EmbedGroupResultsChart
                 ApplyFormatsOnGroupResultsChart
+              If max time would be exceeded for next chart
+                trigger -> GenerateChartsFromGroups (to continue same block)
 
       GenerateAgeGroupCharts    
         GenerateChartsFromGroups (Age-Groups)
@@ -1091,13 +1093,15 @@ function GenerateChartsFromGroups(
       Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
-    // ONLY clear a perf chart sheet if one or more charts NOT disabled
-    var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
-    if (lc.debug)
-      Logger.log('Cleared all charts from sheet, '+perfSheetName);
     let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
     var index = parseInt(PropertiesService.getScriptProperties()
       .getProperty('index_' + perfSheetName)) || 0;   // where to continue if re-invoked
+          // ONLY clear a perf chart sheet if one or more charts NOT disabled
+    if (index === 0) {
+      var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
+      if (lc.debug)
+        Logger.log('Cleared all charts from sheet, '+perfSheetName);
+    }
     for (; index<grpBlocks[perfSheetName].length; index++) {
       var grpParams = grpBlocks[perfSheetName][index];
       // if (lc.debug)
