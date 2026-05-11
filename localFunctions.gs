@@ -1102,12 +1102,10 @@ function GenerateChartsFromGroups(
     let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
     var index = parseInt(PropertiesService.getScriptProperties()
       .getProperty('index_' + perfSheetName)) || 0;   // where to continue if re-invoked
-    // ONLY clear a perf chart sheet if one or more charts NOT disabled
-    if (index === 0) {
-      var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
-      if (lc.debug)
-        Logger.log('Cleared all charts from sheet, '+perfSheetName);
-    }
+    // ONLY clear/clean a perf chart sheet if one or more charts NOT disabled
+    var perfSheet = ClearGroupChartsOnSheet(perfSheetName,index);
+    if (lc.debug && index === 0)
+      Logger.log('Cleared all charts from sheet, '+perfSheetName);
     for (; index<grpBlocks[perfSheetName].length; index++) {
       var grpParams = grpBlocks[perfSheetName][index];
       if (lc.debug)
