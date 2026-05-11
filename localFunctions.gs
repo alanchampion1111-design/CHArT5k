@@ -924,22 +924,28 @@ function EmbedGroupResultsChart(
  * Retrieves the Group Results sheet and clears any charts from it.
  *  A blank sheet is created if the Group results sheet does not exit
  *    @param {string} [perfSheetName="Leagues"] - The name of the sheet to retrieve and clear.
- *  @returns {Spreadsheet.Sheet} The cleared sheet object.
+ *  @returns {Spreadsheet.Sheet} - the new/cleared sheet object.
  */
 function ClearGroupChartsOnSheet(
-  perfSheetName = "Leagues")
+  perfSheetName = "Leagues",
+  index = 0)  // TODO: remove merges 
 {
   var perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
-  if (!perfSheet) {
-    perfSheet = activeSpreadsheet.insertSheet(perfSheetName);
-    if (!perfSheet) return null;
-  }
-  var charts = perfSheet.getCharts();
-  var numCharts = charts.length;
-  if (numCharts > 0) {
-    charts.forEach(function(chart) {
-      perfSheet.removeChart(chart);
-    });
+  if (!perfSheet)
+    try {
+      perfSheet = activeSpreadsheet.insertSheet(perfSheetName);
+    } catch (err) {
+      return null;
+    }
+  if (index === 0) {
+    var charts = perfSheet.getCharts();
+    var numCharts = charts.length;
+    if (numCharts > 0) {
+      charts.forEach(function(chart) {
+        perfSheet.removeChart(chart);
+      });
+    }
+    perfSheet.getDataRange().breakApart();  // remove merges to allow shift between tables
   }
   return perfSheet;
 }
@@ -1096,7 +1102,7 @@ function GenerateChartsFromGroups(
     let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
     var index = parseInt(PropertiesService.getScriptProperties()
       .getProperty('index_' + perfSheetName)) || 0;   // where to continue if re-invoked
-          // ONLY clear a perf chart sheet if one or more charts NOT disabled
+    // ONLY clear a perf chart sheet if one or more charts NOT disabled
     if (index === 0) {
       var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
       if (lc.debug)
@@ -1104,7 +1110,7 @@ function GenerateChartsFromGroups(
     }
     for (; index<grpBlocks[perfSheetName].length; index++) {
       var grpParams = grpBlocks[perfSheetName][index];
-      // if (lc.debug)
+      if (lc.debug)
         Logger.log('Group '+index+': '+JSON.stringify(grpParams));
 
       // Stage 2a. Establish valid group of runners with colour legend...
