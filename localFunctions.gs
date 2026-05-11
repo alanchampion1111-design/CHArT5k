@@ -4,17 +4,15 @@
 / Google Spreadsheet.  The scope here is limited to local synchronous  functions 
 / that are NOT dependent on GCR functions.  These wer developed as part of phase I
 / although significantly upgraded as a consequence of later phases .
-/ The primary five entry-point functions that are bound to macros/keys are:
+/ The primary four entry-point functions that are bound to macros & keys are:
 /   1.  Protect results for each runner - SIMPLIFY to sheets only?
 /       (ProtectEachRunnerResultsSheets - Ctrl+Alt+Shift+3)
 /   2.  Generate charts from Groups
-/       (GenerateChartsFromGroups       - Ctrl+Alt+Shift+4)
+/       (GenerateChartsFromGroups       - Ctrl+Alt+Shift+6)
 / 	3.  Colour legends in Groups
 /       (ColourLegendsInGroups)
-/   4.  Clean format for results)       - REDUNDANT? => import in GCR functions?
-/       (CleanFormatforPastedRunResults)
-/   5.  Scroll to last result
-/       (ScrollToLastResult             - Press down arrow in M3)
+/   4.  Append non-parkrun result
+/       (AppendNonParkrunResult)
 /---------------------------------------------------------------------------------------
  */
 
@@ -66,11 +64,14 @@ const lc = {
   groupStringsCOUNT: 5,   // String parameters from Groups sheet up to and including Compare Format
   groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
   paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
-  recentYRS: 2            // filter comparison graphs based to most recent years only
+  recentYRS: 2,            // filter comparison graphs based to most recent years only
+  chartTimeSECS: 60,
+  maxTimeSECS: 6*60
 };
 var lv = {
   activeSpreadsheet: SpreadsheetApp
     .getActiveSpreadsheet(),      // allows dynamic shift to new context
+  startTime: Date.now()
 };
 lv.activeSpreadsheetId = lv.activeSpreadsheet.getId();       // the originator ID
 lv.allRunnersSheet = lv.activeSpreadsheet
@@ -589,15 +590,23 @@ function onSelectionChange(e) {
               EmbedGroupResultsChart
                 ApplyFormatsOnGroupResultsChart
 
-      GenScopeAGChartsFromGroups    
-        GenerateChartsFromGroups (Age-Groups & Gender)
+      GenerateAgeGroupCharts    
+        GenerateChartsFromGroups (Age-Groups)
 
-       GenScopeLFChartsFromGroups    
-        GenerateChartsFromGroups (Leagues & Families)
+      GenerateLeagueGroupCharts    
+        GenerateChartsFromGroups (Leagues)
 
-      GenBatchChartsFromGroups
-        triggers -> GenScopeAGChartsFromGroups
-        triggers -> GenScopeLFChartsFromGroups (after a minute)
+      GenerateFamiliesGroupCharts    
+        GenerateChartsFromGroups (Families)
+
+      GenerateGenderGroupCharts    
+        GenerateChartsFromGroups (Gender)
+
+      GenBatchChartsFromGroups (in 4 batches)
+        triggers -> GenerateAgeGroupCharts
+        triggers -> GenerateGenderGroupCharts (in parallel)
+        triggers -> GenerateLeagueGroupCharts (after 10 minutes)
+        triggers -> GenerateFamiliesGroupCharts (in parallel)
 
       When any change of hex colour codes in the top Legends table...
         ColourLegendsInGroups
@@ -966,7 +975,7 @@ function ExtractGroupRunners(runnersRange) {
  *    @param {string} perfColumnTitle   - The vertical title (default: Age Grade)
  *    @param {number} perfColumnIndex   - The index of the performance  (5 = F)
  *    @param {string} perfFormat        - The format to apply to performances
- */
+ */
 function GenerateGroupChartInSheet(
   perfSheet,chartTitle,runnersLegend,
   perfChartRow,perfChartCol,
@@ -976,7 +985,7 @@ function GenerateGroupChartInSheet(
 {
   if (!perfSheet) return null;
   let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
-  // runners are a subset! so index is EITHER from allRunners sheet OR in Legend
+  // runners are a subset! so index is EITHER from Runners sheet OR in Legend
   var runnersDatedPerfs = FilterDatedGroupResults(
     chartTitle,runners,filterRecentYears,perfColumnIndex);
   if (!runnersDatedPerfs) return null;
@@ -991,7 +1000,8 @@ function GenerateGroupChartInSheet(
     perfColumnTitle,perfFormat);
   if (perfChart) {
     Logger.log('Generated group chart, '+chartTitle+
-      ' in row, '+perfChartRow+' of sheet '+perfSheet.getName());
+      ' in row, '+perfChartRow+' of sheet, '+perfSheet.getName()+
+      ' ('+runners.length+' runners)');
   }
 }
 
@@ -1046,6 +1056,15 @@ function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
   return grpBlocks;
 }
 
+function getCaller() {
+  let stack = new Error().stack.split('\n');
+  return stack.length > 3
+    ? stack[3].match(/at (\w+)/)[1]
+    : undefined;
+}
+
+
+
 /**
  * Generates charts in performance sheets based on config in the Groups sheet.
  * Groups are organised into blocks, each with a different target sheet - e.g Leagues
@@ -1076,22 +1095,26 @@ function GenerateChartsFromGroups(
     var perfSheet = ClearGroupChartsOnSheet(perfSheetName);
     if (lc.debug)
       Logger.log('Cleared all charts from sheet, '+perfSheetName);
-    grpBlocks[perfSheetName].forEach(function(grpParams,index) {
-      if (lc.debug)
+    let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
+    var index = parseInt(PropertiesService.getScriptProperties()
+      .getProperty('index_' + perfSheetName)) || 0;   // where to continue if re-invoked
+    for (; index<grpBlocks[perfSheetName].length; index++) {
+      var grpParams = grpBlocks[perfSheetName][index];
+      // if (lc.debug)
         Logger.log('Group '+index+': '+JSON.stringify(grpParams));
 
       // Stage 2a. Establish valid group of runners with colour legend...
       if (grpParams.disableDraw || !grpParams.groupName)
-        return;
+        continue;
       let runnersLegend = ExtractGroupRunners(grpParams.runnersRange);
       if (!runnersLegend || runnersLegend.length == 0)
-        return;
+        continue;
       let groupRange = groupsSheet.getRange(grpParams.runnersRange.getRow()-1,1);
       let perfChartRow = groupRange.offset(1,0).getValue() || undefined;
       let perfChartCol = groupRange.offset(1,1).getValue() || undefined;
       let firstRunner = groupRange.offset(1,2).getValue() || undefined;
       if (firstRunner === "#N/A")
-        return;
+        continue;
 
       // Stage 2b. Place Group performances data on sheet prior to creating Group chart
       var chartTitle = grpParams.groupName+" ("+grpParams.groupTitle+") "+grpParams.perfColumnTitle;
@@ -1102,26 +1125,66 @@ function GenerateChartsFromGroups(
         grpParams.filterRecentYears,grpParams.perfColumnTitle,
         grpParams.perfColumnIndex,grpParams.perfFormat
       );
-    });
+      if (index+1 == grpBlocks[perfSheetName].length)
+        continue;
+      let remainingTimeSecs = lc.maxTimeSECS-Math.floor((new Date().getTime()-lv.startTime)/1000); 
+      if (lc.debug)
+        Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
+      if (remainingTimeSecs < lc.chartTimeSECS) {
+        Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to generate any more charts.');
+        if (continueGenerate) {
+          Logger.log('Exiting loop and continuing chart generation beyond index, '+index+
+            ' by re-triggering '+continueGenerate);
+          PropertiesService.getScriptProperties()
+            .setProperty('index_' + perfSheetName,index+1);
+          ScriptApp.newTrigger(continueGenerate)
+            .timeBased()
+            .after(10 * 1000) // resume in 10 seconds
+            .create();
+        } else  // need to use split functions for a large club/family
+          Logger.log('ERROR: Exiting since unable to continue chart generation beyond index, '+index+
+           ' without using the predefined split functions (such as GenerateAgeGroupCharts)');
+        return;
+      }
+    }   // Generated all charts for this perfSheetName 
+    PropertiesService.getScriptProperties()
+          .deleteProperty('index_' + perfSheetName);
   }
 }
-
-function GenScopeAGChartsFromGroups() {
-  GenerateChartsFromGroups('Groups',['Age Groups','Gender']);
+               
+function GenerateAgeGroupCharts() {
+  GenerateChartsFromGroups('Groups',['Age Groups']);
 }
 
-function GenScopeLFChartsFromGroups() {
-  GenerateChartsFromGroups('Groups',['Leagues','Families']);
+function GenerateLeagueGroupCharts() {
+  GenerateChartsFromGroups('Groups',['Leagues']);
+}
+
+function GenerateGenderGroupCharts() {
+  GenerateChartsFromGroups('Groups',['Gender']);
+}
+
+function GenerateFamiliesGroupCharts() {
+  GenerateChartsFromGroups('Groups',['Families']);
 }
 
 function GenBatchChartsFromGroups() {
-  ScriptApp.newTrigger('GenScopeAGChartsFromGroups')
+  const batchGapMINS = 10;
+  ScriptApp.newTrigger('GenerateAgeGroupCharts')
     .timeBased()
-    .after(500)
+    .after(5000)
     .create();
-  ScriptApp.newTrigger('GenScopeLFChartsFromGroups')
+  ScriptApp.newTrigger('GenerateGenderGroupCharts')
     .timeBased()
-    .after(60 * 1000) // 30-second delay
+    .after(30000)  // 30 seconds later in parallel
+    .create();
+  ScriptApp.newTrigger('GenerateLeagueGroupCharts')
+    .timeBased()
+    .after(batchGapMINS*60000)  // after 10 mins delay
+    .create();
+  ScriptApp.newTrigger('GenerateFamiliesGroupCharts')
+    .timeBased()
+    .after(batchGapMINS*60000+30000)  // 30 seconds later in parallel
     .create();
 }
 
