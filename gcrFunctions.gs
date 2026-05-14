@@ -138,12 +138,15 @@ const gc = {
   runnersSheetNAME: 'Runners',
   browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',    // shared GCR service
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
-  batchSizeMAX: 7
+  batchSizeMAX: 7,
+  importTimeSECS: 30,
+  maxTimeSECS: 6*60
 };
 var gv = {
   activeSpreadsheet: SpreadsheetApp
     .getActiveSpreadsheet(),      // allows dynamic shift to new context
-  browserSession: undefined       // Shared by threaded/recursed processes since lingers
+  browserSession: undefined,      // Shared by threaded/recursed processes since lingers
+  startTime: Date.now()
 };
 gv.activeSpreadsheetId = gv.activeSpreadsheet.getId();       // the originator ID
 gv.allRunnersSheet = gv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
@@ -805,8 +808,59 @@ async function GetEventsResults(eventDate) {
     eventsResults = clubWideResults.match(/<table[^>]*>(.*?)<\/table>/gs);
     if (gc.debug)
       Logger.log('No. of events covered: '+eventsResults.length);
-  }
+  } else
+    Logger.log('WARNING: No defined group OR consolidated report for date does not exist;'+
+      ' thus checking all runners individually');
   return eventsResults;
+}
+
+async function ImportRunnerResult(index,runners,eventDate,eventsResults,numImports) {
+  let runner = runners[index];
+  let runnerName = runner[0];     // col A for first name
+  let runnerNameId = runnerName+'_'+index;
+  let runnerFullName = runner.join(' ');    // from col A & B
+  let parkrunnerId = gv.allRunnersSheet
+    .getRange(gc.runnersStartROW+index,gc.parkrunnerIdCOL)
+    .getValue();
+  if (isNaN(parkrunnerId)) {
+    if (gc.debug) Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
+    return true;    // skip
+  } else if (eventsResults &&
+            !eventsResults.some(table => table.includes(runnerFullName))) {
+    if (gc.debug)
+      Logger.log('INFO: Skipping runner, '+runnerFullName+' because did not run or not a member');
+    return true;    // skip
+  } else
+    if (gc.debug)
+      Logger.log('Parkrunner ID: '+parkrunnerId);
+  return CopyResultForRunner(parkrunnerId,runnerNameId,eventDate)
+    .then(thisResult => {
+      if (thisResult) {
+        let resultRange = PasteResultForRunner(thisResult,runnerNameId);
+        if (resultRange) {
+          numImports++;
+          if (gc.debug)
+            Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
+          return AppendPositionsForResult(runnerFullName,resultRange,index,true); // caching
+        } else {
+          gv.allRunnersSheet.getRange(importIndexCELL).setValue(index);
+          if (gc.debug)
+            Logger.log('Positions already appended for runner, '+runnerNameId);
+          return true;
+        }
+      } else {    // provided no timeout or other error...
+        if (gc.debug)
+          Logger.log('Runner, '+runnerName+' likely did not run on '+eventDate);
+        return false;   // and therefore does not increment the numWhoRan
+      }
+    })
+    .then((success) => {
+      if (success) {
+        let numWhoRan = gv.allRunnersSheet.getRange(gc.importTotalCELL).getValue();
+        gv.allRunnersSheet.getRange(gc.importTotalCELL).setValue(numWhoRan+1);
+      }
+      return true;
+    });
 }
 
 /**
@@ -831,79 +885,61 @@ function ImportResultForEachRunner(
   if (date)
     eventDate = GetLastSaturday(date);
   var startIndex = TrackImportDate(eventDate);
-  if (gc.debug) Logger.log('Checking for results on event date, '+eventDate
-    +' (from runner index, '+startIndex+')');
   var numImports = 0;
-  var runners;
+  if (gc.debug)
+    Logger.log('Checking for results on event date, '+eventDate
+      +' (from runner index, '+startIndex+')');
   return OpenChromeBrowser()
   .then(() => {   // Browser always launched beforehand...
-    runners = gv.allRunnersSheet.getRange(
+    let runners = gv.allRunnersSheet.getRange(
       gc.runnerNameCOLUMN+gc.runnersStartROW+":"+gc.runnerSurnameCOLUMN
     ).getValues().filter(String);
-    return GetEventsResults(eventDate);
-  })
-  .then(eventsResults => {
-
-    // Force sequential for each runner by looping recursively (in GAS to avoid timeouts?)
-    function ImportRunnerResult(index) {
-      if (index >= runners.length) return Promise.resolve();  // exit   
-      let runner = runners[index];
-      let runnerName = runner[0];     // col A for first name
-      let runnerNameId = runnerName+'_'+index;
-      let runnerFullName = runner.join(' ');  // from col A & B
-      let parkrunnerId = gv.allRunnersSheet
-        .getRange(gc.runnersStartROW+index,gc.parkrunnerIdCOL)
-        .getValue();
-      if (isNaN(parkrunnerId)) {
-        if (gc.debug)
-          Logger.log('WARNING: Skipping invalid parkrunner Id, '+parkrunnerId);
-        return ImportRunnerResult(index+1);
-      } else if (eventsResults &&
-        !eventsResults.some(table => table.includes(runnerFullName))) {
-        if (gc.debug)
-          Logger.log('INFO: Skipping runner, '+runnerFullName+' because did not run or not a member');
-        return ImportRunnerResult(index+1);
-      } else
-        if (gc.debug) Logger.log('Parkrunner ID: '+parkrunnerId);
-      return CopyResultForRunner(parkrunnerId,runnerNameId,eventDate)
-      .then(thisResult => {
-        if (thisResult) {
-          let resultRange = PasteResultForRunner(thisResult,runnerNameId);
-          if (resultRange) {
-            numImports++;
-            if (gc.debug)
-              Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
-            return AppendPositionsForResult(runnerFullName,resultRange,index,true); // caching
-          } else {
-            gv.allRunnersSheet.getRange(importIndexCELL).setValue(index);
-            if (gc.debug)
-              Logger.log('Positions already appended for runner, '+runnerNameId);
-            return true;
-          }
-        } else {  // provided no timeout or other error...
-          if (gc.debug)
-            Logger.log('Runner, '+runnerName+' likely did not run on '+eventDate);
-          return false;
+    return GetEventsResults(eventDate)
+      .then(eventsResults => { 
+        // EITHER start afresh (new date, index 0) OR continue from previous import (same datem next index)
+        let promise = Promise.resolve();  // a promise avoids need for recursion to enforce sequential import
+        for (let index=startIndex; index<runners.length; index++) {
+          promise = promise.then(() =>
+            ImportRunnerResult(index,runners,eventDate,eventsResults,numImports))
+              .then(() => {
+                if (index+1 == runners.length)
+                  return; // skip considering need for further import if already on the last runner
+                let remainingTimeSecs = gc.maxTimeSECS-Math.floor((new Date().getTime()-gv.startTime)/1000);
+                if (gc.debug)
+                  Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
+                if (remainingTimeSecs < gc.importTimeSECS) {
+                  Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to import more results.');
+                  gv.allRunnersSheet.getRange(importIndexCELL).setValue(index + 1); // store next index
+                  Logger.log('Exiting loop and continuing import beyond index, '+index);
+                  return Promise.reject('Avoid timeout');
+                }
+              });
         }
+        return promise
+          .then(() => {
+            if (gc.debug)
+              Logger.log('Completed number of imports ('+numImports+')')
+          })
+          .catch(esc => {
+            if (esc === 'Avoid timeout') {
+              ScriptApp.newTrigger('ImportResultForEachRunner')
+                .timeBased()
+                .after(10*1000) // resume in 10 seconds
+                .create();
+            } else {
+              throw esc;
+            }
+          });
       })
-      .then((success) => {
-        if (success) {
-          let numWhoRan = gv.allRunnersSheet.getRange(gc.importTotalCELL).getValue();
-          gv.allRunnersSheet.getRange(gc.importTotalCELL).setValue(numWhoRan+1);
-        }
-        return ImportRunnerResult(index+1);
-      });
-    }   // end of recursive ImportRunnerResult
-
-  // begin
-    return ImportRunnerResult(startIndex);   // continue from precedent?
   })
   .catch(error => {
     Logger.log('ERROR: '+error);
   })
   .finally(() => {
     let numWhoRan = gv.allRunnersSheet.getRange(gc.importTotalCELL).getValue();
-    Logger.log('Total number of results was '+numImports+' imported/updated (out of '+numWhoRan+' who ran on '+eventDate+')');
+    Logger.log('Total number of results was '+numImports+
+      ' imported/updated (out of '+numWhoRan+
+      ' who ran on '+eventDate+')');
     return CloseChromeBrowser();
   });
 }
@@ -1705,8 +1741,7 @@ function CatchUpAllPositions() {
         Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
         LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
         break; // batch the first incomplete runner only until done to avoid conflict
-      }
-      else if (gc.debug) 
+      } else if (gc.debug) 
         Logger.log('Positions up-to-date for runner: '+runnerName+' ['+runnerIndex+']');
     } else {
       if (!runnersStatus[runnerIndex]) {   // Since no results, then already caught-up
