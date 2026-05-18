@@ -120,7 +120,7 @@ const gc = {
   importDateCELL: "I1",       // Runners cell for the last import date (d-MMM-yy)
   clubIdCELL: "J1",           // Runners cell identifies the club or family group id
   importIndexCELL: "K1",      // Runners cell with index of runner to continue import
-  importTotalCELL: "L1",      // Runners cell with number of runners on import date
+  importTotalCELL: "L1",  // Runners cell with number of runners who ran on this import date
   locationINDEX: 0,       // column A
   dateINDEX: 1,           // column B
   eventCOL: 1,            // column A is the event location
@@ -146,7 +146,8 @@ var gv = {
   activeSpreadsheet: SpreadsheetApp
     .getActiveSpreadsheet(),      // allows dynamic shift to new context
   browserSession: undefined,      // Shared by threaded/recursed processes since lingers
-  startTime: Date.now()
+  startTime: Date.now(),
+  numImports: 0
 };
 gv.activeSpreadsheetId = gv.activeSpreadsheet.getId();       // the originator ID
 gv.allRunnersSheet = gv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
@@ -784,6 +785,7 @@ function TrackImportDate(eventDate) {
   } else {  // fresh import
     gv.allRunnersSheet.getRange(gc.importDateCELL).setValue(eventDate);
     gv.allRunnersSheet.getRange(gc.importIndexCELL).setValue(startIndex);
+    gv.allRunnersSheet.getRange(gc.importTotalCELL).setValue(0);
   }
   return startIndex;
 }
@@ -814,7 +816,7 @@ async function GetEventsResults(eventDate) {
   return eventsResults;
 }
 
-async function ImportRunnerResult(index,runners,eventDate,eventsResults,numImports) {
+async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
   let runner = runners[index];
   let runnerName = runner[0];     // col A for first name
   let runnerNameId = runnerName+'_'+index;
@@ -838,7 +840,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults,numImpor
       if (thisResult) {
         let resultRange = PasteResultForRunner(thisResult,runnerNameId);
         if (resultRange) {
-          numImports++;
+          gv.numImports++;
           if (gc.debug)
             Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
           return AppendPositionsForResult(runnerFullName,resultRange,index,true); // caching
@@ -869,8 +871,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults,numImpor
  */
 function ImportResultForEachRunner(
   // potentially import missing results for a date = e.g. '27/12/2025' or '01/01/2026'
-  eventDate = undefined,  // undefined means latest Saturday - return to this state otherwise
-  startId = 0, stopId = 99)
+  eventDate = undefined)  // undefined means latest Saturday - return to this state otherwise
 {
   var date;
   if (typeof eventDate === 'object' && eventDate !== null && 'authMode' in eventDate)   // activated by trigger
@@ -885,7 +886,6 @@ function ImportResultForEachRunner(
   if (date)
     eventDate = GetLastSaturday(date);
   var startIndex = TrackImportDate(eventDate);
-  var numImports = 0;
   if (gc.debug)
     Logger.log('Checking for results on event date, '+eventDate
       +' (from runner index, '+startIndex+')');
@@ -900,7 +900,7 @@ function ImportResultForEachRunner(
         let promise = Promise.resolve();  // a promise avoids need for recursion to enforce sequential import
         for (let index=startIndex; index<runners.length; index++) {
           promise = promise.then(() =>
-            ImportRunnerResult(index,runners,eventDate,eventsResults,numImports))
+            ImportRunnerResult(index,runners,eventDate,eventsResults))
               .then(() => {
                 if (index+1 == runners.length)
                   return; // skip considering need for further import if already on the last runner
@@ -918,7 +918,7 @@ function ImportResultForEachRunner(
         return promise
           .then(() => {
             if (gc.debug)
-              Logger.log('Completed number of imports ('+numImports+')')
+              Logger.log('Completed number of imports ('+gv.numImports+')')
           })
           .catch(esc => {
             if (esc === 'Avoid timeout') {
@@ -937,9 +937,8 @@ function ImportResultForEachRunner(
   })
   .finally(() => {
     let numWhoRan = gv.allRunnersSheet.getRange(gc.importTotalCELL).getValue();
-    Logger.log('Total number of results was '+numImports+
-      ' imported/updated (out of '+numWhoRan+
-      ' who ran on '+eventDate+')');
+    Logger.log('Number of results imported/updated: '+gv.numImports+
+      ' (out of '+numWhoRan+' who ran on '+eventDate+')');
     return CloseChromeBrowser();
   });
 }
