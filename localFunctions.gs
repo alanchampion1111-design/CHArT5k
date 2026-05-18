@@ -65,7 +65,7 @@ const lc = {
   groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
   paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
   recentYRS: 2,            // filter comparison graphs based to most recent years only
-  chartTimeSECS: 60,
+  chartTimeSECS: 90,
   maxTimeSECS: 6*60
 };
 var lv = {
@@ -1177,22 +1177,23 @@ function GenerateFamiliesGroupCharts() {
 }
 
 function GenBatchChartsFromGroups() {
-  const batchGapMINS = 10;
+  const batchGapMINS = 20;
+  const parallelGapMINS = 9;
   ScriptApp.newTrigger('GenerateAgeGroupCharts')
     .timeBased()
     .after(5000)
     .create();
   ScriptApp.newTrigger('GenerateGenderGroupCharts')
     .timeBased()
-    .after(30000)  // 30 seconds later in parallel
+    .after(parallelGapMINS*60000)  // 9 minutes later in parallel
     .create();
   ScriptApp.newTrigger('GenerateLeagueGroupCharts')
     .timeBased()
-    .after(batchGapMINS*60000)  // after 10 mins delay
+    .after(batchGapMINS*60000)  // after 20 mins delay (after 3 consecutive Age-group runs)
     .create();
   ScriptApp.newTrigger('GenerateFamiliesGroupCharts')
     .timeBased()
-    .after(batchGapMINS*60000+30000)  // 30 seconds later in parallel
+    .after((batchGapMINS+parallelGapMINS)*60000)  // 9 minutes later in parallel
     .create();
 }
 
