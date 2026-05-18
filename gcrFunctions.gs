@@ -785,8 +785,9 @@ function TrackImportDate(eventDate) {
   } else {  // fresh import
     gv.allRunnersSheet.getRange(gc.importDateCELL).setValue(eventDate);
     gv.allRunnersSheet.getRange(gc.importIndexCELL).setValue(startIndex);
-    gv.allRunnersSheet.getRange(gc.importTotalCELL).setValue(0);
   }
+  if (startIndex == 0)  // whether a fresh import or manually reset
+    gv.allRunnersSheet.getRange(gc.importTotalCELL).setValue(0);
   return startIndex;
 }
 
