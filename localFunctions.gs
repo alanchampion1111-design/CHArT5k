@@ -64,9 +64,11 @@ const lc = {
   groupStringsCOUNT: 5,   // String parameters from Groups sheet up to and including Compare Format
   groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
   paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
-  recentYRS: 2,            // filter comparison graphs based to most recent years only
-  chartTimeSECS: 90,
-  maxTimeSECS: 6*60
+  recentYRS: 2,           // filter comparison graphs based to most recent years only
+  chartTimeSECS: 90,      // time needed to generate a chart (<10 runners?)
+  maxTimeSECS: 6*60,      // limit off 6 minutes per GAS script (governs need to batch)
+  chartColOFFSET: -2,     // column B from D on any performances chart sheet (e.g. for Leagues)
+  trendColOFFSET: 12      // column N from B on runner's own trend chart sheet
 };
 var lv = {
   activeSpreadsheet: SpreadsheetApp
@@ -883,8 +885,12 @@ function EmbedGroupResultsChart(
   if (stripIndex) {  // tweak to remove the unique index if desired on chart legend
     let numRunners = groupPerfsRange.getHeight()-1;
     let namesRange = groupPerfsRange.offset(1,0,numRunners,1);
-    namesRange.setValues(namesRange.getValues()
-      .map(name => [name[0].split('_')[0]]));
+    namesRange.offset(0,-1,numRunners,1)  // before stripping, preserve index in preceding column... 
+      .setValues(namesRange.getValues()   // ...to get unique matching selection for App users
+        .map(name => [name[0].split('_')[1]]));
+    namesRange
+      .setValues(namesRange.getValues()
+        .map(name => [name[0].split('_')[0]]));
   }
   let seriesOptions = Object.assign({},
     ...runnersLegend.map((colour,i) => ({
@@ -1071,8 +1077,6 @@ function getCaller() {
     : undefined;
 }
 
-
-
 /**
  * Generates charts in performance sheets based on config in the Groups sheet.
  * Groups are organised into blocks, each with a different target sheet - e.g Leagues
@@ -1144,10 +1148,10 @@ function GenerateChartsFromGroups(
           Logger.log('Exiting loop and continuing chart generation beyond index, '+index+
             ' by re-triggering '+continueGenerate);
           PropertiesService.getScriptProperties()
-            .setProperty('index_' + perfSheetName,index+1);
+            .setProperty('index_'+perfSheetName,index+1);
           ScriptApp.newTrigger(continueGenerate)
             .timeBased()
-            .after(10 * 1000) // resume in 10 seconds
+            .after(10*1000) // resume in 10 seconds
             .create();
         } else  // need to use split functions for a large club/family
           Logger.log('ERROR: Exiting since unable to continue chart generation beyond index, '+index+
@@ -1227,33 +1231,31 @@ function GetRelatedTabColor(
   return colour || "#ffffff"; // default if no color
 }
 
-function PasteAboveRangeFormula() {
-  var sheet = SpreadsheetApp.getActiveSpread().getActiveSheet();
-  var activeCells = sheet.getActiveRange();
-  var aboveCells = sheet.getRange(
-    activeCells.getRow()-1, 
-    activeCells.getColumn(), 
-    activeCells.getNumRows(), 
-    activeCells.getNumColumns()
-  );
-  aboveCells.copyTo(activeCells, SpreadsheetApp.CopyPasteType.PASTE_FORMULA);
-}
-
 function GetChartRunnersNames(resultsRange) {
   let numRunners = resultsRange.getNumRows()-1;
-  return resultsRange.offset(1,0,numRunners,1)  // e.g. D2:O4 => D3:D4
+  return resultsRange.offset(1,-1,numRunners,2)  // e.g. D2:O4 => C3:D4
     .getValues().flat();
 }
 
 function GetChartRange(
   resultsRange,
   chartRowOffset = 0,
-  chartColOffset = chartColOFFSET,
+  chartColOffset = lc.chartColOFFSET,
   numRows = 1,
   numCols = 1)
 {
   return resultsRange.offset(chartRowOffset,chartColOffset,
     numRows,numCols);      // e.g. D2:O4 => B2:B4
+}
+
+function GetChart(sheetName,chartId) {
+  var sheet = lv.activeSpreadsheet.getSheetByName(sheetName);
+  var chart = sheet.getCharts().find(c => c.getId() === chartId);
+  if (chart) {
+    Logger.log('Title: ' + chart.getOptions().get('title'));
+    Logger.log('Range: ' + chart.getRanges()[0].getA1Notation());
+  }
+  return chart;
 }
 
 /**
@@ -1264,41 +1266,68 @@ function GetChartRange(
  */
 function GetPerfCharts(
   perfSheetNames = ['Age Groups','Leagues','Families','Gender'],
-  runnerNameId ='Alan_2')
-  // perfSheetNames = ['Families','Gender'])    // for testing
+  runnerNameId)
+  // runnerNameId ='Alan_13')   // for testing
 {
   selectPerfCharts = {};
+  let owner = lv.activeSpreadsheet.getOwner().getEmail();
+  var csvData = [["",lv.activeSpreadsheetId,"","","",owner]];    // SpreadsheetId to span 3 cells
+  csvData.push(["Performance Chart (Link)","Chart Id","Sheet","Sheet Id","Range","Local Runner Ids"]);
   perfSheetNames.forEach(perfSheetName => {
-    let perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
+    let perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
     if (perfSheet) {
-      var perfCharts = perfSheet.getCharts();
+      perfSheetId = perfSheet.getSheetId();
+      let perfCharts = perfSheet.getCharts();
       perfCharts.forEach(perfChart => {
         let chartId = perfChart.getChartId();
         let chartTitle = perfChart.getOptions().get('title');
         let resultsRange = perfChart.getRanges()[0];   // only one range exists
-        let resultsCells = resultsRange.getA1Notation();
-        // if (lc.debug) {
-          let numRunners = resultsRange.getNumRows()-1;
-          Logger.log('Sheet: '+perfSheet.getName()+' ['+numRunners+'@'+resultsCells+'], Chart ID: '+chartId+', Chart: '+chartTitle);
-        // }
+        // let resultsCells = resultsRange.getA1Notation();
+        let numRunners = resultsRange.getNumRows()-1;
+        let chartRange = GetChartRange(resultsRange,0,lc.chartColOFFSET,numRunners+1,1)
+            .getA1Notation();
+        if (lc.debug)
+          Logger.log(chartTitle+'|'+chartId+'|'
+            +perfSheetName+'|'+perfSheetId+'|'+chartRange);
         let runnersNames = GetChartRunnersNames(resultsRange);
-        if (runnerNameId) 
-          if (runnersNames.some(label => label.includes(runnerNameId)))
-            selectChart = true;   // selective exact
-          else {
-            let firstName = runnerNameId.split('_')[0];
-            selectChart = (!runnersNames[0].includes('_') && runnersNames.includes(firstName));
-          }
-        else
-          selectChart = true;     // select all
-        if (selectChart) {
-          let chartRange = GetChartRange(resultsRange,trendColOFFSET,1);
-          selectPerfCharts[chartId] = {title: chartTitle, chart: chartRange}; 
-        }    
+        if (runnerNameId) {   // filter by runner
+          if(runnersNames.some(indexedName => String(indexedName).includes(runnerNameId))   // select if any match indexed name
+            || runnersNames.some((strippedName,i) => i % 2 === 1   // otherwise, index preserved and precedes name entry 
+              && runnerNameId === strippedName+'_'+runnersNames[i-1]))
+            selectPerfCharts[chartId] = {
+              title: chartTitle,
+              sheet: perfSheetName,
+              sheetId: perfSheetId,
+              range: chartRange};
+        } else {  // file all for import
+          let chartTitleLink =
+            '=HYPERLINK("https://docs.google.com/spreadsheets/d/"&B$1&"/view#gid="&D'+(csvData.length+1)
+            +'&"&range="&E'+(csvData.length+1)+',"'+chartTitle+'")';
+          let localRunnerIds = runnersNames.map((name, i) => {
+            if (i % 2 === 1) return name.includes('_')
+              ? name
+              : name+'_'+runnersNames[i-1];
+          }).filter(Boolean).join('|');
+          csvData.push([chartTitleLink,chartId,perfSheetName,perfSheetId,chartRange,localRunnerIds]);
+        } 
       });
     }
   });
-  return selectPerfCharts;
+  if (runnerNameId) {
+    // if (debug)
+      Logger.log('Selective Perf. charts for runner, '+runnerNameId+':\n'
+        +JSON.stringify(selectPerfCharts));
+    return selectPerfCharts;
+  } else {
+    let csv = csvData.map(row => row.join(',')).join('\n');
+    Logger.log(csv);
+    chartsSheet = lv.activeSpreadsheet.getSheetByName('Charts');
+    // chartsSheet.clear();  // already exists in template and pre-formatted
+    // let titleRange = chartsSheet.getRange(1,1,1,6);    // table header (below title) has 6 columns
+    // chartsSheet.getRange("B1:E1").merge(); 	// spreadsheet Id spans four columns
+    chartsSheet.getRange(1,1,csvData.length,csvData[0].length)
+      .setValues(csvData);
+  }
 }
 
 /**
@@ -1306,37 +1335,65 @@ function GetPerfCharts(
  *    @param {string} runnerNameId - <first name>_<index> (default test: Alan_2)
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
-function GetRunnerTrendChart(
-  runnerNameId = 'Alan_2')
+function GetRunnerTrendCharts(
+  runnerNameId = 'Alan_13')
 {
-  let runnerTrendChart = {};
-  let runnerResultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
-  let runnerResultsCharts = runnerResultsSheet.getCharts();
-  if (runnerResultsCharts.length > 0) {
-    let chartId = runnerResultsCharts[0].getChartId();    // only one, but potentially more
-    let chartTitle = runnerResultsCharts[0].getOptions().get('title');
-    let resultsRange = runnerResultsCharts[0].getRanges()[0];
-    let chartRange = GetChartRange(resultsRange,1,trendColOFFSET,19,2); // approx 20 rows in height
-    runnerTrendChart[chartId] = {title: chartTitle, chart: chartRange};  
-    Logger.log('Sheet: '+runnerResultsSheet.getName()+', Chart ID: '+chartId);  
+  let runnerTrendCharts = {};
+  var csvData = [
+    ["Chart Title","Chart Id","Sheet","Sheet Id","Range","Local Runner Id"]
+  ];
+  // let resultsSheetNames =    //  for each row in Runners sheet if no runnerNameId
+  // resultsSheetNames.forEach(runnerNameId => {
+    let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
+    if (runnerResultsSheet) {
+      runnerResultsSheetId = runnerResultsSheet.getSheetId();
+      let runnerResultsCharts = runnerResultsSheet.getCharts();
+      runnerResultsCharts.forEach(trendChart => {
+        let chartId = trendChart.getChartId();    // only one, but potentially more
+        let chartTitle = trendChart.getOptions().get('title');
+        let resultsRange = trendChart.getRanges()[0];
+        let chartRange = GetChartRange(resultsRange,1,lc.trendColOFFSET,19,2) // approx 20 rows in height
+          .getA1Notation();
+        if (runnerNameId)    // filter by runner
+          runnerTrendCharts[chartId] = {
+            title: chartTitle,
+            sheet: runnerNameId,
+            sheetId: runnerResultsSheetId,
+            range: chartRange};
+        else {  // file all for import
+          csvData.push([chartTitle,chartId,runnerNameId,runnerResultsSheetId,chartRange,runnerNameId]);
+        } 
+      });
+    }
+  // });
+  if (runnerNameId) {
+    // if (debug)
+      Logger.log('Selective Trend charts: for runner, '+runnerNameId+':\n'
+        +JSON.stringify(runnerTrendCharts));
+    return runnerTrendCharts;
+  } else {
+    let csv = csvData.map(row => row.join(',')).join('\n');
+    Logger.log(csv);
+    DriveApp.createFile('trendCharts.csv',csv,MimeType.CSV);
   }
-  return runnerTrendChart;
-}
-
-function getChartRange(sheetName,chartId) {
-  var sheet = activeSpreadsheet.getSheetByName(sheetName);
-  var chart = sheet.getCharts().find(c => c.getId() === chartId);
-  if (chart) {
-    Logger.log('Title: ' + chart.getOptions().get('title'));
-    Logger.log('Range: ' + chart.getRanges()[0].getA1Notation());
-  }
-  return chart;
 }
 
 // Surplus extras may be useful
 
+function PasteAboveRangeFormula() {
+  var sheet = lv.activeSpreadsheet.getActiveSheet();
+  var activeCells = sheet.getActiveRange();
+  var aboveCells = sheet.getRange(
+    activeCells.getRow()-1, 
+    activeCells.getColumn(), 
+    activeCells.getNumRows(), 
+    activeCells.getNumColumns()
+  );
+  aboveCells.copyTo(activeCells, SpreadsheetApp.CopyPasteType.PASTE_FORMULA);
+}
+
 function DuplicateAboveRowFormula() {
-  var sheet = SpreadsheetApp.getActive().getActiveSheet();
+  var sheet = lv.activeSpreadsheet.getActiveSheet();
   var activeRange = sheet.getActiveRange();
   var row = activeRange.getRow();
   sheet.insertRowBefore(row);
@@ -1347,7 +1404,7 @@ function DuplicateAboveRowFormula() {
 
 function swapColumns() {
   // Swap columns selected by user (potentially across multiple sheets)
-  var selection = activeSpreadsheet.getActiveRangeList().getRanges();
+  var selection = lv.activeSpreadsheet.getActiveRangeList().getRanges();
   // Check if selection is valid (2 columns, same sheet or extended selection)
   if (selection.length < 2) {
     SpreadsheetApp.getUi().alert('Please select at least two columns to swap.');
