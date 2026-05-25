@@ -1271,8 +1271,8 @@ function GetPerfCharts(
 {
   selectPerfCharts = {};
   let owner = lv.activeSpreadsheet.getOwner().getEmail();
-  var csvData = [["",lv.activeSpreadsheetId,"","","",owner]];    // SpreadsheetId to span 3 cells
-  csvData.push(["Performance Chart (Link)","Chart Id","Sheet","Sheet Id","Range","Local Runner Ids"]);
+  var csvData = [["",lv.activeSpreadsheetId,"","","","",owner]];    // SpreadsheetId to span 5 cells propagated into table
+  csvData.push(["Performance Chart","Spreadsheet Id","Chart Id","Sheet","Sheet Id","Range","Local Runner Ids"]);
   perfSheetNames.forEach(perfSheetName => {
     let perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
     if (perfSheet) {
@@ -1300,7 +1300,7 @@ function GetPerfCharts(
               sheetId: perfSheetId,
               range: chartRange};
         } else {  // file all for import
-          let chartTitleLink =
+          let chartTitleLink =  // hyperlink needed to be added virtually inside AppSheet (but included here for completeness)
             '=HYPERLINK("https://docs.google.com/spreadsheets/d/"&B$1&"/view#gid="&D'+(csvData.length+1)
             +'&"&range="&E'+(csvData.length+1)+',"'+chartTitle+'")';
           let localRunnerIds = runnersNames.map((name, i) => {
@@ -1308,7 +1308,7 @@ function GetPerfCharts(
               ? name
               : name+'_'+runnersNames[i-1];
           }).filter(Boolean).join('|');
-          csvData.push([chartTitleLink,chartId,perfSheetName,perfSheetId,chartRange,localRunnerIds]);
+          csvData.push([chartTitleLink,"=B1",chartId,perfSheetName,perfSheetId,chartRange,localRunnerIds]);
         } 
       });
     }
@@ -1323,8 +1323,8 @@ function GetPerfCharts(
     Logger.log(csv);
     chartsSheet = lv.activeSpreadsheet.getSheetByName('Charts');
     // chartsSheet.clear();  // already exists in template and pre-formatted
-    // let titleRange = chartsSheet.getRange(1,1,1,6);    // table header (below title) has 6 columns
-    // chartsSheet.getRange("B1:E1").merge(); 	// spreadsheet Id spans four columns
+    // let titleRange = chartsSheet.getRange(1,1,1,7);    // table header (below title) has 7 columns
+    // chartsSheet.getRange("B1:F1").merge(); 	// spreadsheet Id spans four columns
     chartsSheet.getRange(1,1,csvData.length,csvData[0].length)
       .setValues(csvData);
   }
@@ -1339,9 +1339,9 @@ function GetRunnerTrendCharts(
   runnerNameId = 'Alan_13')
 {
   let runnerTrendCharts = {};
-  var csvData = [
-    ["Chart Title","Chart Id","Sheet","Sheet Id","Range","Local Runner Id"]
-  ];
+  let owner = lv.activeSpreadsheet.getOwner().getEmail();
+  var csvData = [["",lv.activeSpreadsheetId,"","","","",owner]];    // Spreadsheet Id to span 5 cells propagated into table
+  csvData.push(["Runner Trend Chart","Spreadsheet Id","Chart Id","Sheet","Sheet Id","Range","Local Runner Id"]);
   // let resultsSheetNames =    //  for each row in Runners sheet if no runnerNameId
   // resultsSheetNames.forEach(runnerNameId => {
     let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
@@ -1361,7 +1361,7 @@ function GetRunnerTrendCharts(
             sheetId: runnerResultsSheetId,
             range: chartRange};
         else {  // file all for import
-          csvData.push([chartTitle,chartId,runnerNameId,runnerResultsSheetId,chartRange,runnerNameId]);
+          csvData.push([chartTitle,"=B1",chartId,runnerNameId,runnerResultsSheetId,chartRange,runnerNameId]);
         } 
       });
     }
@@ -1374,7 +1374,12 @@ function GetRunnerTrendCharts(
   } else {
     let csv = csvData.map(row => row.join(',')).join('\n');
     Logger.log(csv);
-    DriveApp.createFile('trendCharts.csv',csv,MimeType.CSV);
+    chartsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
+    // chartsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
+    // let titleRange = chartsSheet.getRange(1,1,1,7);    // table header (below title) has 7 columns
+    // chartsSheet.getRange("B1:F1").merge(); 	// spreadsheet Id spans four columns
+    chartsSheet.getRange(1,1,csvData.length,csvData[0].length)
+      .setValues(csvData);
   }
 }
 
