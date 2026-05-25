@@ -72,6 +72,9 @@
     }, {
       "menuName": "Generate Family Group charts",
       "functionName": "GenerateFamiliesGroupCharts"
+    }, {
+      "menuName": "Get performance charts",
+      "functionName": "GetPerfCharts"
     }]
   }
 }
