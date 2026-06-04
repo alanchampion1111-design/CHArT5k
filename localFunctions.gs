@@ -56,7 +56,9 @@ const lc = {
   numRunnerROWS: 3,       // ...within group
   groupsStartROW: 9,      // Title, header + lookup legends by gender 
   runnersStartCOL: 3,     // Performance Output sheet start column
+  runnersStartROW: 3,
   runnersSheetNAME: 'Runners',
+  runnersNameCOLUMN: "A",
   resultTABLE: 'Event',   // First Header title in Results sheet
   eventHeaderCELL: "A2",  // Header row is below the Runner name title
   firstResultCELL: "A3",  //  ...and at least one Result has been cleanly entered
@@ -76,6 +78,7 @@ var lv = {
   startTime: Date.now()
 };
 lv.activeSpreadsheetId = lv.activeSpreadsheet.getId();       // the originator ID
+lv.activeSpreadsheetName = lv.activeSpreadsheet.getName();
 lv.allRunnersSheet = lv.activeSpreadsheet
   .getSheetByName(lc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 if (lc.debug)
@@ -1231,6 +1234,26 @@ function GetRelatedTabColor(
   return colour || "#ffffff"; // default if no color
 }
 
+/* ---------------------------------------------------------------------------
+/
+/   The following definitions and functions support the generation of the Appsheet tables for the mobile App user
+/   There are two use-case heirarchies of functions:
+/
+/     1.  PrepareAppSheets (for all users?)
+/           GetOverview 
+/           GetPerfCharts
+//          for each Perf sheet block (e.g. Age Groups)...
+//            for each chart in group block....
+/               GetChartRange
+/               GetChartRunnersNames
+/
+/     2.  GetRunnerTrendCharts (for a user)
+//        for each user chart (on user result's sheet)...
+/           GetChartRange
+/
+/  ---------------------------------------------------------------------------
+*/
+
 function GetChartRunnersNames(resultsRange) {
   let numRunners = resultsRange.getNumRows()-1;
   return resultsRange.offset(1,-1,numRunners,2)  // e.g. D2:O4 => C3:D4
@@ -1259,9 +1282,41 @@ function GetChart(sheetName,chartId) {
 }
 
 /**
+ * This updates the Oveview sheet content after extracting the owner, spreadsheet Id and results sheet gids
+ */
+function GetOverview() {
+  var overviewTable=[["Overview","Value"]];
+  overviewTable.push(["Spreadsheet",lv.activeSpreadsheetName]);
+  overviewTable.push(["SS Id",lv.activeSpreadsheetId]);
+  let owner = lv.activeSpreadsheet.getOwner().getEmail();
+  overviewTable.push(["Owner",owner]);
+  const resultsSheets = [
+    ["Runners","Runners Gid"],
+    ["Latest","Latest Gid"],
+    ["Rankings","Rankings Gid"],
+    ["Challenges","Challenges Gid"]
+  ];
+  // "#" is derived from Runners! - assume =COUNTIF(Runners!K:K,TRUE)
+  // "Parkrun Group No." is in Runners! - assume J1
+  var resultsSheetIds = [];
+  resultsSheets.forEach(([resultsSheetName,resultsSheetIdHeader]) => {
+    let resultsSheet = lv.activeSpreadsheet.getSheetByName(resultsSheetName);
+    let resultsSheetId = resultsSheet.getSheetId();
+    overviewTable.push([resultsSheetIdHeader,resultsSheetId]);
+  });
+  let csv = overviewTable.map(row => row.join(',')).join('\n');
+  Logger.log(csv);
+  let overviewSheet = lv.activeSpreadsheet.getSheetByName('Overview');
+  // overviewSheet.clear();  // already exists in template and pre-formatted
+  // let titleRange = overviewSheet.getRange(1,1,1,2);    // table header (below title) has 2 columns (for transposing)
+  overviewSheet.getRange(1,1,overviewTable.length,overviewTable[0].length)
+    .setValues(overviewTable);
+}
+
+/**
  * This allows selection from the performance Charts, typically those in which a runner appears.
  *    @param {Array of strings} perfSheetNames - list of sheets with comparative charts
- *    @param {string} runnerNameId - optional <first name>_<index>, e.g. Alan_2
+ *    @param {string} runnerNameId - optional <first name>_<index>, e.g. Alan_13
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
 function GetPerfCharts(
@@ -1269,10 +1324,9 @@ function GetPerfCharts(
   runnerNameId)
   // runnerNameId ='Alan_13')   // for testing
 {
-  selectPerfCharts = {};
-  let owner = lv.activeSpreadsheet.getOwner().getEmail();
-  var csvData = [["",lv.activeSpreadsheetId,"","","","",owner]];    // SpreadsheetId to span 5 cells propagated into table
-  csvData.push(["Performance Chart","Spreadsheet Id","Chart Id","Sheet","Sheet Id","Range","Local Runner Ids"]);
+  let selectPerfCharts = {};
+  let chartsTable = [["Charts","=Overview!B$3","","","","","",""]];
+  chartsTable.push(["Performance Chart","SS Id","Perf Gid","Perf Sheet","Range","Chart Id","#","Runners Ids"]);
   perfSheetNames.forEach(perfSheetName => {
     let perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
     if (perfSheet) {
@@ -1292,59 +1346,70 @@ function GetPerfCharts(
         let runnersNames = GetChartRunnersNames(resultsRange);
         if (runnerNameId) {   // filter by runner
           if(runnersNames.some(indexedName => String(indexedName).includes(runnerNameId))   // select if any match indexed name
-            || runnersNames.some((strippedName,i) => i % 2 === 1   // otherwise, index preserved and precedes name entry 
-              && runnerNameId === strippedName+'_'+runnersNames[i-1]))
+              || runnersNames.some((strippedName,i) => i % 2 === 1   // otherwise, index preserved and precedes name entry 
+              && runnerNameId === strippedName+'_'+runnersNames[i-1])) {
+            let resultsSheetId = lv.activeSpreadsheet
+              .getSheetByName(runnerNameId)
+              .getSheetId();
             selectPerfCharts[chartId] = {
               title: chartTitle,
+              perfChartsheetId: perfSheetId,
               sheet: perfSheetName,
-              sheetId: perfSheetId,
-              range: chartRange};
+              range: chartRange,
+              resultsSheetId: runnerNameId};
+          }
         } else {  // file all for import
-          let chartTitleLink =  // hyperlink needed to be added virtually inside AppSheet (but included here for completeness)
-            '=HYPERLINK("https://docs.google.com/spreadsheets/d/"&B$1&"/view#gid="&D'+(csvData.length+1)
-            +'&"&range="&E'+(csvData.length+1)+',"'+chartTitle+'")';
-          let localRunnerIds = runnersNames.map((name, i) => {
+          let rowNum = chartsTable.length+1;
+          let chartTitleLink =  // hyperlink needed to be added virtually inside AppSheet (but included here by example)
+            '=HYPERLINK("https://docs.google.com/spreadsheets/d/"&Overview!B$3&"/view#gid="&C'+rowNum
+            +'&"&range="&E'+rowNum+',"'+chartTitle+'")';
+          let runnersIds = runnersNames.map((name, i) => {
             if (i % 2 === 1) return name.includes('_')
               ? name
               : name+'_'+runnersNames[i-1];
           }).filter(Boolean).join('|');
-          csvData.push([chartTitleLink,"=B1",chartId,perfSheetName,perfSheetId,chartRange,localRunnerIds]);
+          chartsTable.push([chartTitleLink,"=B$1",perfSheetId,perfSheetName,chartRange,chartId,numRunners,runnersIds]);
         } 
       });
     }
   });
   if (runnerNameId) {
     // if (debug)
-      Logger.log('Selective Perf. charts for runner, '+runnerNameId+':\n'
+      Logger.log('Selective Results chart(s) for runner, '+runnerNameId+':\n'
         +JSON.stringify(selectPerfCharts));
     return selectPerfCharts;
   } else {
-    let csv = csvData.map(row => row.join(',')).join('\n');
+    let csv = chartsTable.map(row => row.join(',')).join('\n');
     Logger.log(csv);
     chartsSheet = lv.activeSpreadsheet.getSheetByName('Charts');
     // chartsSheet.clear();  // already exists in template and pre-formatted
-    // let titleRange = chartsSheet.getRange(1,1,1,7);    // table header (below title) has 7 columns
-    // chartsSheet.getRange("B1:F1").merge(); 	// spreadsheet Id spans four columns
-    chartsSheet.getRange(1,1,csvData.length,csvData[0].length)
-      .setValues(csvData);
+    // let titleRange = chartsSheet.getRange(1,1,1,8);    // table header (below title) has 8 columns
+    chartsSheet.getRange(1,1,chartsTable.length,chartsTable[0].length)
+      .setValues(chartsTable);
   }
 }
 
 /**
- * This gets the performance trend chart from a runner's sheet.
+ * This gets the results trend chart(s) from a runner's sheet.
  *    @param {string} runnerNameId - <first name>_<index> (default test: Alan_2)
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
-function GetRunnerTrendCharts(
-  runnerNameId = 'Alan_13')
+function GetTrendCharts(
+  runnerNameId)
+  // runnerNameId ='Alan_13')   // for testing
 {
   let runnerTrendCharts = {};
-  let owner = lv.activeSpreadsheet.getOwner().getEmail();
-  var csvData = [["",lv.activeSpreadsheetId,"","","","",owner]];    // Spreadsheet Id to span 5 cells propagated into table
-  csvData.push(["Runner Trend Chart","Spreadsheet Id","Chart Id","Sheet","Sheet Id","Range","Local Runner Id"]);
-  // let resultsSheetNames =    //  for each row in Runners sheet if no runnerNameId
-  // resultsSheetNames.forEach(runnerNameId => {
-    let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
+  var trendsTable = [["Trends","=Overview!B$3",""]];    // SS Id to span 2 cells propagated into table
+  // trendsTable.push(["Runner Id","SS Id","Results Sheet","Results Id","Trend Id","Current Trend Id"]);
+  trendsTable.push(["Runner Id","SS Id","Results Gid"]);
+  const runnersRANGE = lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN;
+  let runnersNames = lv.allRunnersSheet.getRange(runnersRANGE)
+    .getValues()
+    .filter(name => name[0] != "")
+    .map(name => [name[0]]);
+  runnersNames.forEach((runnerName,index) => {
+    let runnerId = runnerName+"_"+index;
+    let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerId);
     if (runnerResultsSheet) {
       runnerResultsSheetId = runnerResultsSheet.getSheetId();
       let runnerResultsCharts = runnerResultsSheet.getCharts();
@@ -1357,30 +1422,40 @@ function GetRunnerTrendCharts(
         if (runnerNameId)    // filter by runner
           runnerTrendCharts[chartId] = {
             title: chartTitle,
-            sheet: runnerNameId,
+            sheet: runnerId,
             sheetId: runnerResultsSheetId,
             range: chartRange};
         else {  // file all for import
-          csvData.push([chartTitle,"=B1",chartId,runnerNameId,runnerResultsSheetId,chartRange,runnerNameId]);
+          trendsTable.push([runnerId,"=B$1",runnerResultsSheetId]);
         } 
       });
     }
-  // });
+  });
   if (runnerNameId) {
     // if (debug)
       Logger.log('Selective Trend charts: for runner, '+runnerNameId+':\n'
         +JSON.stringify(runnerTrendCharts));
     return runnerTrendCharts;
   } else {
-    let csv = csvData.map(row => row.join(',')).join('\n');
+    let csv = trendsTable.map(row => row.join(',')).join('\n');
     Logger.log(csv);
-    chartsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
+    trendsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
     // chartsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
-    // let titleRange = chartsSheet.getRange(1,1,1,7);    // table header (below title) has 7 columns
+    // let titleRange = chartsSheet.getRange(1,1,1,3);    // table header (below title) has 3 columns
     // chartsSheet.getRange("B1:F1").merge(); 	// spreadsheet Id spans four columns
-    chartsSheet.getRange(1,1,csvData.length,csvData[0].length)
-      .setValues(csvData);
+    trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
+      .setValues(trendsTable);
   }
+}
+
+/**
+ * This prepares the overview (for rank tables) and the performance charts (via links) on a weekly basis
+ * after completed import AND after successful generation of all of the comparative charts.
+ */
+function PrepareAppSheets() {
+  GetOverview();
+  GetPerfCharts();
+  GetTrendCharts();
 }
 
 // Surplus extras may be useful
