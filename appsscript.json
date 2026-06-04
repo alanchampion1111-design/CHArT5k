@@ -64,7 +64,7 @@
       "menuName": "Generate Age Group charts",
       "functionName": "GenerateAgeGroupCharts"
     }, {
-      "menuName": "Generate League Group charts)",
+      "menuName": "Generate League Group charts",
       "functionName": "GenerateLeagueGroupCharts"
     }, {
       "menuName": "Generate Gender Group charts",
@@ -73,8 +73,8 @@
       "menuName": "Generate Family Group charts",
       "functionName": "GenerateFamiliesGroupCharts"
     }, {
-      "menuName": "Get performance charts",
-      "functionName": "GetPerfCharts"
+      "menuName": "Prepare App",
+      "functionName": "PrepareAppSheets"
     }]
   }
 }
