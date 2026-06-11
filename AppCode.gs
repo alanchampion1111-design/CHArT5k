@@ -81,39 +81,91 @@ function initializeApplicationData(devId) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1A. Fetch 'About' info from MASTER table (with defaults if no Notes)
+    // 1A. Fetch 'About' info from MASTER table (via Header Notes)
+
     var masterSheet = ss.getSheetByName(TABLES.MASTER);
     var aboutShort = "Welcome to CHArT5k comparative charts for your parkrun groups";
     var aboutLong = "No matter how far apart you live, share your club or family group parkrun experience together much closer!";
 
-    // 1B. Fetch 'User profile setting' from DEVICES table (with defaults if no Notes)
+    if (masterSheet) {
+      var masterHeaders = masterSheet.getRange(1, 1, 1, masterSheet.getLastColumn()).getValues()[0];
+      
+      // Locate the "Ready" column to pull the short descriptive pitch
+      var idxReadyCol = masterHeaders.indexOf(COL_MASTER.READY);
+      if (idxReadyCol > -1) {
+        var noteShort = masterSheet.getRange(1, idxReadyCol + 1).getNote();
+        if (noteShort && noteShort.trim()) aboutShort = noteShort.trim();
+      }
+      
+      // Locate the "Spreadsheet" column to pull the long narrative description
+      var idxGroupCol = masterHeaders.indexOf(COL_MASTER.GROUP_NAME);
+      if (idxGroupCol > -1) {
+        var noteLong = masterSheet.getRange(1, idxGroupCol + 1).getNote();
+        if (noteLong && noteLong.trim()) aboutLong = noteLong.trim();
+      }
+    }
+
+    // 1B. Fetch 'User profile setting' from DEVICES table (via Header Notes)
+
+    var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
     var userSetupGuide = "Select your club or family group with your runner Id (if known)";
     var memberRequestGuide = "Select your club or family group (if it exists)";
     var runnerIdNote = "Identify yourself within this group?";
-    
+
+    if (deviceSheet) {
+      var deviceHeaders = deviceSheet.getRange(1, 1, 1, deviceSheet.getLastColumn()).getValues()[0];
+      
+      // Locate the "Spreadsheet" column to pull the group pairing instructions
+      var idxDevGroupCol = deviceHeaders.indexOf(COL_DEVICE.GROUP_NAME);
+      if (idxDevGroupCol > -1) {
+        var noteSetup = deviceSheet.getRange(1, idxDevGroupCol + 1).getNote();
+        if (noteSetup && noteSetup.trim()) userSetupGuide = noteSetup.trim();
+      }
+      
+      // Locate the "Runner Id" column to pull the runner profile lookup guide
+      var idxDevRunnerCol = deviceHeaders.indexOf(COL_DEVICE.RUNNER_ID);
+      if (idxDevRunnerCol > -1) {
+        var noteRunner = deviceSheet.getRange(1, idxDevRunnerCol + 1).getNote();
+        if (noteRunner && noteRunner.trim()) runnerIdNote = noteRunner.trim();
+      }
+    }
+
+    // 1C. Directory Generation Loop (Populate Active Group Nodes)
+
     var activeDirectory = [];
     
     if (masterSheet) {
+      // Re-use or establish the master values matrix grid cleanly
       var mData = masterSheet.getDataRange().getValues();
-      var mHeaders = mData[0];
+      var masterHeaders = mData[0];
       
-      var idxReady = mHeaders.indexOf(COL_MASTER.READY);
-      var idxGroupName = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
-      var idxSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
-      var idxOwner = mHeaders.indexOf(COL_MASTER.OWNER);
+      // Locate structural index maps via master schema definitions
+      var idxReady = masterHeaders.indexOf(COL_MASTER.READY);
+      var idxGroupName = masterHeaders.indexOf(COL_MASTER.GROUP_NAME);
+      var idxSsId = masterHeaders.indexOf(COL_MASTER.SS_ID);
+      var idxOwner = masterHeaders.indexOf(COL_MASTER.OWNER);
       
-      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort;
-      
+      // Scan directory rows to extract verified, active groups
       for (var i = 1; i < mData.length; i++) {
-        if (mData[i][idxReady] === true || mData[i][idxReady].toString().toUpperCase() === "TRUE" || mData[i][idxReady] === "Y") {
-          activeDirectory.push({
-            groupName: mData[i][idxGroupName],
-            ssId: mData[i][idxSsId],
-            ownerEmail: mData[i][idxOwner]
-          });
+        var row = mData[i];
+        
+        // Ensure index boundary safety check before evaluating cell parameters
+        if (idxReady > -1 && row[idxReady] !== undefined) {
+          var isReadyVal = row[idxReady].toString().toUpperCase().trim();
+          
+          if (row[idxReady] === true || isReadyVal === "TRUE" || isReadyVal === "Y") {
+            activeDirectory.push({
+              groupName: idxGroupName > -1 ? row[idxGroupName] : "",
+              ssId: idxSsId > -1 ? row[idxSsId] : "",
+              ownerEmail: idxOwner > -1 ? row[idxOwner] : ""
+            });
+          }
         }
       }
     }
+
+    // -------------------------------------------------------------
+    // NEXT STEPS: Section 1D (Active Device Cache Target Checks) follows...
     
     // 2. Check if this device is already registered in the Devices database
     var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
