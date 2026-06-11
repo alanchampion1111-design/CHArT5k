@@ -154,7 +154,7 @@ function initializeApplicationData(devId) {
     }
 
     // 1D. Active Device Cache Target Profile Verification Check
-    // -------------------------------------------------------------
+
     var cachedProfile = null;
     if (deviceSheet) {
       var dData = deviceSheet.getDataRange().getValues();
@@ -180,6 +180,7 @@ function initializeApplicationData(devId) {
         }
       }
     }
+
     return {
       aboutShort: aboutShort,
       aboutLong: aboutLong,
@@ -193,38 +194,6 @@ function initializeApplicationData(devId) {
     return { error: err.toString() };
   }
 }
-    
-    // 2. Check if this device is already registered in the Devices database
-    var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
-    var cachedProfile = null;
-    
-    if (deviceSheet) {
-      var devData = deviceSheet.getDataRange().getValues();
-      for (var i = 1; i < devData.length; i++) {
-        if (devData[i][1] && devData[i][1].toString() === devId.toString()) { // Column B: Device ID
-          cachedProfile = {
-            groupName: devData[i][2], // Column C: Group Name
-            groupSsId: devData[i][3], // Column D: Linked Spreadsheet ID
-            runnerId: devData[i][4]   // Column E: Runner Token
-          };
-          break;
-        }
-      }
-    }
-    
-    return {
-      aboutShort: aboutShort,
-      userSetupGuideCached: userSetupGuide,
-      memberRequestGuideCached: memberRequestGuide,
-      runnerIdNoteCached: runnerIdNote,
-      activeDirectory: activeDirectory,
-      cachedProfile: cachedProfile
-    };
-    
-  } catch (err) {
-    return { error: err.toString() };
-  }
-}
 
 /**
  * Fetch Runner IDs subset from central local composite mapping table
@@ -232,25 +201,20 @@ function initializeApplicationData(devId) {
 function getRunnerIdsForGroup(ssIdKey) {
   try {
     if (!ssIdKey) return [];
-    
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var lookupSheet = ss.getSheetByName(TABLES.RUNNERS);
     if (!lookupSheet) return [];
-
     var lData = lookupSheet.getDataRange().getValues();
     var uniqueIds = new Set();
-    
     for (var i = 1; i < lData.length; i++) {
       var sheetRunnerId = lData[i][0];
       var sheetSsId = lData[i][1];
-      
       if (sheetSsId && sheetSsId.toString() === ssIdKey.toString()) {
         if (sheetRunnerId && sheetRunnerId.toString().trim()) {
           uniqueIds.add(sheetRunnerId.toString().trim());
         }
       }
     }
-    
     return Array.from(uniqueIds).sort();
   } catch (e) {
     return [];
