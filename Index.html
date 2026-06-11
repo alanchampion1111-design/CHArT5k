@@ -240,28 +240,11 @@
         })
         .getRunnerIdsForGroup(selectedSsId);
     }
-
-    function switchSetupMode(isNewMember) {
-      const preambleText = document.getElementById('info-runner-id-note');
-      const selectGroup = document.getElementById('setup-group');
-      
-      if (isNewMember) {
-        if (preambleText) {
-          preambleText.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
-        }
-      } else {
-        if (preambleText) {
-          preambleText.innerText = runnerIdNoteCached;
-        }
-        if (selectGroup && selectGroup.value) {
-          onGroupSelectionChange(); 
-        }
-      }
-    }
-
+    
     function toggleSetupMode(useExisting) {
       isExistingMode = useExisting;
-      // 1. Swap active navigation tab button styling instantly
+      
+      // 1. Instantly swap navigation tab styles
       document.getElementById('toggle-existing').className = useExisting
         ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg"
         : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
@@ -269,22 +252,37 @@
         ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg"
         : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
       const groupGuide = document.getElementById('info-user-setup');
-      // 2. Seamlessly manage forms, swap preambles, and erase empty residues
+      const secondaryPreamble = document.getElementById('info-runner-id-note');
+      const selectGroup = document.getElementById('setup-group');
+      
+      // 2. Execute a single, flat routing sequence with zero nested side-effects
       if (useExisting) {
+        // Show existing form, hide custom request form
         document.getElementById('wrapper-existing-form').classList.remove('hidden');
         document.getElementById('wrapper-custom-form').classList.add('hidden');
+        // Assign the primary and secondary text notes cached from the server
         groupGuide.innerText = userSetupGuideCached;
+        if (secondaryPreamble) {
+          secondaryPreamble.innerText = runnerIdNoteCached;
+        }
+        // Re-verify the runner ID subset values list for the selected group
+        if (selectGroup && selectGroup.value) {
+          onGroupSelectionChange(); 
+        }
       } else {
+        // Hide existing form, show custom request form
         document.getElementById('wrapper-existing-form').classList.add('hidden');
         document.getElementById('wrapper-custom-form').classList.remove('hidden');
+        // Assign the new member preamble parameters smoothly
         groupGuide.innerText = memberRequestGuideCached;
-        
+        if (secondaryPreamble) {
+          secondaryPreamble.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
+        }
         const customFormInfo = document.getElementById('info-member-request');
         if (customFormInfo) {
           customFormInfo.innerText = "Your details will be automatically compiled and routed directly to the Group Owner to clear up your profile assignment loop.";
         }
       }
-      switchSetupMode(!useExisting); 
     }
 
     function saveSetup() {
