@@ -162,8 +162,6 @@
 
     function initializeApplicationData() {
       // Pull the global or scoped devId token variable
-      var devId = "TEST_DEV_0"; 
-
       google.script.run
         .withSuccessHandler((response) => {
           if (response.error) { alert("Initialization Failure: " + response.error); return; }
