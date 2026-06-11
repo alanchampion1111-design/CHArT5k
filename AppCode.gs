@@ -6,7 +6,7 @@
 const TABLES = {
   MASTER: "CHArT5k",      // contains list of Groups with summary extracts
   DEVICES: "Devices",     // one row per App user with settings locked to their device
-  RUNNERS: "Runners Gids" // composite index extracted for ALL Group spreadsheets
+  MEMBERS: "Runners Gids" // composite list of ALL members by Group SS Id
 };
 
 /**
@@ -196,25 +196,34 @@ function initializeApplicationData(devId) {
 }
 
 /**
- * Fetch Runner IDs subset from central local composite mapping table
+ * Fetch Runner Ids subset via composite mapping table
+ * Filtered dynamically by the active Spreadsheet ID key
  */
 function getRunnerIdsForGroup(ssIdKey) {
   try {
     if (!ssIdKey) return [];
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var lookupSheet = ss.getSheetByName(TABLES.RUNNERS);
+    var lookupSheet = ss.getSheetByName(TABLES.MEMBERS);
     if (!lookupSheet) return [];
     var lData = lookupSheet.getDataRange().getValues();
+    var lookupHeaders = lData[0];
+    var idxRunnerId = lookupHeaders.indexOf(COL_DEVICE.RUNNER_ID);
+    var idxSsId = lookupHeaders.indexOf(COL_DEVICE.SS_ID);
+    // Safety check: If columns not found, exit cleanly
+    if (idxRunnerId === -1 || idxSsId === -1) return [];
     var uniqueIds = new Set();
+    // Filter rows matching the selected Group worksheet ID
     for (var i = 1; i < lData.length; i++) {
-      var sheetRunnerId = lData[i][0];
-      var sheetSsId = lData[i][1];
-      if (sheetSsId && sheetSsId.toString() === ssIdKey.toString()) {
+      var row = lData[i];
+      var sheetSsId = row[idxSsId];
+      var sheetRunnerId = row[idxRunnerId]; 
+      if (sheetSsId && sheetSsId.toString().trim() === ssIdKey.toString().trim()) {
         if (sheetRunnerId && sheetRunnerId.toString().trim()) {
           uniqueIds.add(sheetRunnerId.toString().trim());
         }
       }
-    }
+    }   
+    // Return sorted alphabetically for clean user selection
     return Array.from(uniqueIds).sort();
   } catch (e) {
     return [];
