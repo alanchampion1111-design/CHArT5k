@@ -1,3 +1,5 @@
+// FILE: AppCode.gs
+
 /**
  * Global Table & Tab Configurations (Strictly Local Master Sheet Tabs)
  */
@@ -5,7 +7,6 @@ const TABLES = {
   MASTER: "CHArT5k",  // contains the current list of Groups with their Spreadsheet Id etc
   DEVICES: "Devices",  // one row per App user with settings locked to their device
   RUNNERS: "Runners Gids"  // composite for ALL Group spreadsheets, referring to each runner's result sheet gid 
-  // Each Group sheet table contains sheet gids & ranges for all members charts (for filtering a user subset)
 };
 
 /**
@@ -18,8 +19,6 @@ const COL_MASTER = {
   OWNER: "Owner",
   LATEST_GID: "Latest Gid",
   RANKINGS_GID: "Rankings Gid"
-  // Other columns in this primary table include generated latest/ranking table links,...
-  //     the number of imported members, and the parkrun Group No. (if it exists)
 };
 
 /**
@@ -31,8 +30,6 @@ const COL_GROUP = {
   PERF_SHEET: "Perf Sheet",
   CELL_RANGE: "Range",
   RUNNER_IDS: "Runners Ids"
-  // Other columns per Group spreadsheet include the generated Chart links,...
-  //     and the Chart Id in case it needs copied and tailored per user
 };
 
 /**
@@ -59,59 +56,40 @@ function doGet() {
  * Core initialization called by the client on boot.
  * Verifies if the device UUID is already linked to a profile and delivers all guide parameters.
  */
-
-function initializeApplicationData() {
-  document.getElementById('status-badge').innerText = "Syncing..."; 
-  google.script.run
-    .withSuccessHandler((response) => {
-      if (response.error) { alert("Initialization Failure: " + response.error); return; }
+function initializeApplicationData(devId) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // 1. Fetch system parameters/preambles from MASTER configuration
+    var masterSheet = ss.getSheetByName(TABLES.MASTER);
+    var aboutShort = "Welcome to CHArT5k"; 
+    var userSetupGuide = "Select your Hub Group node configuration to initialize device synchronization pathways.";
+    var memberRequestGuide = "Submit your registration parameters to clear up local ecosystem profile pairing mappings.";
+    var runnerIdNote = "Please select your unique runner Id allocated within this group.";
+    
+    var activeDirectory = [];
+    
+    if (masterSheet) {
+      var mData = masterSheet.getDataRange().getValues();
+      var mHeaders = mData[0];
       
-      // 1. Unpack and cache your master text preambles globally
-      userSetupGuideCached = response.userSetupGuideCached || "";
-      memberRequestGuideCached = response.memberRequestGuideCached || "";
-      runnerIdNoteCached = response.runnerIdNoteCached || "";
-      activeDirectory = response.activeDirectory || []; // Stores the owner emails for the mailto branch
-
-      // 2. Populate the Master Group Selector Dropdown
-      const selectGroup = document.getElementById('setup-group');
-      if (selectGroup) {
-        selectGroup.innerHTML = '';
-        activeDirectory.forEach(g => {
-          let opt = document.createElement('option');
-          opt.value = g.ssId;
-          opt.textContent = g.groupName;
-          selectGroup.appendChild(opt);
-        });
-      }
+      var idxReady = mHeaders.indexOf(COL_MASTER.READY);
+      var idxGroupName = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
+      var idxSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
+      var idxOwner = mHeaders.indexOf(COL_MASTER.OWNER);
       
-      if (response.aboutShort) {
-        document.getElementById('about-short').innerText = response.aboutShort;
-      }
+      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort;
       
-      // 3. Evaluate identity mapping vector
-      if (response.cachedProfile) {
-        document.getElementById('btn-cancel-setup').classList.remove('hidden');
-        if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
-        onGroupSelectionChange(response.cachedProfile.runnerId);
-        showScreen('trends'); // Boots straight to your Performance Dashboard if recognized
-        document.getElementById('status-badge').innerText = "Online";
-      } else {
-        document.getElementById('btn-cancel-setup').classList.add('hidden');
-        
-        // Populate the initial text guides for the manual profile screen
-        document.getElementById('info-user-setup').innerText = userSetupGuideCached;
-        document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
-        
-        if (selectGroup && selectGroup.value) {
-          onGroupSelectionChange();
+      for (var i = 1; i < mData.length; i++) {
+        if (mData[i][idxReady] === true || mData[i][idxReady].toString().toUpperCase() === "TRUE" || mData[i][idxReady] === "Y") {
+          activeDirectory.push({
+            groupName: mData[i][idxGroupName],
+            ssId: mData[i][idxSsId],
+            ownerEmail: mData[i][idxOwner]
+          });
         }
-        
-        showScreen('setup'); // Force user setup panel if device token is blank/new
-        document.getElementById('status-badge').innerText = "Setup Required";
       }
-    })
-    .initializeApplicationData(devId);
-}
+    }
     
     // 2. Check if this device is already registered in the Devices database
     var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
@@ -124,14 +102,13 @@ function initializeApplicationData() {
           cachedProfile = {
             groupName: devData[i][2], // Column C: Group Name
             groupSsId: devData[i][3], // Column D: Linked Spreadsheet ID
-            runnerId: devData[i][4]   // Column E: Runner Token (e.g., Alan_13)
+            runnerId: devData[i][4]   // Column E: Runner Token
           };
           break;
         }
       }
     }
     
-    // Package everything together seamlessly so the client engine loads flawlessly
     return {
       aboutShort: aboutShort,
       userSetupGuideCached: userSetupGuide,
@@ -148,7 +125,6 @@ function initializeApplicationData() {
 
 /**
  * Fetch Runner IDs subset from central local composite mapping table
- * Evaluates entirely against local internal "Runners Gids" tab row sets.
  */
 function getRunnerIdsForGroup(ssIdKey) {
   try {
@@ -161,7 +137,6 @@ function getRunnerIdsForGroup(ssIdKey) {
     var lData = lookupSheet.getDataRange().getValues();
     var uniqueIds = new Set();
     
-    // Scans local mapping sheet: Column A (Runner ID), Column B (Group SS ID)
     for (var i = 1; i < lData.length; i++) {
       var sheetRunnerId = lData[i][0];
       var sheetSsId = lData[i][1];
@@ -181,7 +156,6 @@ function getRunnerIdsForGroup(ssIdKey) {
 
 /**
  * Device Record Profile Submission Upsert
- * Write access is restricted solely to the "Devices" tab.
  */
 function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) {
   try {
@@ -193,7 +167,6 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
     var resultsGid = "";
     var timestamp = new Date();
     
-    // Search the local composite mapping table ONLY if handling an Existing Member with an ID
     if (cleanRunnerId && resultsGidMode === "AUTO_LOOKUP_GID") {
       var lookupSheet = ss.getSheetByName(TABLES.RUNNERS);
       if (lookupSheet) {
@@ -216,8 +189,6 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
       }
     }
 
-    // Database payload structure configuration mapping columns:
-    // [Timestamp, Device ID, Spreadsheet (Group), SS Id, Runner Id, Results Gid]
     if (matchedRow > -1) {
       sheet.getRange(matchedRow, 1, 1, 6).setValues([[timestamp, deviceId, groupName, ssId, cleanRunnerId, resultsGid]]);
     } else {
@@ -324,9 +295,6 @@ function getDashboardRouting(ssIdKey, runnerId) {
   }
 }
 
-// ==========================================
-// TEMPORARY BACKEND DEBUG RUNNER
-// ==========================================
 function debugRunnerLookup() {
   var testSsId = "YOUR_REAL_TEST_SSID_STRING"; 
   var result = getRunnerIdsForGroup(testSsId);
