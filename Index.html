@@ -192,6 +192,10 @@
           if (!cachedProfile) {
             document.getElementById('btn-cancel-setup').classList.add('hidden');
             showScreen('setup');
+            // FORCE LOOKUP: Instantly populates the Runner ID dropdown for the default group
+            if (selectGroup.options.length > 0) {
+              onGroupSelectionChange();
+            }
           } else {
             document.getElementById('menu-setup').classList.add('hidden');
             selectGroup.value = cachedProfile.ssId;
