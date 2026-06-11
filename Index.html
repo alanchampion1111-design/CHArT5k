@@ -276,11 +276,13 @@
         // NO difference expected in the new member preamble - hence unchanged
         // groupGuide.innerText = memberRequestGuideCached;
         if (secondaryPreamble) {
-          secondaryPreamble.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
+          secondaryPreamble.innerText = "Please contact the Group Owner directly to add you as a member.";
         }
         const customFormInfo = document.getElementById('info-member-request');
         if (customFormInfo) {
-          customFormInfo.innerText = "Your details will be automatically compiled and routed directly to the Group Owner to clear up your profile assignment loop.";
+          customFormInfo.innerText = "An email message will appear. "+
+            " Please complete the details required and allow the Group Owner a few days "+
+            " to add you as a member with your results before confirming your Runner Id has been set.";
         }
       }
     }
