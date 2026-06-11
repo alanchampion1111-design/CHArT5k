@@ -59,43 +59,59 @@ function doGet() {
  * Core initialization called by the client on boot.
  * Verifies if the device UUID is already linked to a profile and delivers all guide parameters.
  */
-function initializeApplicationData(devId) {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. Fetch system parameters/preambles from MASTER configuration
-    var masterSheet = ss.getSheetByName(TABLES.MASTER);
-    var aboutShort = "Welcome to CHArT5k"; 
-    var userSetupGuide = "Select your Hub Group node configuration to initialize device synchronization pathways.";
-    var memberRequestGuide = "Submit your registration parameters to clear up local ecosystem profile pairing mappings.";
-    var runnerIdNote = "Please select your unique runner Id allocated within this group.";
-    
-    var activeDirectory = [];
-    
-    if (masterSheet) {
-      var mData = masterSheet.getDataRange().getValues();
-      var mHeaders = mData[0];
+
+function initializeApplicationData() {
+  document.getElementById('status-badge').innerText = "Syncing..."; 
+  google.script.run
+    .withSuccessHandler((response) => {
+      if (response.error) { alert("Initialization Failure: " + response.error); return; }
       
-      var idxReady = mHeaders.indexOf(COL_MASTER.READY);
-      var idxGroupName = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
-      var idxSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
-      var idxOwner = mHeaders.indexOf(COL_MASTER.OWNER);
-      
-      // Pull down system guides directly from cell definitions if they exist, or fallback safely
-      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort;
-      
-      // Build active directory profile listings for pull-down selectors
-      for (var i = 1; i < mData.length; i++) {
-        // Only process hubs tagged as Ready/Active
-        if (mData[i][idxReady] === true || mData[i][idxReady].toString().toUpperCase() === "TRUE" || mData[i][idxReady] === "Y") {
-          activeDirectory.push({
-            groupName: mData[i][idxGroupName],
-            ssId: mData[i][idxSsId],
-            ownerEmail: mData[i][idxOwner]
-          });
-        }
+      // 1. Unpack and cache your master text preambles globally
+      userSetupGuideCached = response.userSetupGuideCached || "";
+      memberRequestGuideCached = response.memberRequestGuideCached || "";
+      runnerIdNoteCached = response.runnerIdNoteCached || "";
+      activeDirectory = response.activeDirectory || []; // Stores the owner emails for the mailto branch
+
+      // 2. Populate the Master Group Selector Dropdown
+      const selectGroup = document.getElementById('setup-group');
+      if (selectGroup) {
+        selectGroup.innerHTML = '';
+        activeDirectory.forEach(g => {
+          let opt = document.createElement('option');
+          opt.value = g.ssId;
+          opt.textContent = g.groupName;
+          selectGroup.appendChild(opt);
+        });
       }
-    }
+      
+      if (response.aboutShort) {
+        document.getElementById('about-short').innerText = response.aboutShort;
+      }
+      
+      // 3. Evaluate identity mapping vector
+      if (response.cachedProfile) {
+        document.getElementById('btn-cancel-setup').classList.remove('hidden');
+        if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
+        onGroupSelectionChange(response.cachedProfile.runnerId);
+        showScreen('trends'); // Boots straight to your Performance Dashboard if recognized
+        document.getElementById('status-badge').innerText = "Online";
+      } else {
+        document.getElementById('btn-cancel-setup').classList.add('hidden');
+        
+        // Populate the initial text guides for the manual profile screen
+        document.getElementById('info-user-setup').innerText = userSetupGuideCached;
+        document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
+        
+        if (selectGroup && selectGroup.value) {
+          onGroupSelectionChange();
+        }
+        
+        showScreen('setup'); // Force user setup panel if device token is blank/new
+        document.getElementById('status-badge').innerText = "Setup Required";
+      }
+    })
+    .initializeApplicationData(devId);
+}
     
     // 2. Check if this device is already registered in the Devices database
     var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
