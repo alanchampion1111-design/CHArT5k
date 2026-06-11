@@ -273,8 +273,8 @@
         // Hide existing form, show custom request form
         document.getElementById('wrapper-existing-form').classList.add('hidden');
         document.getElementById('wrapper-custom-form').classList.remove('hidden');
-        // Assign the new member preamble parameters smoothly
-        groupGuide.innerText = memberRequestGuideCached;
+        // NO difference expected in the new member preamble - hence unchanged
+        // groupGuide.innerText = memberRequestGuideCached;
         if (secondaryPreamble) {
           secondaryPreamble.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
         }
