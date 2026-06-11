@@ -19,7 +19,7 @@ const COL_MASTER = {
   LATEST_GID: "Latest Gid",
   RANKINGS_GID: "Rankings Gid"
   // Other columns in this primary table include generated latest/ranking table links,...
-  //    the number of imported members, and the parkrun Group No. (if it exists)
+  //     the number of imported members, and the parkrun Group No. (if it exists)
 };
 
 /**
@@ -32,7 +32,7 @@ const COL_GROUP = {
   CELL_RANGE: "Range",
   RUNNER_IDS: "Runners Ids"
   // Other columns per Group spreadsheet include the generated Chart links,...
-  //    and the Chart Id in case it needs copied and tailored per user
+  //     and the Chart Id in case it needs copied and tailored per user
 };
 
 /**
@@ -57,7 +57,7 @@ function doGet() {
 
 /**
  * Core initialization called by the client on boot.
- * Verifies if the device UUID is already linked to a profile.
+ * Verifies if the device UUID is already linked to a profile and delivers all guide parameters.
  */
 function initializeApplicationData(devId) {
   try {
@@ -65,10 +65,36 @@ function initializeApplicationData(devId) {
     
     // 1. Fetch system parameters/preambles from MASTER configuration
     var masterSheet = ss.getSheetByName(TABLES.MASTER);
-    var aboutShort = "Welcome to the Moon App"; // Default fallback
+    var aboutShort = "Welcome to CHArT5k"; 
+    var userSetupGuide = "Select your Hub Group node configuration to initialize device synchronization pathways.";
+    var memberRequestGuide = "Submit your registration parameters to clear up local ecosystem profile pairing mappings.";
+    var runnerIdNote = "Please select your unique runner Id allocated within this group.";
+    
+    var activeDirectory = [];
+    
     if (masterSheet) {
-      // Assuming your about/preamble text is mapped here
-      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort; 
+      var mData = masterSheet.getDataRange().getValues();
+      var mHeaders = mData[0];
+      
+      var idxReady = mHeaders.indexOf(COL_MASTER.READY);
+      var idxGroupName = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
+      var idxSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
+      var idxOwner = mHeaders.indexOf(COL_MASTER.OWNER);
+      
+      // Pull down system guides directly from cell definitions if they exist, or fallback safely
+      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort;
+      
+      // Build active directory profile listings for pull-down selectors
+      for (var i = 1; i < mData.length; i++) {
+        // Only process hubs tagged as Ready/Active
+        if (mData[i][idxReady] === true || mData[i][idxReady].toString().toUpperCase() === "TRUE" || mData[i][idxReady] === "Y") {
+          activeDirectory.push({
+            groupName: mData[i][idxGroupName],
+            ssId: mData[i][idxSsId],
+            ownerEmail: mData[i][idxOwner]
+          });
+        }
+      }
     }
     
     // 2. Check if this device is already registered in the Devices database
@@ -78,18 +104,24 @@ function initializeApplicationData(devId) {
     if (deviceSheet) {
       var devData = deviceSheet.getDataRange().getValues();
       for (var i = 1; i < devData.length; i++) {
-        if (devData[i][1] === devId) { // Column B: Device ID
+        if (devData[i][1] && devData[i][1].toString() === devId.toString()) { // Column B: Device ID
           cachedProfile = {
-            groupSsId: devData[i][2], // Column C: Linked Spreadsheet ID
-            runnerId: devData[i][3]   // Column D: Runner Token (e.g., Alan_13)
+            groupName: devData[i][2], // Column C: Group Name
+            groupSsId: devData[i][3], // Column D: Linked Spreadsheet ID
+            runnerId: devData[i][4]   // Column E: Runner Token (e.g., Alan_13)
           };
           break;
         }
       }
     }
     
+    // Package everything together seamlessly so the client engine loads flawlessly
     return {
       aboutShort: aboutShort,
+      userSetupGuideCached: userSetupGuide,
+      memberRequestGuideCached: memberRequestGuide,
+      runnerIdNoteCached: runnerIdNote,
+      activeDirectory: activeDirectory,
       cachedProfile: cachedProfile
     };
     
@@ -99,35 +131,7 @@ function initializeApplicationData(devId) {
 }
 
 /**
- * Retrieves and alphabetically sorts Runner IDs mapped to a specific Group Spreadsheet Token
- */
-function getRunnerIdsForGroup(ssIdKey) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TABLES.RUNNERS);
-  
-  if (!sheet) {
-    Logger.log("Error: Target tab matching " + TABLES.RUNNERS + " could not be found.");
-    return [];
-  }
-  
-  var lData = sheet.getDataRange().getValues();
-  var runnerIds = [];
-  
-  // Skip header row, loop through rows to match the cryptographic group token
-  for (var i = 1; i < lData.length; i++) {
-    var sheetSsId = lData[i][1]; // Column B: SS Id Key
-    var runnerId = lData[i][0];  // Column A: Runner Id
-    
-    if (sheetSsId === ssIdKey && runnerId) {
-      runnerIds.push(runnerId);
-    }
-  }
-  
-  // Sort alphabetically to solve the "duplicate first name" presentation problem
-  return runnerIds.sort();
-}
-
-/**
- * STAGE 1B: Fetch Runner IDs subset from central local composite mapping table
+ * Fetch Runner IDs subset from central local composite mapping table
  * Evaluates entirely against local internal "Runners Gids" tab row sets.
  */
 function getRunnerIdsForGroup(ssIdKey) {
@@ -160,7 +164,7 @@ function getRunnerIdsForGroup(ssIdKey) {
 }
 
 /**
- * STAGE 1C: Device Record Profile Submission Upsert
+ * Device Record Profile Submission Upsert
  * Write access is restricted solely to the "Devices" tab.
  */
 function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) {
@@ -212,7 +216,7 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
 }
 
 /**
- * STAGE 1D: Live Routing Dashboard Engine Mapping Routing Keys
+ * Live Routing Dashboard Engine Mapping Routing Keys
  */
 function getDashboardRouting(ssIdKey, runnerId) {
   try {
@@ -234,7 +238,7 @@ function getDashboardRouting(ssIdKey, runnerId) {
         localTabName = mData[i][idxMasterGroup];
         rankingsData = {
           latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxLatestGid],
-          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT,
+          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT,
           bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST
         };
         break;
@@ -308,7 +312,6 @@ function getDashboardRouting(ssIdKey, runnerId) {
 // TEMPORARY BACKEND DEBUG RUNNER
 // ==========================================
 function debugRunnerLookup() {
-  // Replace with your real CHArT5k cryptographic string token for sandbox testing
   var testSsId = "YOUR_REAL_TEST_SSID_STRING"; 
   var result = getRunnerIdsForGroup(testSsId);
   Logger.log("Resulting Array: " + JSON.stringify(result));
