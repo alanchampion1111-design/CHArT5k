@@ -246,15 +246,18 @@
         }
       }
     }
-    
+
     function toggleSetupMode(useExisting) {
       isExistingMode = useExisting;
-      
-      document.getElementById('toggle-existing').className = useExisting ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg" : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
-      document.getElementById('toggle-custom').className = !useExisting ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg" : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
-      
+      // 1. Swap active navigation tab button styling instantly
+      document.getElementById('toggle-existing').className = useExisting
+        ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg"
+        : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
+      document.getElementById('toggle-custom').className = !useExisting
+        ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg"
+        : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
       const groupGuide = document.getElementById('info-user-setup');
-      
+      // 2. Seamlessly manage forms, swap preambles, and erase empty residues
       if (useExisting) {
         document.getElementById('wrapper-existing-form').classList.remove('hidden');
         document.getElementById('wrapper-custom-form').classList.add('hidden');
@@ -263,8 +266,13 @@
         document.getElementById('wrapper-existing-form').classList.add('hidden');
         document.getElementById('wrapper-custom-form').classList.remove('hidden');
         groupGuide.innerText = memberRequestGuideCached;
+        
+        const customFormInfo = document.getElementById('info-member-request');
+        if (customFormInfo) {
+          customFormInfo.innerText = "Your details will be automatically compiled and routed directly to the Group Owner to clear up your profile assignment loop.";
+        }
       }
-      switchSetupMode(!useExisting);
+      switchSetupMode(!useExisting); 
     }
 
     function saveSetup() {
