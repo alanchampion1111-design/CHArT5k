@@ -161,17 +161,23 @@
     }
 
     function initializeApplicationData() {
+      // Update the layout status container signaling active synchronization channels
       document.getElementById('status-badge').innerText = "Syncing...";
-      
       google.script.run
         .withSuccessHandler((response) => {
-          if (response.error) { alert("Initialization Failure: " + response.error); return; }
+          if (response.error) { 
+            alert("Initialization Failure: " + response.error); 
+            document.getElementById('status-badge').innerText = "Error";
+            return; 
+          }
           
+          // 1. Unpack and cache the header notes and fallback preambles from the server
           userSetupGuideCached = response.userSetupGuideCached || "";
           memberRequestGuideCached = response.memberRequestGuideCached || "";
           runnerIdNoteCached = response.runnerIdNoteCached || "";
           activeDirectory = response.activeDirectory || [];
-
+          
+          // 2. Populate the Master Group Selector Pull-down list
           const selectGroup = document.getElementById('setup-group');
           if (selectGroup) {
             selectGroup.innerHTML = '';
@@ -183,27 +189,33 @@
             });
           }
           
+          // 3. Populate your precise About page elements natively
           if (response.aboutShort) {
             document.getElementById('about-short').innerText = response.aboutShort;
           }
+          if (response.aboutLong) {
+            document.getElementById('about-full').innerText = response.aboutLong;
+          }
           
+          // 4. Verify identity matching tracking vectors to clear layout viewports
           if (response.cachedProfile) {
+            // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
             if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
             onGroupSelectionChange(response.cachedProfile.runnerId);
-            showScreen('trends');
+            fetchLiveRoutingPayload();
+            showScreen('trends'); // Navigates straight to My Trends view
             document.getElementById('status-badge').innerText = "Online";
           } else {
+            // Unknown Device: Lock down cancel button, present default user profile setups
             document.getElementById('btn-cancel-setup').classList.add('hidden');
-            
             document.getElementById('info-user-setup').innerText = userSetupGuideCached;
             document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
-            
+            // Populate the secondary runner selections for the initially selected pull-down option
             if (selectGroup && selectGroup.value) {
               onGroupSelectionChange();
             }
-            
-            showScreen('setup');
+            showScreen('setup'); // Force route user straight to Profile Setup screen
             document.getElementById('status-badge').innerText = "Setup Required";
           }
         })
