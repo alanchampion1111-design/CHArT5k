@@ -2,9 +2,10 @@
  * Global Table & Tab Configurations (Strictly Local Master Sheet Tabs)
  */
 const TABLES = {
-  MASTER: "CHArT5k",
-  DEVICES: "Devices",
-  RUNNERS: "Runners Gids"
+  MASTER: "CHArT5k",  // contains the current list of Groups with their Spreadsheet Id etc
+  DEVICES: "Devices",  // one row per App user with settings locked to their device
+  RUNNERS: "Runners Gids"  // composite for ALL Group spreadsheets, referring to each runner's result sheet gid 
+  // Each Group sheet table contains sheet gids & ranges for all members charts (for filtering a user subset)
 };
 
 /**
@@ -17,6 +18,8 @@ const COL_MASTER = {
   OWNER: "Owner",
   LATEST_GID: "Latest Gid",
   RANKINGS_GID: "Rankings Gid"
+  // Other columns in this primary table include generated latest/ranking table links,...
+  //    the number of imported members, and the parkrun Group No. (if it exists)
 };
 
 /**
@@ -28,6 +31,8 @@ const COL_GROUP = {
   PERF_SHEET: "Perf Sheet",
   CELL_RANGE: "Range",
   RUNNER_IDS: "Runners Ids"
+  // Other columns per Group spreadsheet include the generated Chart links,...
+  //    and the Chart Id in case it needs copied and tailored per user
 };
 
 /**
@@ -51,91 +56,74 @@ function doGet() {
 }
 
 /**
- * STAGE 1A: App Initialization
- * Parses local Master directory, reads header Notes, and queries current device profile state.
- * Strictly Read-Only for infrastructure sheets; no external files are scanned.
+ * Core initialization called by the client on boot.
+ * Verifies if the device UUID is already linked to a profile.
  */
-function getAppInitializationData(localDeviceId) {
+function initializeApplicationData(devId) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // 1. Fetch system parameters/preambles from MASTER configuration
     var masterSheet = ss.getSheetByName(TABLES.MASTER);
-    var devicesSheet = ss.getSheetByName(TABLES.DEVICES);
-    
-    var masterData = masterSheet.getDataRange().getValues();
-    var headers = masterData[0];
-    
-    var idxReady = headers.indexOf(COL_MASTER.READY);
-    var idxGroup = headers.indexOf(COL_MASTER.GROUP_NAME);
-    var idxSsId = headers.indexOf(COL_MASTER.SS_ID);
-    var idxOwner = headers.indexOf(COL_MASTER.OWNER);
-
-    var groupsList = [];
-    
-    // Default Fallback Guidelines Text UI
-    var aboutShort = "CHArT5k System Ready";
-    var aboutFull = "Operational tracking framework.";
-    var userSetupGuide = "Please select your existing club or family Group and your existing Runner Id within that Group.";
-    var memberRequestGuide = "Please select your existing club or family Group.";
-    var runnerIdNote = "Please select your unique tracking ID assigned within this specific group.";
-
-    for (var i = 1; i < masterData.length; i++) {
-      var row = masterData[i];
-      if (row[idxReady] === true || row[idxReady] === "TRUE") {
-        groupsList.push({
-          groupName: row[idxGroup],
-          ssId: row[idxSsId],
-          ownerEmail: row[idxOwner]
-        });
-      }
+    var aboutShort = "Welcome to the Moon App"; // Default fallback
+    if (masterSheet) {
+      // Assuming your about/preamble text is mapped here
+      aboutShort = masterSheet.getRange("B1").getValue() || aboutShort; 
     }
-
-    if (masterData.length > 1) {
-      if (masterSheet.getRange(1, idxReady + 1).getNote()) aboutShort = masterSheet.getRange(1, idxReady + 1).getNote();
-      if (masterSheet.getRange(1, idxGroup + 1).getNote()) aboutFull = masterSheet.getRange(1, idxGroup + 1).getNote();
-    }
-
-    // Capture dynamic setup instructions directly from the Devices tab column header notes
-    if (devicesSheet) {
-      var devHeaders = devicesSheet.getDataRange().getValues()[0];
-      var idxDevGroup = devHeaders.indexOf("Spreadsheet");
-      var idxDevRunner = devHeaders.indexOf("Runner Id");
-      
-      if (idxDevGroup > -1 && devicesSheet.getRange(1, idxDevGroup + 1).getNote()) {
-        userSetupGuide = devicesSheet.getRange(1, idxDevGroup + 1).getNote();
-      }
-      if (idxDevRunner > -1 && devicesSheet.getRange(1, idxDevRunner + 1).getNote()) {
-        runnerIdNote = devicesSheet.getRange(1, idxDevRunner + 1).getNote();
-      }
-    }
-
-    var deviceProfile = null;
-    if (devicesSheet && localDeviceId) {
-      var devData = devicesSheet.getDataRange().getValues();
-      for (var d = 1; d < devData.length; d++) {
-        // Match checking column 1 (Index index 1) for Saved Device ID Tag
-        if (devData[d][1] && devData[d][1].toString() === localDeviceId.toString()) {
-          deviceProfile = {
-            groupName: devData[d][2],
-            ssId: devData[d][3],
-            runnerId: devData[d][4]
+    
+    // 2. Check if this device is already registered in the Devices database
+    var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
+    var cachedProfile = null;
+    
+    if (deviceSheet) {
+      var devData = deviceSheet.getDataRange().getValues();
+      for (var i = 1; i < devData.length; i++) {
+        if (devData[i][1] === devId) { // Column B: Device ID
+          cachedProfile = {
+            groupSsId: devData[i][2], // Column C: Linked Spreadsheet ID
+            runnerId: devData[i][3]   // Column D: Runner Token (e.g., Alan_13)
           };
           break;
         }
       }
     }
-
+    
     return {
       aboutShort: aboutShort,
-      aboutFull: aboutFull,
-      userSetupGuide: userSetupGuide,
-      memberRequestGuide: memberRequestGuide,
-      runnerIdNote: runnerIdNote,
-      activeGroups: groupsList,
-      deviceProfile: deviceProfile
+      cachedProfile: cachedProfile
     };
-  } catch (e) {
-    return { error: e.toString() };
+    
+  } catch (err) {
+    return { error: err.toString() };
   }
+}
+
+/**
+ * Retrieves and alphabetically sorts Runner IDs mapped to a specific Group Spreadsheet Token
+ */
+function getRunnerIdsForGroup(ssIdKey) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TABLES.RUNNERS);
+  
+  if (!sheet) {
+    Logger.log("Error: Target tab matching " + TABLES.RUNNERS + " could not be found.");
+    return [];
+  }
+  
+  var lData = sheet.getDataRange().getValues();
+  var runnerIds = [];
+  
+  // Skip header row, loop through rows to match the cryptographic group token
+  for (var i = 1; i < lData.length; i++) {
+    var sheetSsId = lData[i][1]; // Column B: SS Id Key
+    var runnerId = lData[i][0];  // Column A: Runner Id
+    
+    if (sheetSsId === ssIdKey && runnerId) {
+      runnerIds.push(runnerId);
+    }
+  }
+  
+  // Sort alphabetically to solve the "duplicate first name" presentation problem
+  return runnerIds.sort();
 }
 
 /**
@@ -314,4 +302,14 @@ function getDashboardRouting(ssIdKey, runnerId) {
   } catch (e) {
     return { error: e.toString() };
   }
+}
+
+// ==========================================
+// TEMPORARY BACKEND DEBUG RUNNER
+// ==========================================
+function debugRunnerLookup() {
+  // Replace with your real CHArT5k cryptographic string token for sandbox testing
+  var testSsId = "YOUR_REAL_TEST_SSID_STRING"; 
+  var result = getRunnerIdsForGroup(testSsId);
+  Logger.log("Resulting Array: " + JSON.stringify(result));
 }
