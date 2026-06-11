@@ -205,6 +205,18 @@
           document.getElementById('status-badge').className = "text-xs bg-emerald-600 text-white font-semibold px-2 py-1 rounded";
           document.getElementById('status-badge').innerText = "Online";
         })
+        .withSuccessHandler(function(data) {
+          initializeApplicationData(data);
+          
+          // MOPS UP INITIALIZATION GAP: Force live lookup for the first group on boot
+          if (data.groups && data.groups.length > 0) {
+            var defaultSsId = data.groups[0].ssId;
+            
+            google.script.run
+              .withSuccessHandler(populateRunnersDropdown)
+              .getRunnerIdsForGroup(defaultSsId);
+          }
+        })
         .getAppInitializationData(devId);
     }
 
