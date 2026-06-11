@@ -161,55 +161,37 @@
     }
 
     function initializeApplicationData() {
-      var devId = new URLSearchParams(window.location.search).get('devId')
-        || "DEFAULT_DEV";   // default for testing
+      // 1. Check the browser vault for an existing AppSheet-style long ID
+      var devId = localStorage.getItem('moon_app_device_id');
+      
+      if (!devId) {
+        // 2. Fresh client context? Mint a permanent long UUID to prevent masquerading
+        devId = 'dev-' + self.crypto.randomUUID(); 
+        localStorage.setItem('moon_app_device_id', devId);
+      }
+      
+      cachedDeviceToken = devId; // Cache token globally for form submissions
+    
+      // 3. Dispatch the tracking signature up the Google Server pipeline
       google.script.run
         .withSuccessHandler((response) => {
           if (response.error) { alert("Initialization Failure: " + response.error); return; }
           
-          document.getElementById('about-short').innerText = response.aboutShort;
-          document.getElementById('about-full').innerText = response.aboutFull;
-          
-          // Cache spreadsheet header notes parameters locally
-          userSetupGuideCached = response.userSetupGuide;
-          memberRequestGuideCached = response.memberRequestGuide;
-          runnerIdNoteCached = response.runnerIdNote;
-          
-          document.getElementById('info-user-setup').innerText = userSetupGuideCached;
-          document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
-          document.getElementById('info-member-request').innerText = memberRequestGuideCached;
-          
-          activeDirectory = response.activeGroups;
-          cachedProfile = response.deviceProfile;
-
-          const selectGroup = document.getElementById('setup-group');
-          selectGroup.innerHTML = '';
-          activeDirectory.forEach(g => {
-            let opt = document.createElement('option');
-            opt.value = g.ssId;
-            opt.textContent = g.groupName;
-            selectGroup.appendChild(opt);
-          });
-
-          if (!cachedProfile) {
-            document.getElementById('btn-cancel-setup').classList.add('hidden');
-            showScreen('setup');
-            
-            // FORCE LOOKUP: Handled perfectly by your native function call right here!
-            if (selectGroup.options.length > 0) {
-              onGroupSelectionChange();
-            }
-          } else {
-            document.getElementById('menu-setup').classList.add('hidden');
-            selectGroup.value = cachedProfile.ssId;
-            onGroupSelectionChange(cachedProfile.runnerId);
-            fetchLiveRoutingPayload();
+          if (response.aboutShort) {
+            document.getElementById('about-short').innerText = response.aboutShort;
           }
           
-          document.getElementById('status-badge').className = "text-xs bg-emerald-600 text-white font-semibold px-2 py-1 rounded";
-          document.getElementById('status-badge').innerText = "Online";
+          if (response.cachedProfile) {
+            document.getElementById('btn-cancel-setup').classList.remove('hidden');
+            document.getElementById('setup-group').value = response.cachedProfile.groupSsId;
+            onGroupSelectionChange(response.cachedProfile.runnerId);
+            showScreen('rankings'); // Or your equivalent main display screen hook
+          } else {
+            document.getElementById('btn-cancel-setup').classList.add('hidden');
+            showScreen('setup'); 
+          }
         })
-        .getAppInitializationData(devId);
+        .initializeApplicationData(devId);
     }
 
     function onGroupSelectionChange(presetRunnerId = null) {
@@ -231,6 +213,30 @@
         .getRunnerIdsForGroup(selectedSsId);
     }
 
+    function switchSetupMode(isNewMember) {
+      const runnerIdGroup = document.getElementById('runner-id-group-wrapper'); // Your dropdown's visual wrapper div
+      const preambleText = document.getElementById('info-runner-id-note');
+      const selectGroup = document.getElementById('setup-group');
+    
+      // CRITICAL ARCHITECTURE: We do NOT clear or reset selectGroup.value here.
+      // The user's chosen group carries across the tab change smoothly.
+    
+      if (isNewMember) {
+        // Track B: New Member / Identity Clarification
+        if (runnerIdGroup) runnerIdGroup.classList.add('hidden');
+        preambleText.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
+      } else {
+        // Track A: Reverting back to Existing Member profile setup
+        if (runnerIdGroup) runnerIdGroup.classList.remove('hidden');
+        preambleText.innerText = runnerIdNoteCached; // Restores your default header note parameter
+        
+        // Refresh the alphabetical runner dropdown list for the carried-over choice
+        if (selectGroup && selectGroup.value) {
+          onGroupSelectionChange(); 
+        }
+      }
+    }
+    
     function toggleSetupMode(useExisting) {
       isExistingMode = useExisting;
       
