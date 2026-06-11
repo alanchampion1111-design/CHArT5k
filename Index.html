@@ -145,16 +145,13 @@
 
     let userSetupGuideCached = "";
     let memberRequestGuideCached = "";
-    let runnerIdNoteCached = "Please select your unique runner Id allocated within this group.";
+    let runnerIdNoteCached = "";
 
     window.addEventListener('DOMContentLoaded', () => {
       resolveDeviceFingerprint();
       initializeApplicationData();
     });
 
-    /**
-     * Implements AppSheet-style persistent long device tokening via native browser cache
-     */
     function resolveDeviceFingerprint() {
       devId = localStorage.getItem('chart5k_uuid');
       if (!devId) {
@@ -170,19 +167,43 @@
         .withSuccessHandler((response) => {
           if (response.error) { alert("Initialization Failure: " + response.error); return; }
           
+          userSetupGuideCached = response.userSetupGuideCached || "";
+          memberRequestGuideCached = response.memberRequestGuideCached || "";
+          runnerIdNoteCached = response.runnerIdNoteCached || "";
+          activeDirectory = response.activeDirectory || [];
+
+          const selectGroup = document.getElementById('setup-group');
+          if (selectGroup) {
+            selectGroup.innerHTML = '';
+            activeDirectory.forEach(g => {
+              let opt = document.createElement('option');
+              opt.value = g.ssId;
+              opt.textContent = g.groupName;
+              selectGroup.appendChild(opt);
+            });
+          }
+          
           if (response.aboutShort) {
             document.getElementById('about-short').innerText = response.aboutShort;
           }
           
           if (response.cachedProfile) {
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
-            document.getElementById('setup-group').value = response.cachedProfile.groupSsId;
+            if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
             onGroupSelectionChange(response.cachedProfile.runnerId);
             showScreen('trends');
             document.getElementById('status-badge').innerText = "Online";
           } else {
             document.getElementById('btn-cancel-setup').classList.add('hidden');
-            showScreen('setup'); 
+            
+            document.getElementById('info-user-setup').innerText = userSetupGuideCached;
+            document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
+            
+            if (selectGroup && selectGroup.value) {
+              onGroupSelectionChange();
+            }
+            
+            showScreen('setup');
             document.getElementById('status-badge').innerText = "Setup Required";
           }
         })
@@ -207,6 +228,24 @@
         })
         .getRunnerIdsForGroup(selectedSsId);
     }
+
+    function switchSetupMode(isNewMember) {
+      const preambleText = document.getElementById('info-runner-id-note');
+      const selectGroup = document.getElementById('setup-group');
+      
+      if (isNewMember) {
+        if (preambleText) {
+          preambleText.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
+        }
+      } else {
+        if (preambleText) {
+          preambleText.innerText = runnerIdNoteCached;
+        }
+        if (selectGroup && selectGroup.value) {
+          onGroupSelectionChange(); 
+        }
+      }
+    }
     
     function toggleSetupMode(useExisting) {
       isExistingMode = useExisting;
@@ -215,24 +254,17 @@
       document.getElementById('toggle-custom').className = !useExisting ? "flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg" : "flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg";
       
       const groupGuide = document.getElementById('info-user-setup');
-      const preambleText = document.getElementById('info-runner-id-note');
-      const selectGroup = document.getElementById('setup-group');
       
       if (useExisting) {
         document.getElementById('wrapper-existing-form').classList.remove('hidden');
         document.getElementById('wrapper-custom-form').classList.add('hidden');
         groupGuide.innerText = userSetupGuideCached;
-        preambleText.innerText = runnerIdNoteCached;
-        
-        if (selectGroup && selectGroup.value) {
-          onGroupSelectionChange(); 
-        }
       } else {
         document.getElementById('wrapper-existing-form').classList.add('hidden');
         document.getElementById('wrapper-custom-form').classList.remove('hidden');
         groupGuide.innerText = memberRequestGuideCached;
-        preambleText.innerText = "Please verify the Group selection above. Your details will be routed to the Group Owner to clear up your profile assignment.";
       }
+      switchSetupMode(!useExisting);
     }
 
     function saveSetup() {
