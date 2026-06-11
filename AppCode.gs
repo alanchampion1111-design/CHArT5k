@@ -4,41 +4,62 @@
  * Global Table & Tab Configurations (Strictly Local Master Sheet Tabs)
  */
 const TABLES = {
-  MASTER: "CHArT5k",  // contains the current list of Groups with their Spreadsheet Id etc
-  DEVICES: "Devices",  // one row per App user with settings locked to their device
-  RUNNERS: "Runners Gids"  // composite for ALL Group spreadsheets, referring to each runner's result sheet gid 
+  MASTER: "CHArT5k",      // contains list of Groups with summary extracts
+  DEVICES: "Devices",     // one row per App user with settings locked to their device
+  RUNNERS: "Runners Gids" // composite index extracted for ALL Group spreadsheets
 };
 
 /**
  * Master CHArT5k Table Column Headers Definitions
  */
 const COL_MASTER = {
-  READY: "Ready",
-  GROUP_NAME: "Spreadsheet",
-  SS_ID: "SS Id",
-  OWNER: "Owner",
-  LATEST_GID: "Latest Gid",
-  RANKINGS_GID: "Rankings Gid"
+  // DRIVER: "Active SS Id",  // pending IMPORTRANGE formula => triggered pull extracts
+  READY: "Ready",             // initial results imported? (with About 1-liner in Note)
+  GROUP_NAME: "Spreadsheet",  // configured Group spreadsheet (with About desc in Note )
+  SS_ID: "SS Id",             // ...with its unique linkable Google worksheet id,
+  OWNER: "Owner",             // ...eventual ownership transferred from founder
+  RUNNERS_GID: "Runners Gid", // links to Group's Runners details sheet,
+  LATEST_GID: "Latest Gid",   // ...latest results presented after weekly import,
+  RANKINGS_GID: "Rankings Gid",     // e.g. current ranking used for League divisions
+  CHALLENGES_GID: "Challenges Gid"  // ordered results from planned event (same venue?)
+  // Other columns include generated latest/current/ranking table links,
+  //     the number of imported members, and the parkrun Group No. (if it exists)
 };
 
 /**
  * Group Sheet Table Column Headers Definitions (Referenced via Runtime Cache)
  */
 const COL_GROUP = {
-  CHART_NAME: "Performance Chart",
-  TARGET_GID: "Perf Gid",
-  PERF_SHEET: "Perf Sheet",
-  CELL_RANGE: "Range",
-  RUNNER_IDS: "Runners Ids"
+  CHART_NAME: "Performance Chart",  // name indicates division by Grade/Junior/Senior etc.
+  SS_ID: "SS Id",                 // within unique linkable Google worksheet id,
+  TARGET_GID: "Perf Gid",         // links to a single Group chart
+  PERF_SHEET: "Perf Sheet",       // categorised under Age Groups, Leagues, etc. 
+  CELL_RANGE: "Range",            // used to direct App user to a location on the sheet
+  CHART_ID: "Chart Id",           // for highlighting App user line? (or for copying)
+  RUNNERS_IDS: "Runners Ids"      // list of Runner Ids within the chart division
+  // Other columns include the generated chart link,
+  //     and the Chart Id in case it needs copied and tailored per user
+};
+
+/**
+ * Devices Table Column Headers Definitions (required by App user for their profile)
+ */
+const COL_DEVICE = {
+  TIMESTAMP: "Timestamp",     // A: when user first used (introduced for Web App)
+  DEVICE_ID: "Device Id",     // B: device locked to App user's settings
+  GROUP_NAME: "Spreadsheet",  // C: user-selected Group (with extended guide in Note)
+  SS_ID: "SS Id",             // D: automatic ref from selected Group (used for linking)
+  RUNNER_ID: "Runner Id",     // E: user-selected Identity (with extended guide in Note)
+  RESULTS_GID: "Results Gid"  // F: automatic from Runner Id (as sheet name) in SS Id
 };
 
 /**
  * Target Cell Display Viewport Coordinate Constants
  */
 const VIEWPORTS = {
-  TRENDS: "N2",
-  RANKINGS_CURRENT: "A8",
-  RANKINGS_BEST: "A111"
+  TRENDS: "N2",             // trend chart location within each runner's results sheet
+  RANKINGS_CURRENT: "A8",   // current age-graded table in Rankings sheet location
+  RANKINGS_BEST: "A111"     // best-ever age-graded table in Rankings sheet location
 };
 
 /**
@@ -59,13 +80,16 @@ function doGet() {
 function initializeApplicationData(devId) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. Fetch system parameters/preambles from MASTER configuration
+
+    // 1A. Fetch 'About' info from MASTER table (with defaults if no Notes)
     var masterSheet = ss.getSheetByName(TABLES.MASTER);
-    var aboutShort = "Welcome to CHArT5k"; 
-    var userSetupGuide = "Select your Hub Group node configuration to initialize device synchronization pathways.";
-    var memberRequestGuide = "Submit your registration parameters to clear up local ecosystem profile pairing mappings.";
-    var runnerIdNote = "Please select your unique runner Id allocated within this group.";
+    var aboutShort = "Welcome to CHArT5k comparative charts for your parkrun groups";
+    var aboutLong = "No matter how far apart you live, share your club or family group parkrun experience together much closer!";
+
+    // 1B. Fetch 'User profile setting' from DEVICES table (with defaults if no Notes)
+    var userSetupGuide = "Select your club or family group with your runner Id (if known)";
+    var memberRequestGuide = "Select your club or family group (if it exists)";
+    var runnerIdNote = "Identify yourself within this group?";
     
     var activeDirectory = [];
     
