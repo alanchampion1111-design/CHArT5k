@@ -327,14 +327,24 @@ function getDashboardRouting(ssIdKey, runnerId) {
     if (runnerId) {
       var devicesSheet = ss.getSheetByName(TABLES.DEVICES);
       var dData = devicesSheet.getDataRange().getValues();
-      for (var d = 1; d < dData.length; d++) {
-        if (dData[d][3] == ssIdKey && dData[d][4] == runnerId) {
-          var savedGid = dData[d][5];
-          if (savedGid) {
-            trendsUrl = "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS;
+      var headers = dData[0]; // First row contains the text labels
+      var idxSsId = headers.indexOf(COL_DEVICE.SS_ID);
+      var idxRunnerId = headers.indexOf(COL_DEVICE.RUNNER_ID);
+      var idxResultsGid = headers.indexOf(COL_DEVICE.RESULTS_GID);
+
+      // Guard check to ensure all columns actually exist in the spreadsheet
+      if (idxSsId !== -1 && idxRunnerId !== -1 && idxResultsGid !== -1) {
+        for (var d = 1; d < dData.length; d++) {
+          if (dData[d][idxSsId] == ssIdKey && dData[d][idxRunnerId] == runnerId) {
+            var savedGid = dData[d][idxResultsGid];
+            if (savedGid) {
+              trendsUrl = "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS;
+            }
+            break;
           }
-          break;
         }
+      } else {
+        Logger.log("Error: One or more required COL_DEVICE column headers could not be found.");
       }
     }
 
