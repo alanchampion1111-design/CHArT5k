@@ -77,7 +77,7 @@
         
         <div class="flex border-b border-slate-100 pb-2 mb-2">
           <button id="toggle-existing" onclick="toggleSetupMode(true)" class="flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg">Existing member</button>
-          <button id="toggle-custom" onclick="toggleSetupMode(false)" class="flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg">New member</button>
+          <button id="toggle-custom" onclick="toggleSetupMode(false)" class="flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg">New member...</button>
         </div>
 
         <div class="space-y-2">
@@ -92,7 +92,7 @@
           <div class="space-y-2">
             <div id="info-runner-id-note" class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed italic"></div>
             <div>
-              <label class="block text-xs font-bold text-slate-500 capitalcase tracking-wider mb-1">Select My Runner ID</label>
+              <label class="block text-xs font-bold text-slate-500 capitalcase tracking-wider mb-1">Select Runner ID</label>
               <select id="setup-id" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:border-amber-400 text-sm"></select>
             </div>
           </div>
@@ -280,24 +280,36 @@
         }
         const customFormInfo = document.getElementById('info-member-request');
         if (customFormInfo) {
-          customFormInfo.innerText = "An email message will appear. "+
+          customFormInfo.innerText = "After applying this Group setting, an email message will appear. "+
             " Please complete the details required and allow the Group Owner a few days "+
             " to add you as a member with your results before confirming your Runner Id has been set.";
         }
       }
     }
 
+    /**
+     * Helper: Resolves the target owner email from activeDirectory.
+     * Falls back to the template owner (Row 0) if no group is selected or found.
+     */
+    function getOwnerEmail(thisSsId) {
+      const targetGroupObject = activeDirectory.find(g =>
+        g.ssId === thisSsId) || activeDirectory[0]
+      return targetGroupObject
+        ? targetGroupObject.ownerEmail
+        : "";
+    }
+
     function saveSetup() {
-      const selectGroup = document.getElementById('setup-group');
-      if (selectGroup.selectedIndex === -1) { alert("Please select a valid Group."); return; }
-      const groupName = selectGroup.options[selectGroup.selectedIndex].text;
-      const ssId = selectGroup.value;
+      const groupSelect = document.getElementById('setup-group');
+      const ssId = groupSelect ? groupSelect.value : "";
+      const groupName = groupSelect
+        ? groupSelect.options[groupSelect.selectedIndex].text
+        : "";
       if (!isExistingMode) {
         document.getElementById('status-badge').innerText = "Requesting...";
         google.script.run
           .withSuccessHandler(() => {
-            const targetGroupObject = activeDirectory.find(g => g.ssId === ssId) || activeDirectory[0];
-            const ownerEmail = targetGroupObject ? targetGroupObject.ownerEmail : "";
+            const ownerEmail = getOwnerEmail(ssId);
             const subject = encodeURIComponent("CHArT5k: New Member  request within ("+groupName+")");
             const emailBody = "Hello,\n\n"+
               "I can confirm that I am a member of "+groupName+" that is listed on CHArT5k. "+
@@ -306,8 +318,8 @@
               " and grant me direct access to view my family/club charts for comparison "+
               "as directed within this CHArT5k App, together with access to the latest results,"+
               " rankings, etc. held for this Group.\n\n"+
-              "In addition, please allow me edit access that may allow me to add non-parkrun times to my results sheet, "+
-              "as well as being able to hide selective results that might otherwise distort my trend lines "+
+              "In addition, please allow me edit access so that I may add non-parkrun times to my results sheet, "+
+              "as well as being able to hide selective results that might otherwise distort my trends "+
               "(such as when accompanying a slower runner or during recovery from injury).\n\n"+
               "Thanks, <full name>\n\n(from device, "+devId+")";
             window.open("mailto:"+ownerEmail+"?subject="+subject+"&body="+encodeURIComponent(emailBody), '_self');
@@ -319,7 +331,6 @@
           .saveDeviceProfile(devId, groupName, ssId, "", "BLANK_NEW_MEMBER_MODE");
         return;
       }
-
       const runnerId = document.getElementById('setup-id').value;
       if (!ssId || !runnerId) { alert("Selection parameter verification failed."); return; }
       document.getElementById('status-badge').innerText = "Mapping Profile...";
@@ -332,6 +343,33 @@
           document.getElementById('status-badge').innerText = "Online";
         })
         .saveDeviceProfile(devId, groupName, ssId, runnerId, "AUTO_LOOKUP_GID");
+    }
+
+    function triggerNewGroupMailRequest() {
+      // 1. Get  Group owner or App owner (from template)
+      const currentSsId = document.getElementById('setup-group')
+        ? document.getElementById('setup-group').value
+        : "";
+      const targetEmail = getOwnerEmail(currentSsId);
+      
+      // 2. Construct multi-line concatenated Body String matching your exact style
+      const emailBody = "Hello,\n\n" +
+                        "I am a member of <club or family Group name> that may not yet be listed as a Group within CHArT5k." +
+                        "  I can confirm that my parkrun barcode is A??????? and my date of birth is DD-MMM-YYYY." +
+                        "  This group already* exists OR does not* yet exist on the parkrun site." +
+                        "  (* - Modify as appropriate with parkrun Group number if it exists or known.)\n\n" +
+                        "Please accept me as the first member of this new Group and grant me direct access" +
+                        " to add other members for comparison within the CHArT5k App.\n\n" +
+                        "Thanks, <full name>\n\n" +
+                        "(from device, " + (typeof devId !== 'undefined' ? devId : "unknown") + ")";
+
+      const subjectText = "CHArT5k: New group request (<new club or family Group name>)";
+
+      // 3. Encode and pass execution to the native hardware mail client
+      const mailtoUrl = "mailto:" + targetEmail + 
+                        "?subject=" + encodeURIComponent(subjectText) + 
+                        "&body=" + encodeURIComponent(emailBody);             
+      window.location.href = mailtoUrl;
     }
 
     function fetchLiveRoutingPayload() {
