@@ -1,16 +1,19 @@
 // FILE: AppCode.gs
 
 /**
- * Global Table & Tab Configurations (Strictly Local Master Sheet Tabs)
+ * Global App Tables (Owner protected except Devices is open to all)
  */
 const TABLES = {
   MASTER: "CHArT5k",      // contains list of Groups with summary extracts
-  DEVICES: "Devices",     // one row per App user with settings locked to their device
-  MEMBERS: "Runners Gids" // composite list of ALL members by Group SS Id
+  DEVICES: "Devices",     // ALL App users' settings locked to their device
+  MEMBERS: "Results Gids" // composite of members' results across ALL Groups
+  // A table also exist per group; hnce COL_GROUP below
 };
 
 /**
- * Master CHArT5k Table Column Headers Definitions
+ * Master CHArT5k Table Headers
+ * Each Group Overview MUST be pulled by App Owner (triggered by Group owner?)
+ *  to avoid blockages with dynamic accesses during App usage
  */
 const COL_MASTER = {
   // DRIVER: "Active SS Id",  // pending IMPORTRANGE formula => triggered pull extracts
@@ -27,7 +30,7 @@ const COL_MASTER = {
 };
 
 /**
- * Group Sheet Table Column Headers Definitions (Referenced via Runtime Cache)
+ * Group Sheet Table Headers (for ALL comparative Chart Sheets in Group)
  */
 const COL_GROUP = {
   CHART_NAME: "Performance Chart",  // name indicates division by Grade/Junior/Senior etc.
@@ -42,7 +45,17 @@ const COL_GROUP = {
 };
 
 /**
- * Devices Table Column Headers Definitions (required by App user for their profile)
+ * Members Table Headers (lookup ALL members across ALL Groups)
+ * Composite set MUST be pulled by App Owner (trigger)
+ */
+const COL_MEMBER = {
+  RUNNER_ID: "Runner Id",     // A: Runner Id,only unique per Group (SS Id)
+  SS_ID: "SS Id",             // B: composite set covers all Groups (SS Id 
+  RESULTS_GID: "Results Gid"  // C: automatic from Runner Id (as sheet name) in SS Id
+};
+
+/**
+ * Devices Table Headers (subset for ALL App users' profile settings)
  */
 const COL_DEVICE = {
   TIMESTAMP: "Timestamp",     // A: when user first used (introduced for Web App)
@@ -197,7 +210,7 @@ function initializeApplicationData(devId) {
 
 /**
  * Fetch Runner Ids subset via composite mapping table
- * Filtered dynamically by the active Spreadsheet ID key
+ * Filtered dynamically by the active Spreadsheet Id key
  */
 function getRunnerIdsForGroup(ssIdKey) {
   try {
@@ -206,9 +219,11 @@ function getRunnerIdsForGroup(ssIdKey) {
     var lookupSheet = ss.getSheetByName(TABLES.MEMBERS);
     if (!lookupSheet) return [];
     var lData = lookupSheet.getDataRange().getValues();
-    var lookupHeaders = lData[0];
-    var idxRunnerId = lookupHeaders.indexOf(COL_DEVICE.RUNNER_ID);
-    var idxSsId = lookupHeaders.indexOf(COL_DEVICE.SS_ID);
+    var lookupHeaders = lData[0].map(function(header) {
+      return header ? header.toString().trim() : "";
+    });
+    var idxRunnerId = lookupHeaders.indexOf(COL_MEMBER.RUNNER_ID);
+    var idxSsId = lookupHeaders.indexOf(COL_MEMBER.SS_ID);
     // Safety check: If columns not found, exit cleanly
     if (idxRunnerId === -1 || idxSsId === -1) return [];
     var uniqueIds = new Set();
@@ -372,7 +387,7 @@ function getDashboardRouting(ssIdKey, runnerId) {
 }
 
 function debugRunnerLookup() {
-  var testSsId = "YOUR_REAL_TEST_SSID_STRING"; 
+  var testSsId = "1O7njlqIr466GiZzOGGvs9rE3t70yWMlKTyaSU7FmMzY"; // test CHAMPION Parkrunners 
   var result = getRunnerIdsForGroup(testSsId);
   Logger.log("Resulting Array: " + JSON.stringify(result));
 }
