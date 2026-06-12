@@ -27,9 +27,13 @@
       <span>Menu Options</span>
       <button onclick="toggleMenu(false)"><i class="material-icons">close</i></button>
     </div>
+
     <nav class="flex-1 p-3 space-y-1">
       <button id="menu-setup" onclick="showScreen('setup'); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
         <i class="material-icons text-amber-500">person_add_alt</i> <span>User Profile Setting</span>
+      </button>
+      <button id="menu-group-request" onclick="triggerNewGroupMailRequest(); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
+        <i class="material-icons text-amber-600">group_add</i> <span>New Group request...</span>
       </button>
       <hr class="my-2 border-slate-200">
       <button onclick="showScreen('about'); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
