@@ -289,28 +289,32 @@
 
     function saveSetup() {
       const selectGroup = document.getElementById('setup-group');
-      if (selectGroup.selectedIndex === -1) { alert("Please select a valid group configuration."); return; }
-      
+      if (selectGroup.selectedIndex === -1) { alert("Please select a valid Group."); return; }
       const groupName = selectGroup.options[selectGroup.selectedIndex].text;
       const ssId = selectGroup.value;
-
       if (!isExistingMode) {
-        document.getElementById('status-badge').innerText = "Registering...";
-        
+        document.getElementById('status-badge').innerText = "Requesting...";
         google.script.run
           .withSuccessHandler(() => {
             const targetGroupObject = activeDirectory.find(g => g.ssId === ssId) || activeDirectory[0];
             const ownerEmail = targetGroupObject ? targetGroupObject.ownerEmail : "";
-            
-            const subject = encodeURIComponent(`CHArT5k: New Member Connection Request for ${groupName}`);
-            const emailBody = `Hi Admin,\n\nI am requesting registration access to join a group node.\n\nTarget Group Name: ${groupName}\nTarget SS ID: ${ssId}\nDevice tracking tag: ${devId}\n\nPlease add my profile details to the master ledger at your earliest convenience.\n\nBest regards,\nRunner (${devId})`;
-            
-            window.open(`mailto:${ownerEmail}?subject=${subject}&body=${encodeURIComponent(emailBody)}`, '_self');
-            
+            const subject = encodeURIComponent("CHArT5k: New Member  request within ("+groupName+")");
+            const emailBody = "Hello,\n\n"+
+              "I can confirm that I am a member of "+groupName+" that is listed on CHArT5k. "+
+              " My parkrun barcode is A??????? and my date of birth (for verification) is DD-MMM-YYYY.\n\n"+
+              "Please add me as a member (including my results) to this Group "+
+              " and grant me direct access to view my family/club charts for comparison "+
+              "as directed within this CHArT5k App, together with access to the latest results,"+
+              " rankings, etc. held for this Group.\n\n"+
+              "In addition, please allow me edit access that may allow me to add non-parkrun times to my results sheet, "+
+              "as well as being able to hide selective results that might otherwise distort my trend lines "+
+              "(such as when accompanying a slower runner or during recovery from injury).\n\n"+
+              "Thanks, <full name>\n\n(from device, "+devId+")";
+            window.open("mailto:"+ownerEmail+"?subject="+subject+"&body="+encodeURIComponent(emailBody), '_self');
             cachedProfile = { groupName: groupName, ssId: ssId, runnerId: "" };
             document.getElementById('menu-setup').classList.add('hidden');
             showScreen('trends');
-            document.getElementById('status-badge').innerText = "Approval Pending";
+            document.getElementById('status-badge').innerText = "New member pending";
           })
           .saveDeviceProfile(devId, groupName, ssId, "", "BLANK_NEW_MEMBER_MODE");
         return;
@@ -318,7 +322,6 @@
 
       const runnerId = document.getElementById('setup-id').value;
       if (!ssId || !runnerId) { alert("Selection parameter verification failed."); return; }
-
       document.getElementById('status-badge').innerText = "Mapping Profile...";
       google.script.run
         .withSuccessHandler(() => {
