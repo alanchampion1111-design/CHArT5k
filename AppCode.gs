@@ -353,7 +353,7 @@ function getDashboardRouting(ssIdKey, runnerId) {
       var groupSheet = ss.getSheetByName(localTabName);
       if (groupSheet) {
         var gData = groupSheet.getDataRange().getValues();
-        var gHeaders = gData[0];
+        var gHeaders = gData[1];  // Table header displaced by seed SS ID in B1
         
         var idxCName = gHeaders.indexOf(COL_GROUP.CHART_NAME);
         var idxTGid = gHeaders.indexOf(COL_GROUP.TARGET_GID);
@@ -361,7 +361,7 @@ function getDashboardRouting(ssIdKey, runnerId) {
         var idxRange = gHeaders.indexOf(COL_GROUP.CELL_RANGE);
         var idxRIds = gHeaders.indexOf(COL_GROUP.RUNNER_IDS);
         
-        for (var c = 1; c < gData.length; c++) {
+        for (var c = 2; c < gData.length; c++) {
           var name = gData[c][idxCName];
           var targetGid = gData[c][idxTGid];
           var sectionGroup = gData[c][idxPSheet];
@@ -399,5 +399,12 @@ function getDashboardRouting(ssIdKey, runnerId) {
 function debugRunnerLookup() {
   var testSsId = "1O7njlqIr466GiZzOGGvs9rE3t70yWMlKTyaSU7FmMzY"; // test CHAMPION Parkrunners 
   var result = getRunnerIdsForGroup(testSsId);
+  Logger.log("Resulting Array: " + JSON.stringify(result));
+}
+
+function debugDashboardRouting() {
+  var testSsId = "1O7njlqIr466GiZzOGGvs9rE3t70yWMlKTyaSU7FmMzY"; // test CHAMPION Parkrunners
+  var testRunnerId = 'Alan_13';
+  var result = getDashboardRouting(testSsId,testRunnerId);
   Logger.log("Resulting Array: " + JSON.stringify(result));
 }
