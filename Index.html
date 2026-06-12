@@ -55,21 +55,21 @@
     </section>
 
     <section id="screen-charts" class="app-screen space-y-4 hidden">
-      <h2 class="text-lg font-bold text-slate-700">Group Analytics Sheets</h2>
+      <h2 class="text-lg font-bold text-slate-700">Performance Charts</h2>
       <div id="charts-wrapper" class="space-y-4"></div>
     </section>
 
     <section id="screen-rankings" class="app-screen space-y-4 hidden">
-      <h2 class="text-lg font-bold text-slate-700">Club Standings & Leaderboards</h2>
+      <h2 class="text-lg font-bold text-slate-700">Members Rankings</h2>
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2">
         <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Latest  Results</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
         <button onclick="openLink('rankings.currentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Current Club Rankings</span><i class="material-icons text-amber-500">emoji_events</i>
+          <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">emoji_events</i>
         </button>
         <button onclick="openLink('rankings.bestEverUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Best-Ever Club Records</span><i class="material-icons text-amber-500">stars</i>
+          <span class="font-medium text-sm text-slate-700">Best-Ever Ranking</span><i class="material-icons text-amber-500">stars</i>
         </button>
       </div>
       <div class="mt-6 pt-4 border-t border-slate-200 text-center">
@@ -130,15 +130,18 @@
 
   <footer class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl z-40">
     <div class="max-w-md mx-auto flex justify-around items-center h-16">
-      <button id="nav-trends" onclick="showScreen('trends')" class="flex flex-col items-center justify-center w-full h-full text-amber-500 font-bold transition">
+      <button id="nav-trends" onclick="showScreen('trends')"
+          class="flex flex-col items-center justify-center w-full h-full text-amber-500 font-bold transition">
         <i class="material-icons">analytics</i>
         <span class="text-[10px] mt-0.5">My Trends</span>
       </button>
-      <button id="nav-charts" onclick="showScreen('charts')" class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
+      <button id="nav-charts" onclick="showScreen('charts')"
+          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
         <i class="material-icons">insert_chart</i>
-        <span class="text-[10px] mt-0.5">Charts</span>
+        <span id="nav-label-charts" class="text-[10px] mt-0.5">Charts</span>
       </button>
-      <button id="nav-rankings" onclick="showScreen('rankings')" class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
+      <button id="nav-rankings" onclick="showScreen('rankings')"
+          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
         <i class="material-icons">format_list_numbered</i>
         <span class="text-[10px] mt-0.5">Members Rankings</span>
       </button>
@@ -428,10 +431,11 @@
       if (runnerId) {
         if (labelTrends) labelTrends.innerText = "My Trends";
         if (btnTrends) btnTrends.classList.remove('hidden');
-        // Embed the Runner Id on the page button layout
-        const labelProgressBtn = document.getElementById('label-progress-chart');
-        if (labelProgressBtn) {
-          labelProgressBtn.innerText = "Open my Progress Chart (" + runnerId + ")";
+        const trendsBtnLabel = document
+        .getElementById('label-trends-btn');
+        if (trendsBtnLabel) {
+          trendsBtnLabel.innerText = "Open my Progress Chart ("+
+            runnerId +")";
         }
       } else { // Runner Id unknown or pending: Hide button
         if (btnTrends) btnTrends.classList.add('hidden');
@@ -439,7 +443,8 @@
 
       // 2. <Group Name> Charts & 3. Members Rankings
       if (ssId && groupName) {
-        if (labelCharts) labelCharts.innerText = groupName;
+        if (labelCharts)
+          labelCharts.innerText = groupName + " Charts";
         if (btnCharts) btnCharts.classList.remove('hidden');
         if (btnRankings) btnRankings.classList.remove('hidden');
       } else {  // No group set: Hide both buttons
