@@ -453,25 +453,7 @@
       }
     }
 
-    function fetchLiveRoutingPayload() {
-      if (!cachedProfile || !cachedProfile.runnerId) return;
-      google.script.run
-        .withSuccessHandler((routing) => {
-          runtimeRouting = routing;
-          const btnTrends = document.getElementById('btn-trends');
-          if (!routing.trendsUrl) {
-            btnTrends.className = "w-full bg-slate-200 text-slate-400 font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-not-allowed";
-            btnTrends.onclick = () => alert("Trends Sheet Link is unpopulated. Awaiting automated update sweep data.");
-          } else {
-            btnTrends.className = "w-full bg-amber-400 hover:bg-amber-500 active:scale-[0.98] transition font-bold py-3 px-4 rounded-xl text-slate-900 shadow flex items-center justify-center space-x-2";
-            btnTrends.onclick = () => openLink('trendsUrl');
-          }
-          renderCategorizedGroupCharts(routing.charts);
-        })
-        .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
-    }
-
-    function renderCategorizedGroupCharts(charts) {
+        function renderCategorizedGroupCharts(charts) {
       if (!charts) return;
       const wrapper = document.getElementById('charts-wrapper');
       wrapper.innerHTML = '';
@@ -503,6 +485,63 @@
         catDiv.appendChild(grid);
         wrapper.appendChild(catDiv);
       }
+    }
+
+    function fetchLiveRoutingPayload() {
+      if (!cachedProfile || !cachedProfile.runnerId) return;
+      
+      google.script.run
+        .withSuccessHandler((routing) => {
+          runtimeRouting = routing;
+          
+          // 0. Hide User Profile Setting after initial default setting
+          const screenProfile = document.getElementById('screen-profile-settings');
+          if (screenProfile) {
+            screenProfile.classList.add('hidden');
+          }
+          const screenCharts = document.getElementById('screen-charts');
+          if (screenCharts) {
+            screenCharts.classList.remove('hidden');
+          }
+
+          // 1. My Trends (left button) = omly after user profile set
+          const btnTrends = document.getElementById('btn-trends');
+          if (btnTrends) {
+            if (!routing.trendsUrl || routing.trendsUrl === "") {
+              btnTrends.className = "w-full bg-slate-200 text-slate-400 font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-not-allowed";
+              btnTrends.onclick = () => alert("Trends Sheet Link is unpopulated. Awaiting automated update sweep data.");
+            } else {
+              btnTrends.className = "w-full bg-amber-400 hover:bg-amber-500 active:scale-[0.98] transition font-bold py-3 px-4 rounded-xl text-slate-900 shadow flex items-center justify-center space-x-2";
+              // Pass the live variable string value directly to window.open
+              btnTrends.onclick = () => window.open(routing.trendsUrl, '_blank');
+            }
+          }
+
+          // 2. Performance Charts (middle button) + dynamic Group prefix 
+          const chartsNavBtn = document.getElementById('btn-nav-charts');
+          if (chartsNavBtn && cachedProfile.groupName) {
+            chartsNavBtn.innerHTML = `
+              <span class="block text-[10px] text-slate-400 tracking-wider">${cachedProfile.groupName}</span>
+              <span class="text-sm font-bold">Charts</span>
+            `;
+          }
+          if (routing && routing.charts) {
+            renderCategorizedGroupCharts(routing.charts);
+          }
+
+          // 3. Members Rankings (right buttonO) + Allow me access... 
+          if (routing && routing.rankings) {
+            const btnLatest = document.getElementById('btn-rankings-latest');
+            const btnCurrent = document.getElementById('btn-rankings-current');
+            const btnBest = document.getElementById('btn-rankings-best');
+
+            if (btnLatest) btnLatest.onclick = () => window.open(routing.rankings.latestUrl, '_blank');
+            if (btnCurrent) btnCurrent.onclick = () => window.open(routing.rankings.currentUrl, '_blank');
+            if (btnBest) btnBest.onclick = () => window.open(routing.rankings.bestEverUrl, '_blank');
+          }
+
+        })
+        .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
     }
 
     function cancelSetup() { showScreen('trends'); }
