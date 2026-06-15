@@ -1,18 +1,20 @@
 /* -------------------------------------------------------------------------------------
 /
-/ This is a client-end GoogleApp Script that resides within the Family Template
-/ Google Spreadsheet.  The scope here is limited to core synchronous functions 
-/ that are NOT dependent on GCR functions.  These wer developed as part of phase I
+/ This is a client-end Google App Script that resides within the Family Template
+/ Google Spreadsheet.  The scope here is limited to local synchronous  functions 
+/ that are NOT dependent on GCR functions.  These werw developed as part of phase I
 / although significantly upgraded as a consequence of later phases .
-/ The primary four entry-point functions that are bound to macros & keys are:
-/   1.  Protect results for each runner - SIMPLIFY to sheets only?
-/       (ProtectEachRunnerResultsSheets - Ctrl+Alt+Shift+3)
-/   2.  Generate charts from Groups
-/       (GenerateChartsFromGroups       - Ctrl+Alt+Shift+6)
-/ 	3.  Colour legends in Groups
-/       (ColourLegendsInGroups)
+/ The primary five entry-point functions that are bound to macros & keys are:
+/   1.  Protect results for each runner (simplified to latest results only)
+/       (ProtectEachRunnerResultsSheets - Ctrl+Alt+Shift+4)
+/ 	2.  Colour legends in Groups (distinct for all males and females)
+/       (ColourLegendsInGroups          - Ctrl+Alt+Shift+5)
+/   3.  Generate charts from Groups (executed now in 4 batches)
+/       (GenBatchChartsFromGroups       - Ctrl+Alt+Shift+6)
 /   4.  Append non-parkrun result
 /       (AppendNonParkrunResult)
+/   5.  Prepare App (for prototype and Web App, triggered after 3. Generate)
+/       (PrepareAppSheets)
 /---------------------------------------------------------------------------------------
  */
 
@@ -1319,7 +1321,7 @@ function GetOverview() {
  *    @param {string} runnerNameId - optional <first name>_<index>, e.g. Alan_13
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
-function GetPerfCharts(
+function GetPerformanceCharts(
   perfSheetNames = ['Age Groups','Leagues','Families','Gender'],
   runnerNameId)
   // runnerNameId ='Alan_13')   // for testing
@@ -1441,7 +1443,7 @@ function GetSpreadsheetShares() {
  *    @param {string} runnerNameId - <first name>_<index> (default test: Alan_2)
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
  */
-function GetTrendCharts(
+function GetMyTrendsCharts(
   runnerNameId)
   // runnerNameId ='Alan_13')   // for testing
 {
@@ -1496,13 +1498,14 @@ function GetTrendCharts(
 }
 
 /**
- * This prepares the overview (for rank tables) and the performance charts (via links) on a weekly basis
+ * This prepares the overview (for rank tables), individual trends charts (for each member)
+ * with access status), and the performance charts (for filtering links) on a weekly basis
  * after completed import AND after successful generation of all of the comparative charts.
  */
 function PrepareAppSheets() {
   GetOverview();
-  GetPerfCharts();
-  GetTrendCharts();
+  GetMyTrendsCharts();   // with access status
+  GetPerformanceCharts();
 }
 
 // Surplus extras may be useful
