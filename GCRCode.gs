@@ -3,22 +3,26 @@
 / This is the client-end GoogleApp Script that resides within the Family Template
 / Google Spreadsheet.  It complements the server side JavaScript index.js script sinc
 / dependent on those asynchronous GCR functions.
-/ It primarily consist of a series of five macro-based functions aimed at automating
+/ It primarily consist of a series of eight macro-based functions aimed at automating
 / the capture of results (Phase II) including positions (Phase III), and subsequently
 / automating the retro catch-up (Phase IV) and the automation of adding new members
 / (Phase V) as a pre0requisite for start-up of new families/clubs:
 /   1.  Import result for each runner     (Phase II & III positions)
-/       (ImportResultForEachRunner      - Ctrl+Alt+Shift+0) - weekly
-/   2.  Catch-up all positions            (Phase IV)
-/       (CatchUpAllPositions            - Ctrl+Alt+Shift+5)
-/   3.  Batch positions for runner        (Phase IV)    
+/       (ImportResultForEachRunner      - Ctrl+Alt+Shift+0) - triggered weekly
+/   2.  Import results on event date      (Phase V)
+/       (ImportResultsOnEventDate       - Ctrl+Alt+Shift+1) - as 1, on special days
+/   3.  Catch-up all positions            (Phase IV)
+/       (CatchUpAllPositions            - Ctrl+Alt+Shift+3)
+/   4.  Batch positions for runner        (Phase IV)    
 /       (BatchPositionsForRunner        - threading)
-/   4.  Add family (or club) member       (Phase V)
-/       (AddFamilyMember                - Ctrl+Alt+Shift+7)    
-/   5.  Spawn new family (or club)        (Phase V)
+/   5.  Add family (or club) member       (Phase V)
+/       (AddFamilyMember                - Ctrl+Alt+Shift+7)
+/   6.  Delete family (or club) member    (Phase V)
+/       (DeleteFamilyMember             - Ctrl+Alt+Shift+8)   
+/   7.  Spawn new family (or club)        (Phase V)
 /       (SpawnNewFamily                 - Ctrl+Alt+Shift+9)
-/   6.  Add first member                  (Phase V)
-/       (AddFirstMember                 - via library call)
+/   8.  Add first member                  (Phase V) - effected by 7. Spawn...
+/       (AddFirstMember)
 /
 /---------------------------------------------------------------------------------------
  */
