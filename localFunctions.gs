@@ -1228,7 +1228,7 @@ function ColourLegendsInGroups(
 function GetRelatedTabColor(
   nameIndex = 'Alan_13')
 {
-  let resultsSheet = activeSpreadsheet.getSheetByName(nameIndex);
+  let resultsSheet = lv.activeSpreadsheet.getSheetByName(nameIndex);
   const colour = resultsSheet.getTabColor();
   Logger.log('Colour: '+colour);
   return colour || "#ffffff"; // default if no color
@@ -1390,6 +1390,53 @@ function GetPerfCharts(
 }
 
 /**
+ * Returns the sharing role for a given email on the active Spreadsheet
+ * @param {string} email The email address to check
+ * @return {string} "Owner", "Editor", "Viewer", or "Blocked"
+ * @customfunction
+ */
+function getRole(
+  runnerNameId='Alan_13')
+{
+  const emailCOL = 4;  // column D of Runners sheet
+  let runnerIdx = Number(runnerNameId
+    .split("_")[1]);
+  let email = lv.allRunnersSheet      //  assume current SS
+    .getRange(lc.runnersStartROW+runnerIdx,emailCOL)
+    .getValue();
+  if (!email) return "Blocked";
+  const ssFile = lv.activeSpreadsheet;
+  if (ssFile.getOwner().getEmail() === email) return "Owner";
+  const editors = ssFile.getEditors().map(u => u.getEmail());
+  if (editors.includes(email)) return "Editor";
+  const viewers = ssFile.getViewers().map(u => u.getEmail());
+  if (viewers.includes(email)) return "Viewer"; // incl.  Commenter
+  return "Blocked";
+}
+
+function GetSpreadsheetShares() {
+  var ssFile = lv.activeSpreadsheet;
+  const owner = ssFile.getOwner();
+  const editors = ssFile.getEditors();
+  const viewers = ssFile.getViewers();
+  let output = [];
+  output.push(["Type", "Email"]);
+  output.push(["Owner", owner.getEmail()]);
+  editors.forEach(u => output.push(["Editor", u.getEmail()]));
+  viewers.forEach(u => output.push(["Viewer", u.getEmail()]));
+  output.push(["",""]);
+  const accessSheet = ssFile    // dump for easy summ,ary
+    .insertSheet("Sharing_List_" + new Date().toISOString().slice(0,10));
+  ssFile = DriveApp.getFileById(lv.activeSpreadsheetId);  // for more detail
+  const access = ssFile.getSharingAccess(); // PUBLIC, DOMAIN, PRIVATE
+  const permission = ssFile.getSharingPermission(); // VIEW, EDIT, NONE
+  output.push(["Link Sharing", access.toString()]),
+  output.push(["Permission", permission.toString()]);
+  accessSheet.getRange(1,1,output.length, 2).setValues(output);
+  Logger.log(output);
+}
+
+/**
  * This gets the results trend chart(s) from a runner's sheet.
  *    @param {string} runnerNameId - <first name>_<index> (default test: Alan_2)
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
@@ -1399,9 +1446,8 @@ function GetTrendCharts(
   // runnerNameId ='Alan_13')   // for testing
 {
   let runnerTrendCharts = {};
-  var trendsTable = [["Trends","=Overview!B$3",""]];    // SS Id to span 2 cells propagated into table
-  // trendsTable.push(["Runner Id","SS Id","Results Sheet","Results Id","Trend Id","Current Trend Id"]);
-  trendsTable.push(["Runner Id","SS Id","Results Gid"]);
+  var trendsTable = [["Trends","=Overview!B$3","",""]];    // SS Id to span 2 cells propagated into table
+  trendsTable.push(["Runner Id","SS Id","Results Gid","Shared"]);
   const runnersRANGE = lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN;
   let runnersNames = lv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
@@ -1411,7 +1457,8 @@ function GetTrendCharts(
     let runnerId = runnerName+"_"+index;
     let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerId);
     if (runnerResultsSheet) {
-      runnerResultsSheetId = runnerResultsSheet.getSheetId();
+      let runnerShared = getRole(runnerId);
+      let runnerResultsSheetId = runnerResultsSheet.getSheetId();
       let runnerResultsCharts = runnerResultsSheet.getCharts();
       runnerResultsCharts.forEach(trendChart => {
         let chartId = trendChart.getChartId();    // only one, but potentially more
@@ -1426,7 +1473,7 @@ function GetTrendCharts(
             sheetId: runnerResultsSheetId,
             range: chartRange};
         else {  // file all for import
-          trendsTable.push([runnerId,"=B$1",runnerResultsSheetId]);
+          trendsTable.push([runnerId,"=B$1",runnerResultsSheetId,runnerShared]);
         } 
       });
     }
@@ -1441,8 +1488,8 @@ function GetTrendCharts(
     Logger.log(csv);
     trendsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
     // chartsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
-    // let titleRange = chartsSheet.getRange(1,1,1,3);    // table header (below title) has 3 columns
-    // chartsSheet.getRange("B1:F1").merge(); 	// spreadsheet Id spans four columns
+    // let titleRange = chartsSheet.getRange(1,1,1,4);    // table header (below title) has 4 columns
+    // chartsSheet.getRange("B1:D1").merge(); 	// spreadsheet Id spans four columns
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
       .setValues(trendsTable);
   }
