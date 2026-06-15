@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------------------
 /
 / This is a client-end GoogleApp Script that resides within the Family Template
-/ Google Spreadsheet.  The scope here is limited to local synchronous  functions 
+/ Google Spreadsheet.  The scope here is limited to core synchronous functions 
 / that are NOT dependent on GCR functions.  These wer developed as part of phase I
 / although significantly upgraded as a consequence of later phases .
 / The primary four entry-point functions that are bound to macros & keys are:
