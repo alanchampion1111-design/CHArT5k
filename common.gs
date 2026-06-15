@@ -87,7 +87,7 @@ function onOpen() {
       'ColourLegendsInGroups')
     .addItem("Generate charts from Groups"+
       "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
-      'GenerateChartsFromGroups')
+      'GenBatchChartsFromGroups')
     .addSeparator()
     .addItem("Add family (or club) member"+
       "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
