@@ -29,10 +29,12 @@
     </div>
 
     <nav class="flex-1 p-3 space-y-1">
+      <!-- 'User Profile Setting'; initial default shown;
+          hidden after once-only user profile set -->
       <button id="menu-setup" onclick="showScreen('setup'); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
         <i class="material-icons text-amber-500">person_add_alt</i> <span>User Profile Setting</span>
       </button>
-      <button id="menu-group-request" onclick="triggerNewGroupMailRequest(); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
+      <button id="menu-group-request" onclick="triggerNewGroupRequest(); toggleMenu(false);" class="w-full flex items-center space-x-4 p-3 rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium">
         <i class="material-icons text-amber-600">group_add</i> <span>New Group request...</span>
       </button>
       <hr class="my-2 border-slate-200">
@@ -45,34 +47,24 @@
 
   <main class="flex-1 p-4 safe-bottom max-w-md mx-auto w-full">
     
-    <section id="screen-trends" class="app-screen space-y-4">
-      <h2 class="text-lg font-bold text-slate-700">My Runner Progress</h2>
+    <!-- My Trends screen: unreachable until after user profile fully set (Group + Runner Id) -->
+    <section id="screen-trends" class="app-screen space-y-4 hidden">
+      <h2 id='trends-runner-title' class="text-lg font-bold text-slate-700">My Trends</h2>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <button id="btn-trends" onclick="openLink('trendsUrl')" class="w-full bg-amber-400 hover:bg-amber-500 active:scale-[0.98] transition font-bold py-3 px-4 rounded-xl text-slate-900 shadow flex items-center justify-center space-x-2">
-          <i class="material-icons">trending_up</i> <span id="label-trends-btn">Open My Progress Chart</span>
+        <button id="btn-trends-overall" onclick="openLink(routing.trends.overallUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Progress Chart</span><i class="material-icons text-amber-500">trending_up</i>
+        </button>
+        <!-- Expect recent (past year?) to be hidden if only one chart found for this runner -->
+        <button id="btn-trends-recent" onclick="openLink(routing.trends.recentUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Current Trend</span><i class="material-icons text-amber-500">trending_up</i>
+        </button>
+        <button onclick="openLink(routing.trends.resultsUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Recent Results</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
       </div>
-    </section>
-
-    <section id="screen-charts" class="app-screen space-y-4 hidden">
-      <h2 class="text-lg font-bold text-slate-700">Performance Charts</h2>
-      <div id="charts-wrapper" class="space-y-4"></div>
-    </section>
-
-    <section id="screen-rankings" class="app-screen space-y-4 hidden">
-      <h2 class="text-lg font-bold text-slate-700">Members Rankings</h2>
-      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2">
-        <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Latest  Results</span><i class="material-icons text-amber-500">table_chart</i>
-        </button>
-        <button onclick="openLink('rankings.currentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">emoji_events</i>
-        </button>
-        <button onclick="openLink('rankings.bestEverUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Best-Ever Ranking</span><i class="material-icons text-amber-500">stars</i>
-        </button>
-      </div>
-      <div class="mt-6 pt-4 border-t border-slate-200 text-center">
+      <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
+          - applies universally across all 3 screens -->
+      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
         <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
           <i class="material-icons text-base">vpn_key</i>
           <span>Allow me access...</span>
@@ -80,37 +72,74 @@
       </div>
     </section>
 
+    <!-- <Group> Charts screen: unreachable until after user profile set (Group SS at least) -->
+    <section id="screen-charts" class="app-screen space-y-4 hidden">
+      <h2 id='charts-group-title' class="text-lg font-bold text-slate-700">Performance Charts</h2>
+      <div id="charts-wrapper" class="space-y-4"></div>
+      <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
+          - applies universally across all 3 screens -->
+      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
+        <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
+          <i class="material-icons text-base">vpn_key</i>
+          <span>Allow me access...</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 'Members Rankings' screen: unreachable until after user profile set (Group SS at least) -->
+    <section id="screen-rankings" class="app-screen space-y-4 hidden">
+      <h2 class="text-lg font-bold text-slate-700">Members Rankings</h2>
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2">
+        <button onclick="openLink(routing.rankings.latestUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Latest  Results</span><i class="material-icons text-amber-500">table_chart</i>
+        </button>
+        <button onclick="openLink(routing.rankings.currentUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">emoji_events</i>
+        </button>
+        <button onclick="openLink(routing.rankings.bestEverUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Best-Ever Ranking</span><i class="material-icons text-amber-500">stars</i>
+        </button>
+        <button onclick="openLink(routing.rankings.challengeUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Latest Challenge</span><i class="material-icons text-amber-500">table_chart</i>
+        </button>
+      </div>
+      <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
+          - applies universally across all 3 screens -->
+      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
+        <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
+          <i class="material-icons text-base">vpn_key</i>
+          <span>Allow me access...</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 'User Profile Setting' screen: default, unreachable AFTER user profile set (Group SS at least) -->
     <section id="screen-setup" class="app-screen space-y-4 hidden">
       <h2 class="text-lg font-bold text-slate-700">User Profile Setting</h2>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        
         <div class="flex border-b border-slate-100 pb-2 mb-2">
           <button id="toggle-existing" onclick="toggleSetupMode(true)" class="flex-1 text-center font-bold text-xs py-2 bg-amber-400 text-slate-900 rounded-lg">Existing member</button>
           <button id="toggle-custom" onclick="toggleSetupMode(false)" class="flex-1 text-center font-bold text-xs py-2 text-slate-400 rounded-lg">New member...</button>
         </div>
-
         <div class="space-y-2">
           <div id="info-user-setup" class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed italic"></div>
           <div>
-            <label class="block text-xs font-bold text-slate-500 capitalcase tracking-wider mb-1">Select Group</label>
+            <label class="block text-xs font-bold text-slate-500 tracking-wider mb-1">Select Group</label>
             <select id="setup-group" onchange="onGroupSelectionChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:border-amber-400 text-sm"></select>
           </div>
         </div>
-
         <div id="wrapper-existing-form" class="space-y-4 pt-2">
           <div class="space-y-2">
             <div id="info-runner-id-note" class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed italic"></div>
             <div>
-              <label class="block text-xs font-bold text-slate-500 capitalcase tracking-wider mb-1">Select Runner ID</label>
+              <label class="block text-xs font-bold text-slate-500 tracking-wider mb-1">Select Runner ID</label>
               <select id="setup-id" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 outline-none focus:border-amber-400 text-sm"></select>
             </div>
           </div>
         </div>
-
         <div id="wrapper-custom-form" class="space-y-4 hidden pt-2">
           <div id="info-member-request" class="text-xs text-blue-700 bg-blue-50/50 p-3 rounded-xl border border-blue-100 leading-relaxed italic"></div>
         </div>
-
         <div class="flex space-x-3 pt-2">
           <button id="btn-cancel-setup" onclick="cancelSetup()" class="flex-1 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl font-semibold text-slate-600 transition">Cancel</button>
           <button onclick="saveSetup()" class="flex-1 bg-amber-400 hover:bg-amber-500 py-3 rounded-xl font-bold text-slate-900 transition shadow">Apply Setting (on this device)</button>
@@ -118,6 +147,7 @@
       </div>
     </section>
 
+    <!-- Presented from menu option, 'About CHarT5k' -->
     <section id="screen-about" class="app-screen space-y-4 hidden">
       <h2 class="text-lg font-bold text-slate-700">About CHArT5k</h2>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3">
@@ -128,27 +158,104 @@
 
   </main>
 
+  <!-- Footer hides all three button until AFTER user profile set;
+      if Runner Id not set, left button remains hidden -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl z-40">
     <div class="max-w-md mx-auto flex justify-around items-center h-16">
       <button id="nav-trends" onclick="showScreen('trends')"
-          class="flex flex-col items-center justify-center w-full h-full text-amber-500 font-bold transition">
+          class="flex flex-col items-center justify-center w-full h-full text-amber-500 font-bold transition hidden">
         <i class="material-icons">analytics</i>
-        <span class="text-[10px] mt-0.5">My Trends</span>
+        <div class="flex flex-col items-center leading-none mt-0.5">
+          <span id='nav-trends-runner' class="text-[10px]">My</span>
+          <span class="text-[10px] mt-0.5">Trends</span>
+        </div>
       </button>
       <button id="nav-charts" onclick="showScreen('charts')"
-          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
+          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition hidden">
         <i class="material-icons">insert_chart</i>
-        <span id="nav-label-charts" class="text-[10px] mt-0.5">Charts</span>
+        <div class="flex flex-col items-center leading-none mt-0.5">
+          <span id="nav-charts-prefix" class="text-[10px] font-medium tracking-wide text-slate-400 block max-w-[65px] truncate text-center leading-none mb-0.5"></span>
+          <span class="text-[10px] mt-0.5">Charts</span>
+        </div>
       </button>
       <button id="nav-rankings" onclick="showScreen('rankings')"
-          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition">
+          class="flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition hidden">
         <i class="material-icons">format_list_numbered</i>
-        <span class="text-[10px] mt-0.5">Members Rankings</span>
+        <div class="flex flex-col items-center leading-none mt-0.5">
+          <span class="text-[10px]">Members</span>
+          <span class="text-[10px] mt-0.5">Rankings</span>
+        </div>
       </button>
     </div>
   </footer>
 
   <script>
+
+/*
+
+[ FRONT-END / Index.html ]                                  [ BACK-END / AppCode.gs ]
+==========================                                  =========================
+  DOMContentLoaded
+         │
+         ▼
+ 1. resolveDeviceFingerprint() 
+         │
+         ▼
+ 2. initializeApplicationData() [FE]
+         │
+   (Calls backend via script runner)
+         │
+         └──────────── google.script.run ─────────────────┐
+                                                        ▼
+                                                  3. doGet() ──► Renders base HTML
+                                                        │
+                                                        ▼
+                                                  4. initializeApplicationData(devId) [BE]
+                                                        ├── 1A: Scan Device Registry
+                                                        ├── 1B: Verify cachedProfile
+                                                        ├── 1C: Pull Active Directory Matrix
+                                                        └── 1D: Calc Access State Matrix
+                                                        │
+         ┌──────────── Async Response Return ─────────────┘
+         ▼
+ 5. Evaluate UI Pivot Point
+         │
+         ├───[ IF Profile Empty / Incomplete ]──► 6A. showScreen('setup')
+         │                                               │
+         │                                               ▼
+         │                                            toggleSetupMode(useExisting)
+         │                                               ├── Existing -> getRunnerIdsForGroup()
+         │                                               └── New Member -> triggerNewGroupRequest()
+         │
+         └───[ IF Profile Set & Verified ]──────► 6B. fetchLiveRoutingPayload()
+                                                         │
+                                                         ▼
+                                                      getDashboardRouting [BE]
+                                                         │ (Returns target URLs)
+                                                         ▼
+                                                      updateNavigationContext()
+                                                         └── Unhide & highlight footer tabs
+
+The presence of initializeApplicationData on both sides represents a Client-Server Handshake Pattern. They share a name because they represent the same phase of the application life cycle, but their inner responsibilities are entirely complementary:
+
+Attribute   Front-End                           Back-End
+            initializeApplicationData()         initializeApplicationData(devId)
+
+Location  ``Browser JavaScript context          Google Servers
+            (<script> block)                    (AppCode.gs)
+
+RoleThe     Conductor:                          The Source of Truth:
+            Sets up local UI,                   Validates the devId, 
+            kicks off network requests,         queries the spreadsheets, 
+            handles loading screens,            builds the payload object, 
+            and waits for answers.              and assesses security.
+
+Data Scope  Interacts with localStorage         Interacts directly with 
+            and toggles Tailwind utility        Google Sheets API 
+            styles (like .hidden).              and reads user registries.
+
+*/
+
     let devId = null;
     let isExistingMode = true;
     let cachedProfile = null;
@@ -159,11 +266,6 @@
     let memberRequestGuideCached = "";
     let runnerIdNoteCached = "";
 
-    window.addEventListener('DOMContentLoaded', () => {
-      resolveDeviceFingerprint();
-      initializeApplicationData();
-    });
-
     function resolveDeviceFingerprint() {
       devId = localStorage.getItem('chart5k_uuid');
       if (!devId) {
@@ -171,6 +273,11 @@
         localStorage.setItem('chart5k_uuid', devId);
       }
     }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      resolveDeviceFingerprint();
+      initializeApplicationData();
+    });
 
     function initializeApplicationData() {
       // Update the layout status container signaling active synchronization channels
@@ -345,11 +452,29 @@
         return;
       }
       const runnerId = document.getElementById('setup-id').value;
-      if (!ssId || !runnerId) { alert("Selection parameter verification failed."); return; }
-      document.getElementById('status-badge').innerText = "Mapping Profile...";
+      if (!ssId || !runnerId) {
+        alert("Selection parameter verification failed.");
+        return;
+      }
+      const applyBtn = document.querySelector("button[onclick='saveSetup()']");
+      if (applyBtn) applyBtn.disabled = true;
+      document.getElementById('status-badge').innerText = "Setting Profile...";
       google.script.run
-        .withSuccessHandler(() => {
-          cachedProfile = { groupName: groupName, ssId: ssId, runnerId: runnerId };
+        .withSuccessHandler(() => {   // check no matrix error at backend
+          if (!response || response.error) {
+            alert("Server sync failed: " + (response ? response.error : "Unknown Error"));
+            document.getElementById('status-badge').innerText = "Error";
+            if (applyBtn) applyBtn.disabled = false;
+            return;
+          }
+          cachedProfile = {
+            groupName: groupName,
+            ssId: ssId,
+            runnerId: runnerId,
+            resultsGid: response.resultsGid,
+            accessStatus: response.accessStatus // e.g. Granted if already shared
+          };
+          if (applyBtn) applyBtn.disabled = false;
           updateNavigationContext();
           document.getElementById('menu-setup').classList.add('hidden');
           fetchLiveRoutingPayload();
@@ -388,7 +513,7 @@
         "&body=" + encodeURIComponent(emailBody);
     }
 
-    function triggerNewGroupMailRequest() {
+    function triggerNewGroupRequest() {
       // 1. Get  Group owner or App owner (from template)
       const currentSsId = document.getElementById('setup-group')
         ? document.getElementById('setup-group').value
@@ -411,49 +536,54 @@
       window.location.href = mailtoUrl;
     }
 
-
     /**
      * Dynamically names and toggles navigation elements based on user profile state.
      */
     function updateNavigationContext() {
-      const btnTrends = document.getElementById('nav-btn-trends');
-      const labelTrends = document.getElementById('nav-label-trends');
-      const btnCharts = document.getElementById('nav-btn-charts');
-      const labelCharts = document.getElementById('nav-label-charts');
-      const btnRankings = document.getElementById('nav-btn-rankings');
       // Safely check if a profile is currently active/cached
       const hasProfile = (typeof cachedProfile !== 'undefined' && cachedProfile);
-      const groupName = hasProfile ? cachedProfile.groupName : "";
       const ssId = hasProfile ? cachedProfile.ssId : "";
+      const groupName = hasProfile ? cachedProfile.groupName : "";
       const runnerId = hasProfile ? cachedProfile.runnerId : "";
 
-      // 1. My Trends
-      if (runnerId) {
+      // 1. My Trends (appears if both Group SS and Runner Id known)
+      const btnTrends = document.getElementById('nav-btn-trends');
+      if (ssId && runnerId) {
+        const labelTrends = document.getElementById('nav-label-trends');
         if (labelTrends) labelTrends.innerText = "My Trends";
         if (btnTrends) btnTrends.classList.remove('hidden');
         const trendsBtnLabel = document
-        .getElementById('label-trends-btn');
+          .getElementById('label-trends-btn');
         if (trendsBtnLabel) {
-          trendsBtnLabel.innerText = "Open my Progress Chart ("+
+          trendsBtnLabel.innerText = "Progress Chart ("+
             runnerId +")";
         }
       } else { // Runner Id unknown or pending: Hide button
         if (btnTrends) btnTrends.classList.add('hidden');
       }
 
-      // 2. <Group Name> Charts & 3. Members Rankings
+      // 2. <Group Name> Charts (appears when Group SS known at least)
+      const btnCharts = document.getElementById('nav-btn-charts');
       if (ssId && groupName) {
+        const labelCharts = document.getElementById('nav-label-charts');
         if (labelCharts)
+          if (btnCharts) btnCharts.classList.remove('hidden');
           labelCharts.innerText = groupName + " Charts";
-        if (btnCharts) btnCharts.classList.remove('hidden');
-        if (btnRankings) btnRankings.classList.remove('hidden');
       } else {  // No group set: Hide both buttons
         if (btnCharts) btnCharts.classList.add('hidden');
+      }
+
+      // 3. Members Rankings (appears when Group SS known at least)
+      const btnRankings = document.getElementById('nav-btn-rankings');
+      if (ssId && groupName) {
+        const labelRankings = document.getElementById('nav-label-rankings');
+        if (btnRankings) btnRankings.classList.remove('hidden');
+      } else {  // No group set: Hide both buttons
         if (btnRankings) btnRankings.classList.add('hidden');
       }
     }
 
-        function renderCategorizedGroupCharts(charts) {
+    function renderDivisionalGroupsCharts(charts) {
       if (!charts) return;
       const wrapper = document.getElementById('charts-wrapper');
       wrapper.innerHTML = '';
@@ -466,7 +596,7 @@
       for (let categoryName in categories) {
         let catDiv = document.createElement('div');
         catDiv.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3";
-        catDiv.innerHTML = `<h3 class="text-xs font-bold text-slate-400 capitalcase tracking-wider border-b pb-1 border-slate-50">${categoryName}</h3>`;
+        catDiv.innerHTML = `<h3 class="text-xs font-bold text-slate-400 tracking-wider border-b pb-1 border-slate-50">${categoryName}</h3>`;
         let grid = document.createElement('div');
         grid.className = "grid grid-cols-2 gap-3";
 
@@ -504,7 +634,7 @@
             screenCharts.classList.remove('hidden');
           }
 
-          // 1. My Trends (left button) = omly after user profile set
+          // 1. My Trends (left button) => only after user profile set
           const btnTrends = document.getElementById('btn-trends');
           if (btnTrends) {
             if (!routing.trendsUrl || routing.trendsUrl === "") {
@@ -526,7 +656,7 @@
             `;
           }
           if (routing && routing.charts) {
-            renderCategorizedGroupCharts(routing.charts);
+            renderDivisionalGroupsCharts(routing.charts);
           }
 
           // 3. Members Rankings (right buttonO) + Allow me access... 
