@@ -190,6 +190,15 @@
   </footer>
 
   <script>
+    let devId = null;
+    let isExistingMode = true;
+    let cachedProfile = null;
+    let activeDirectory = [];
+    let runtimeRouting = null;
+
+    let userSetupGuideCached = "";
+    let memberRequestGuideCached = "";
+    let runnerIdNoteCached = "";
 
 /*
 
@@ -256,16 +265,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
 
 */
 
-    let devId = null;
-    let isExistingMode = true;
-    let cachedProfile = null;
-    let activeDirectory = [];
-    let runtimeRouting = null;
-
-    let userSetupGuideCached = "";
-    let memberRequestGuideCached = "";
-    let runnerIdNoteCached = "";
-
     function resolveDeviceFingerprint() {
       devId = localStorage.getItem('chart5k_uuid');
       if (!devId) {
@@ -319,15 +318,16 @@ Data Scope  Interacts with localStorage         Interacts directly with
           // 4. Verify identity matching tracking vectors to clear layout viewports
           if (response.cachedProfile) {
             // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
-            cachedProfile = response.cachedProfile;
+            cachedProfile = response.cachedProfile; // global inside the sandbox
+            window.myCache = cachedProfile; // truly global from F12 Console
             updateNavigationContext();
             const menuSetup = document.getElementById('menu-setup');
             if (menuSetup) menuSetup.classList.add('hidden');
             const initialStatus = cachedProfile.accessStatus || "Needed";
             syncAccessInterfaceState(initialStatus);
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
-            if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
-            onGroupSelectionChange(response.cachedProfile.runnerId);
+            if (selectGroup) selectGroup.value = cachedProfile.groupSsId;
+            onGroupSelectionChange(cachedProfile.runnerId);
             fetchLiveRoutingPayload();
             showScreen('trends'); 
             document.getElementById('status-badge').innerText = "Online";
@@ -731,6 +731,10 @@ Data Scope  Interacts with localStorage         Interacts directly with
         if (!btn) return;
         btn.className = b === screenId ? "flex flex-col items-center justify-center w-full h-full text-amber-500 font-bold transition" : "flex flex-col items-center justify-center w-full h-full text-slate-400 font-semibold transition";
       });
+    }
+
+    function routing(screenId) {    // synonomous as if routing global
+      showScreen(screenId);
     }
 
     function toggleMenu(open) {
