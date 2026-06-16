@@ -553,34 +553,33 @@ Data Scope  Interacts with localStorage         Interacts directly with
       const ssId = hasProfile ? cachedProfile.ssId : "";
       const groupName = hasProfile ? cachedProfile.groupName : "";
       const runnerId = hasProfile ? cachedProfile.runnerId : "";
-
+    
       // 1. My Trends (appears if both Group SS and Runner Id known)
       const btnTrends = document.getElementById('nav-btn-trends');
       if (ssId && runnerId) {
         const labelTrends = document.getElementById('nav-label-trends');
         if (labelTrends) labelTrends.innerText = "My Trends";
         if (btnTrends) btnTrends.classList.remove('hidden');
-        const trendsBtnLabel = document
-          .getElementById('label-trends-btn');
+        const trendsBtnLabel = document.getElementById('label-trends-btn');
         if (trendsBtnLabel) {
-          trendsBtnLabel.innerText = "Progress Chart ("+
-            runnerId +")";
+          trendsBtnLabel.innerText = "Progress Chart (" + runnerId + ")";
         }
       } else { // Runner Id unknown or pending: Hide button
         if (btnTrends) btnTrends.classList.add('hidden');
       }
-
+    
       // 2. <Group Name> Charts (appears when Group SS known at least)
       const btnCharts = document.getElementById('nav-btn-charts');
       if (ssId && groupName) {
         const labelCharts = document.getElementById('nav-label-charts');
-        if (labelCharts)
+        if (labelCharts) {
           if (btnCharts) btnCharts.classList.remove('hidden');
           labelCharts.innerText = groupName + " Charts";
+        }
       } else {  // No group set: Hide both buttons
         if (btnCharts) btnCharts.classList.add('hidden');
       }
-
+    
       // 3. Members Rankings (appears when Group SS known at least)
       const btnRankings = document.getElementById('nav-btn-rankings');
       if (ssId && groupName) {
@@ -590,7 +589,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
         if (btnRankings) btnRankings.classList.add('hidden');
       }
     }
-
+    
     function renderDivisionalGroupsCharts(charts) {
       if (!charts) return;
       const wrapper = document.getElementById('charts-wrapper');
