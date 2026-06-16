@@ -289,7 +289,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
             document.getElementById('status-badge').innerText = "Error";
             return; 
           }
-          
+
           // 1. Unpack and cache the header notes and fallback preambles from the server
           userSetupGuideCached = response.userSetupGuideCached || "";
           memberRequestGuideCached = response.memberRequestGuideCached || "";
@@ -460,13 +460,14 @@ Data Scope  Interacts with localStorage         Interacts directly with
       if (applyBtn) applyBtn.disabled = true;
       document.getElementById('status-badge').innerText = "Setting Profile...";
       google.script.run
-        .withSuccessHandler((payload) => {  // explicit instead of default (response)
+        .withSuccessHandler((payload) => {  // explicit response variable
           if (!payload || payload.error) {
-            alert("Configuration sync failed: " + (payload ? payload.error : "Empty server response"));
+            alert("Configuration sync failed: " +
+              (payload ? payload.error : "Empty server response"));
             document.getElementById('status-badge').innerText = "Error";
             return;
           }
-          activeDirectory = payload.activeDirectory || [];    // aligned to local state
+          activeDirectory = payload.activeDirectory || [];  // aligned to local state
           cachedProfile = {
             groupName: groupName,
             ssId: ssId,
@@ -676,6 +677,44 @@ Data Scope  Interacts with localStorage         Interacts directly with
 
     function cancelSetup() { showScreen('trends'); }
 
+    /**
+     * Synchronizes the visual state of the application interface 
+     * based on the global Access Matrix status string.
+     * @param {string} accessStatus - "Needed", "Requested", or "Granted"
+     */
+    function syncAccessInterfaceState(accessStatus) {
+      const currentStatus = accessStatus || "Needed";
+      
+      // 1. Target all instances of the common screen wrappers simultaneously
+      const statusDrawers = document.querySelectorAll('.access-status-drawer');
+      const accessBtn = document.getElementById('access-request-btn');
+      // const menuSetup = document.getElementById('menu-setup');
+
+      // 2. Execute the Tri-State Drawer & Button Rules Mapping
+      switch (currentStatus) {
+        case "Needed":  // show key for user to request access (by email)
+          statusDrawers.forEach(drawer => drawer.classList.remove('hidden'));
+          if (accessBtn) {
+            accessBtn.disabled = false;
+            accessBtn.innerText = "Allow me access...";
+          }
+          break;
+        case "Requested": // inactive key, pending Group owner action + pull
+          statusDrawers.forEach(drawer => drawer.classList.remove('hidden'));
+          if (accessBtn) {  
+            accessBtn.disabled = true;
+            accessBtn.innerText = "Access pending...";
+          }
+          break;
+        case "Granted": // Hide the key completely and simultaneously!
+          statusDrawers.forEach(drawer => drawer.classList.add('hidden'));
+          // if (menuSetup) menuSetup.classList.add('hidden'); // already hidden?
+          break;         
+        default:
+          console.warn("Unknown Access State encountered: " + currentStatus);
+      }
+    }
+    
     function showScreen(screenId) {
       document.querySelectorAll('.app-screen').forEach(s => s.classList.add('hidden'));
       const activeSection = document.getElementById(`screen-${screenId}`);
