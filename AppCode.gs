@@ -7,7 +7,7 @@ const TABLES = {
   MASTER: "CHArT5k",      // contains list of Groups with summary extracts
   DEVICES: "Devices",     // ALL App users' settings locked to their device
   MEMBERS: "Results Gids" // composite of members' results across ALL Groups
-  // A table also exist per group; hnce COL_GROUP below
+  // A table also exists per named group; hence COL_GROUP below
 };
 
 /**
@@ -24,9 +24,10 @@ const COL_MASTER = {
   RUNNERS_GID: "Runners Gid", // links to Group's Runners details sheet,
   LATEST_GID: "Latest Gid",   // ...latest results presented after weekly import,
   RANKINGS_GID: "Rankings Gid",     // e.g. current ranking used for League divisions
-  CHALLENGES_GID: "Challenges Gid"  // ordered results from planned event (same venue?)
-  // Other columns include generated latest/current/ranking table links,
-  //     the number of imported members, and the parkrun Group No. (if it exists)
+  CHALLENGES_GID: "Challenges Gid", // ordered results from planned event (same venue?)
+  COUNT: "#",                       // Number of members imported
+  GROUP_ID: "Parkrun Group No."     // optional (if it exists?)
+  // Other virtual columns include generated latest/current/ranking table links
 };
 
 /**
@@ -39,9 +40,9 @@ const COL_GROUP = {
   PERF_SHEET: "Perf Sheet",       // categorised under Age Groups, Leagues, etc. 
   CELL_RANGE: "Range",            // used to direct App user to a location on the sheet
   CHART_ID: "Chart Id",           // for highlighting App user line? (or for copying)
+  COUNT: "#",                     // Count of no. of runners listed on chart
   RUNNERS_IDS: "Runners Ids"      // list of Runner Ids within the chart division
-  // Other columns include the generated chart link,
-  //     and the Chart Id in case it needs copied and tailored per user
+  // Other virtual columns include the generated chart link
 };
 
 /**
@@ -51,28 +52,33 @@ const COL_GROUP = {
 const COL_MEMBER = {
   RUNNER_ID: "Runner Id",     // A: Runner Id,only unique per Group (SS Id)
   SS_ID: "SS Id",             // B: composite set covers all Groups (SS Id 
-  RESULTS_GID: "Results Gid"  // C: automatic from Runner Id (as sheet name) in SS Id
+  RESULTS_GID: "Results Gid", // C: automatic from Runner Id (as sheet name) in SS Id
+  SHARED: "Shared"            // D: Viewer/Commenter/Editor with Google-valid email address
 };
 
 /**
  * Devices Table Headers (subset for ALL App users' profile settings)
  */
-const COL_DEVICE = {
+const COL_DEVICE = {          // row only exists per actual App user
   TIMESTAMP: "Timestamp",     // A: when user first used (introduced for Web App)
   DEVICE_ID: "Device Id",     // B: device locked to App user's settings
   GROUP_NAME: "Spreadsheet",  // C: user-selected Group (with extended guide in Note)
   SS_ID: "SS Id",             // D: automatic ref from selected Group (used for linking)
   RUNNER_ID: "Runner Id",     // E: user-selected Identity (with extended guide in Note)
-  RESULTS_GID: "Results Gid"  // F: automatic from Runner Id (as sheet name) in SS Id
+  RESULTS_GID: "Results Gid", // F: automatic from Runner Id (as sheet name) in SS Id
+  STATUS: "Access"            // G: Needed (default), Requested (share pending) or Granted (if Shared)
 };
 
 /**
- * Target Cell Display Viewport Coordinate Constants
+ * Target Table/Chart Cell Location
  */
 const VIEWPORTS = {
-  TRENDS: "N2",             // trend chart location within each runner's results sheet
+  TRENDS_OVERALL: "N2",     // trend chart location fixed within each runner's results sheet
+  TRENDS_RECENT: "N22",     // trend chart below, focussed on past year (if one exists)
+  TRENDS_RESULTS: "A9999",  // skip to bottom of runner's results sheet (for latest results)
   RANKINGS_CURRENT: "A8",   // current age-graded table in Rankings sheet location
-  RANKINGS_BEST: "A111"     // best-ever age-graded table in Rankings sheet location
+  RANKINGS_BEST: "A111",    // best-ever age-graded table (based on max  100 runners in Rankings)
+  CHALLENGES_LATEST: "ZZ1"  // skip to far right of Challenges sheet (for the latest challenge)
 };
 
 /**
@@ -259,34 +265,69 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
     var timestamp = new Date();
     
     if (cleanRunnerId && resultsGidMode === "AUTO_LOOKUP_GID") {
-      var lookupSheet = ss.getSheetByName(TABLES.RUNNERS);
+      var lookupSheet = ss.getSheetByName(TABLES.MEMBERS);
       if (lookupSheet) {
         var lData = lookupSheet.getDataRange().getValues();
+        var mHeaders = lData[0]; // First row contains text header values
+        var idxMemberRunnerId = mHeaders.indexOf(COL_MEMBER.RUNNER_ID);
+        var idxMemberSsId     = mHeaders.indexOf(COL_MEMBER.SS_ID);
+        var idxMemberGid      = mHeaders.indexOf(COL_MEMBER.RESULTS_GID);
+        var idxMemberShared   = mHeaders.indexOf(COL_MEMBER.SHARED);
         for (var i = 1; i < lData.length; i++) {
-          if (lData[i][0].toString().trim() == cleanRunnerId && lData[i][1].toString().trim() == ssId) {
-            resultsGid = lData[i][2]; 
+          if (lData[i][idxMemberRunnerId].toString().trim() == cleanRunnerId && 
+              lData[i][idxMemberSsId].toString().trim() == ssId) {
+            resultsGid = lData[i][idxMemberGid]; 
+            var sharedRole = lData[i][idxMemberShared]
+              ? lData[i][idxMemberShared].toString().trim()
+              : "";
+            // Execute the Access Matrix conversion rules
+            if (sharedRole === "Blocked")
+              accessStatus = "Needed";
+            else if (sharedRole === "Editor" ||
+                    sharedRole === "Viewer" ||
+                    sharedRole === "Owner")
+              accessStatus = "Granted";
+            // else
+              // accessStatus = "Requested";
             break;
           }
         }
       }
     }
-
-    var data = sheet.getDataRange().getValues();
+    var dData = sheet.getDataRange().getValues();
+    var dHeaders = dData[0]; // Devices header row array
+    var idxDevTimestamp = dHeaders.indexOf(COL_DEVICE.TIMESTAMP);
+    var idxDevId        = dHeaders.indexOf(COL_DEVICE.DEVICE_ID);
+    var idxDevGroup     = dHeaders.indexOf(COL_DEVICE.GROUP_NAME);
+    var idxDevSsId      = dHeaders.indexOf(COL_DEVICE.SS_ID);
+    var idxDevRunnerId  = dHeaders.indexOf(COL_DEVICE.RUNNER_ID);
+    var idxDevGid       = dHeaders.indexOf(COL_DEVICE.RESULTS_GID);
+    var idxDevStatus    = dHeaders.indexOf(COL_DEVICE.STATUS);
     var matchedRow = -1;
-    for (var d = 1; d < data.length; d++) {
-      if (data[d][1] && data[d][1].toString() === deviceId.toString()) {
+    for (var d = 1; d < dData.length; d++) {
+      if (dData[d][idxDevId] &&
+          dData[d][idxDevId].toString() === deviceId.toString()) {
         matchedRow = d + 1;
         break;
       }
     }
-
+    var deviceRowPayload = [];
+    deviceRowPayload[idxDevTimestamp] = timestamp;
+    deviceRowPayload[idxDevId]        = deviceId;
+    deviceRowPayload[idxDevGroup]     = groupName;
+    deviceRowPayload[idxDevSsId]      = ssId;
+    deviceRowPayload[idxDevRunnerId]  = cleanRunnerId;
+    deviceRowPayload[idxDevGid]       = resultsGid;
+    deviceRowPayload[idxDevStatus]    = accessStatus;
     if (matchedRow > -1) {
-      sheet.getRange(matchedRow, 1, 1, 6).setValues([[timestamp, deviceId, groupName, ssId, cleanRunnerId, resultsGid]]);
+      sheet.getRange(matchedRow,1,1,deviceRowPayload.length)
+        .setValues([deviceRowPayload]);
     } else {
-      sheet.appendRow([timestamp, deviceId, groupName, ssId, cleanRunnerId, resultsGid]);
+      sheet.appendRow(deviceRowPayload);
     }
-    
-    return { success: true, message: "Profile synchronized locally." };
+    return {success: true,
+            message: "Profile synchronised locally."
+           };
     
   } catch (e) {
     return { error: e.toString() };
@@ -305,25 +346,9 @@ function getDashboardRouting(ssIdKey, runnerId) {
     
     var idxMasterSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
     var idxMasterGroup = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
-    var idxLatestGid = mHeaders.indexOf(COL_MASTER.LATEST_GID);
-    var idxRankingsGid = mHeaders.indexOf(COL_MASTER.RANKINGS_GID);
-
-    var rankingsData = {};
     var localTabName = "";
-    
-    for (var i = 1; i < mData.length; i++) {
-      if (mData[i][idxMasterSsId] === ssIdKey) {
-        localTabName = mData[i][idxMasterGroup];
-        rankingsData = {
-          latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxLatestGid],
-          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT,
-          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST
-        };
-        break;
-      }
-    }
 
-    var trendsUrl = "";
+    var trendsList = {};
     if (runnerId) {
       var devicesSheet = ss.getSheetByName(TABLES.DEVICES);
       var dData = devicesSheet.getDataRange().getValues();
@@ -338,7 +363,11 @@ function getDashboardRouting(ssIdKey, runnerId) {
           if (dData[d][idxSsId] == ssIdKey && dData[d][idxRunnerId] == runnerId) {
             var savedGid = dData[d][idxResultsGid];
             if (savedGid) {
-              trendsUrl = "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS;
+              trendsList = {
+                overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL,
+                recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT,
+                resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RESULTS
+              };
             }
             break;
           }
@@ -348,34 +377,30 @@ function getDashboardRouting(ssIdKey, runnerId) {
       }
     }
 
-    var chartsList = [];
+    var chartsDivLists = [];
     if (localTabName) {
       var groupSheet = ss.getSheetByName(localTabName);
       if (groupSheet) {
         var gData = groupSheet.getDataRange().getValues();
         var gHeaders = gData[1];  // Table header displaced by seed SS ID in B1
-        
         var idxCName = gHeaders.indexOf(COL_GROUP.CHART_NAME);
         var idxTGid = gHeaders.indexOf(COL_GROUP.TARGET_GID);
         var idxPSheet = gHeaders.indexOf(COL_GROUP.PERF_SHEET);
         var idxRange = gHeaders.indexOf(COL_GROUP.CELL_RANGE);
         var idxRIds = gHeaders.indexOf(COL_GROUP.RUNNER_IDS);
-        
         for (var c = 2; c < gData.length; c++) {
           var name = gData[c][idxCName];
           var targetGid = gData[c][idxTGid];
           var sectionGroup = gData[c][idxPSheet];
           var cellRange = gData[c][idxRange];
           var rawRunnerIdsList = gData[c][idxRIds] ? gData[c][idxRIds].toString() : "";
-          
           var showLinkIcon = false;
           if (runnerId) {
             var escapedRunnerId = runnerId.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
             var regex = new RegExp("(^|\\|)" + escapedRunnerId + "(\\||$)");
             showLinkIcon = regex.test(rawRunnerIdsList);
           }
-
-          chartsList.push({
+          chartsDivLists.push({
             name: name,
             grouping: sectionGroup,
             showLink: showLinkIcon,
@@ -385,10 +410,27 @@ function getDashboardRouting(ssIdKey, runnerId) {
       }
     }
 
+    var idxLatestGid = mHeaders.indexOf(COL_MASTER.LATEST_GID);
+    var idxRankingsGid = mHeaders.indexOf(COL_MASTER.RANKINGS_GID);
+    var idxChallengesGid = mHeaders.indexOf(COL_MASTER.CHALLENGES_GID);
+    var rankingsList = {};
+    for (var i = 1; i < mData.length; i++) {
+      if (mData[i][idxMasterSsId] === ssIdKey) {
+        localTabName = mData[i][idxMasterGroup];
+        rankingsList = {
+          latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxLatestGid],
+          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT,
+          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST,
+          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxChallengesGid] + "&range=" + VIEWPORTS.CHALLENGES_LATEST
+        };
+        break;
+      }
+    }
+
     return {
-      trendsUrl: trendsUrl,
-      rankings: rankingsData,
-      charts: chartsList
+      trends: trendsList,      // Screen 1 (Left Table)  -> 3 items
+      charts: chartsDivLists,  // Screen 2 (Middle Tab)  -> Filtered by division (e.g. Age Groups)
+      rankings: rankingsList   // Screen 3 (Right Table) -> 4 items
     };
 
   } catch (e) {
@@ -405,6 +447,6 @@ function debugRunnerLookup() {
 function debugDashboardRouting() {
   var testSsId = "1O7njlqIr466GiZzOGGvs9rE3t70yWMlKTyaSU7FmMzY"; // test CHAMPION Parkrunners
   var testRunnerId = 'Alan_13';
-  var result = getDashboardRouting(testSsId,testRunnerId);
-  Logger.log("Resulting Array: " + JSON.stringify(result));
+  var routing = getDashboardRouting(testSsId,testRunnerId);
+  Logger.log("Resulting Array: " + JSON.stringify(routing));
 }
