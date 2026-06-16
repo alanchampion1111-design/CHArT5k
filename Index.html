@@ -460,23 +460,23 @@ Data Scope  Interacts with localStorage         Interacts directly with
       if (applyBtn) applyBtn.disabled = true;
       document.getElementById('status-badge').innerText = "Setting Profile...";
       google.script.run
-        .withSuccessHandler(() => {   // check no matrix error at backend
-          if (!response || response.error) {
-            alert("Server sync failed: " + (response ? response.error : "Unknown Error"));
+        .withSuccessHandler((payload) => {  // explicit instead of default (response)
+          if (!payload || payload.error) {
+            alert("Configuration sync failed: " + (payload ? payload.error : "Empty server response"));
             document.getElementById('status-badge').innerText = "Error";
-            if (applyBtn) applyBtn.disabled = false;
             return;
           }
+          activeDirectory = payload.activeDirectory || [];    // aligned to local state
           cachedProfile = {
             groupName: groupName,
             ssId: ssId,
             runnerId: runnerId,
-            resultsGid: response.resultsGid,
-            accessStatus: response.accessStatus // e.g. Granted if already shared
+            resultsGid: payload.resultsGid !== undefined ? payload.resultsGid : "",
+            accessStatus: payload.accessStatus || "Requested"    // e.g. Granted if already 
           };
-          if (applyBtn) applyBtn.disabled = false;
           updateNavigationContext();
-          document.getElementById('menu-setup').classList.add('hidden');
+          const menuSetupBtn = document.getElementById('menu-setup');
+          if (menuSetupBtn) menuSetupBtn.classList.add('hidden');
           fetchLiveRoutingPayload();
           showScreen('trends');
           document.getElementById('status-badge').innerText = "Online";
