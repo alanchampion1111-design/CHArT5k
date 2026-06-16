@@ -321,24 +321,31 @@ Data Scope  Interacts with localStorage         Interacts directly with
             // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
             cachedProfile = response.cachedProfile;
             updateNavigationContext();
+            const menuSetup = document.getElementById('menu-setup');
+            if (menuSetup) menuSetup.classList.add('hidden');
+            const initialStatus = cachedProfile.accessStatus || "Needed";
+            syncAccessInterfaceState(initialStatus);
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
             if (selectGroup) selectGroup.value = response.cachedProfile.groupSsId;
             onGroupSelectionChange(response.cachedProfile.runnerId);
             fetchLiveRoutingPayload();
-            showScreen('trends'); // Navigates straight to My Trends view
+            showScreen('trends'); 
             document.getElementById('status-badge').innerText = "Online";
           } else {
             // Unknown Device: Lock down cancel button, present default user profile setups
             cachedProfile = null;
             updateNavigationContext();
-            document.getElementById('btn-cancel-setup').classList.add('hidden');;
+            const menuSetup = document.getElementById('menu-setup');
+            if (menuSetup) menuSetup.classList.remove('hidden');
+            syncAccessInterfaceState("Needed");
+            document.getElementById('btn-cancel-setup').classList.add('hidden');
             document.getElementById('info-user-setup').innerText = userSetupGuideCached;
             document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
             // Populate the secondary runner selections for the initially selected pull-down option
             if (selectGroup && selectGroup.value) {
               onGroupSelectionChange();
             }
-            showScreen('setup'); // Force route user straight to Profile Setup screen
+            showScreen('setup');  // Force route user straight to Profile Setup screen
             document.getElementById('status-badge').innerText = "Setup Required";
           }
         })
