@@ -51,14 +51,14 @@
     <section id="screen-trends" class="app-screen space-y-4 hidden">
       <h2 id='trends-runner-title' class="text-lg font-bold text-slate-700">My Trends</h2>
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <button id="btn-trends-overall" onclick="openLink(routing.trends.overallUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button id="btn-trends-overall" onclick="openLink('trends.overallUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Progress Chart</span><i class="material-icons text-amber-500">trending_up</i>
         </button>
         <!-- Expect recent (past year?) to be hidden if only one chart found for this runner -->
-        <button id="btn-trends-recent" onclick="openLink(routing.trends.recentUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button id="btn-trends-recent" onclick="openLink('trends.recentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Current Trend</span><i class="material-icons text-amber-500">trending_up</i>
         </button>
-        <button onclick="openLink(routing.trends.resultsUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button id="btn-trends-results" onclick="openLink('trends.resultsUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Recent Results</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
       </div>
@@ -90,16 +90,16 @@
     <section id="screen-rankings" class="app-screen space-y-4 hidden">
       <h2 class="text-lg font-bold text-slate-700">Members Rankings</h2>
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2">
-        <button onclick="openLink(routing.rankings.latestUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Latest  Results</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
-        <button onclick="openLink(routing.rankings.currentUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button onclick="openLink('rankings.currentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">emoji_events</i>
         </button>
-        <button onclick="openLink(routing.rankings.bestEverUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button onclick="openLink('rankings.bestEverUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Best-Ever Ranking</span><i class="material-icons text-amber-500">stars</i>
         </button>
-        <button onclick="openLink(routing.rankings.challengeUrl)" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <button onclick="openLink('rankings.challengeUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Latest Challenge</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
       </div>
@@ -195,10 +195,12 @@
     let cachedProfile = null;
     let activeDirectory = [];
     let runtimeRouting = null;
-
     let userSetupGuideCached = "";
     let memberRequestGuideCached = "";
     let runnerIdNoteCached = "";
+    const openTAB = 'GroupSSTab';   // via openLink function
+    const fastTAB = 'SharedSSTab';  // for window.open
+    const mailTAB = 'RequestTab';   // for mailto:
 
 /*
 
@@ -253,7 +255,7 @@ Attribute   Front-End                           Back-End
 Location  ``Browser JavaScript context          Google Servers
             (<script> block)                    (AppCode.gs)
 
-RoleThe     Conductor:                          The Source of Truth:
+Role  	    The Conductor:                      The Source of Truth:
             Sets up local UI,                   Validates the devId, 
             kicks off network requests,         queries the spreadsheets, 
             handles loading screens,            builds the payload object, 
@@ -264,6 +266,23 @@ Data Scope  Interacts with localStorage         Interacts directly with
             styles (like .hidden).              and reads user registries.
 
 */
+    function openLinkOrig(objectPath) {
+      if (!runtimeRouting) return;
+      const url = objectPath.split('.').reduce((o, i) => o[i], runtimeRouting);
+      if (url) window.open(url, 'sharedSSTab');
+    }
+    function openLink(objectPath) {
+      if (!runtimeRouting) {
+        console.warn("Route not mapped for: ",objectPath);
+        return;
+      }
+      const url = objectPath.split('.').reduce((o, i) => o
+        ? o[i]
+        : undefined,
+        runtimeRouting);
+      if (url) window.open(url,openTAB);
+      else console.warn("Click failed for: ",objectPath);
+    }
 
     function resolveDeviceFingerprint() {
       devId = localStorage.getItem('chart5k_uuid');
@@ -288,6 +307,9 @@ Data Scope  Interacts with localStorage         Interacts directly with
             document.getElementById('status-badge').innerText = "Error";
             return; 
           }
+          console.log("=== initializeApplicationData ===");
+          console.log("CachedProfile (On Arrival):",
+            JSON.parse(JSON.stringify(cachedProfile)));
 
           // 1. Unpack and cache the header notes and fallback preambles from the server
           userSetupGuideCached = response.userSetupGuideCached || "";
@@ -326,7 +348,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
             const initialStatus = cachedProfile.accessStatus || "Needed";
             syncAccessInterfaceState(initialStatus);
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
-            if (selectGroup) selectGroup.value = cachedProfile.groupSsId;
+            if (selectGroup) selectGroup.value = cachedProfile.ssId;
             onGroupSelectionChange(cachedProfile.runnerId);
             fetchLiveRoutingPayload();
             showScreen('trends'); 
@@ -348,6 +370,9 @@ Data Scope  Interacts with localStorage         Interacts directly with
             showScreen('setup');  // Force route user straight to Profile Setup screen
             document.getElementById('status-badge').innerText = "Setup Required";
           }
+          console.log("=== initializeApplicationData ===");
+          console.log("CachedProfile (On completion):",
+            JSON.parse(JSON.stringify(cachedProfile)));
         })
         .initializeApplicationData(devId);
     }
@@ -355,7 +380,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
     function onGroupSelectionChange(presetRunnerId = null) {
       const selectedSsId = document.getElementById('setup-group').value;
       if (!selectedSsId) return;
-
       google.script.run
         .withSuccessHandler((runnerIdsList) => {
           const selectId = document.getElementById('setup-id');
@@ -448,7 +472,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
               " and grant me direct access to view my family/club charts and members rankings within this Group.\n\n"+
               "Thanks, <full name>\n\n(from device, "+devId+")";
             window.open("mailto:"+ownerEmail+"?subject="+subject+
-              "&body="+encodeURIComponent(emailBody), '_self');
+              "&body="+encodeURIComponent(emailBody), mailTAB);
             cachedProfile = {groupName:groupName,ssId:ssId,runnerId: "" };
             updateNavigationContext();
             document.getElementById('menu-setup').classList.add('hidden');
@@ -480,6 +504,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
             ssId: ssId,
             runnerId: runnerId,
             resultsGid: payload.resultsGid !== undefined ? payload.resultsGid : "",
+            numRuns: payload.numRuns !== undefined ? payload.numRuns : 0,
             accessStatus: payload.accessStatus || "Requested"    // e.g. Granted if already 
           };
           updateNavigationContext();
@@ -488,6 +513,9 @@ Data Scope  Interacts with localStorage         Interacts directly with
           fetchLiveRoutingPayload();
           showScreen('trends');
           document.getElementById('status-badge').innerText = "Online";
+          console.log("=== saveSetUp ===");
+          console.log("CachedProfile (after Existing Member):",
+            JSON.parse(JSON.stringify(cachedProfile)));
         })
         .saveDeviceProfile(devId, groupName, ssId, runnerId, "AUTO_LOOKUP_GID");
     }
@@ -516,9 +544,10 @@ Data Scope  Interacts with localStorage         Interacts directly with
         "as well as being able to hide selective results that might otherwise distort my trends "+
         "(such as when accompanying a slower runner or during recovery from injury).\n\n"+
         "Thanks, <full name>\n\n";
-      window.location.href = "mailto:" + targetEmail + 
+      const mailtoUrl = "mailto:" + targetEmail + 
         "?subject=" + encodeURIComponent(subjectText) + 
         "&body=" + encodeURIComponent(emailBody);
+      window.open(mailtoUrl,mailTAB);
     }
 
     function triggerNewGroupRequest() {
@@ -541,7 +570,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
       const mailtoUrl = "mailto:" + targetEmail + 
         "?subject=" + encodeURIComponent(subjectText) + 
         "&body=" + encodeURIComponent(emailBody);             
-      window.location.href = mailtoUrl;
+      window.open(mailtoUrl, mailTAB);
     }
 
     /**
@@ -558,11 +587,9 @@ Data Scope  Interacts with localStorage         Interacts directly with
       const btnTrends = document.getElementById('nav-btn-trends');
       if (ssId && runnerId) {
         const labelTrends = document.getElementById('nav-label-trends');
-        if (labelTrends) labelTrends.innerText = "My Trends";
-        if (btnTrends) btnTrends.classList.remove('hidden');
-        const trendsBtnLabel = document.getElementById('label-trends-btn');
-        if (trendsBtnLabel) {
-          trendsBtnLabel.innerText = "Progress Chart (" + runnerId + ")";
+         if (labelTrends) {
+          if (btnTrends) btnTrends.classList.remove('hidden');
+          labelTrends.innerText = "My Trends ("+runnerId+")";
         }
       } else { // Runner Id unknown or pending: Hide button
         if (btnTrends) btnTrends.classList.add('hidden');
@@ -576,7 +603,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
           if (btnCharts) btnCharts.classList.remove('hidden');
           labelCharts.innerText = groupName + " Charts";
         }
-      } else {  // No group set: Hide both buttons
+      } else {  // No Group set: Hide button
         if (btnCharts) btnCharts.classList.add('hidden');
       }
     
@@ -585,7 +612,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
       if (ssId && groupName) {
         const labelRankings = document.getElementById('nav-label-rankings');
         if (btnRankings) btnRankings.classList.remove('hidden');
-      } else {  // No group set: Hide both buttons
+      } else {  // No Group set: Hide button
         if (btnRankings) btnRankings.classList.add('hidden');
       }
     }
@@ -599,22 +626,20 @@ Data Scope  Interacts with localStorage         Interacts directly with
         if (!categories[c.grouping]) categories[c.grouping] = [];
         categories[c.grouping].push(c);
       });
-
       for (let categoryName in categories) {
         let catDiv = document.createElement('div');
         catDiv.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3";
         catDiv.innerHTML = `<h3 class="text-xs font-bold text-slate-400 tracking-wider border-b pb-1 border-slate-50">${categoryName}</h3>`;
         let grid = document.createElement('div');
         grid.className = "grid grid-cols-2 gap-3";
-
         categories[categoryName].forEach(chart => {
           let btn = document.createElement('button');
           if (chart.showLink) {
             btn.className = "bg-amber-50 border border-amber-200 p-3 rounded-xl flex flex-col items-center justify-center space-y-2 active:scale-95 transition text-slate-800";
-            btn.onclick = () => window.open(chart.url, '_blank');
+            btn.onclick = () => window.open(chart.url, fastTAB);
           } else {
-            btn.className = "bg-slate-50 border border-slate-100 p-3 rounded-xl flex flex-col items-center justify-center space-y-2 opacity-50 cursor-not-allowed text-slate-400";
-            btn.onclick = () => alert("Your configuration metrics signature lacks viewing access for this profile category card.");
+            console.log("=== renderDivisionalGroupsCharts ===");
+            console.log("Hidden chart:",categoryName)
           }
           btn.innerHTML = `<i class="material-icons text-2xl ${chart.showLink ? 'text-amber-500' : 'text-slate-300'}">insert_chart</i><span class="text-[11px] font-bold text-center leading-tight">${chart.name}</span>`;
           grid.appendChild(btn);
@@ -626,9 +651,22 @@ Data Scope  Interacts with localStorage         Interacts directly with
 
     function fetchLiveRoutingPayload() {
       if (!cachedProfile || !cachedProfile.runnerId) return;
-      
       google.script.run
         .withSuccessHandler((routing) => {
+          console.log("=== fetchLiveRoutingPayload ===");
+          console.log("CachedProfile (On Arrival):",
+            JSON.parse(JSON.stringify(cachedProfile)));
+          console.log("--- SERVER ROUTING PAYLOAD ---");
+          console.log("Full Object:", routing);
+          console.log("Trends sub-object keys:", routing
+            ? Object.keys(routing.trends)
+            : "No trends found");
+          console.log("Charts sub-object keys:", routing 
+            ? Object.keys(routing.charts)
+            : "No charts found");
+          console.log("Rankings sub-object keys:", routing 
+            ? Object.keys(routing.rankings)
+            : "No rankings found");
           runtimeRouting = routing;
           
           // 0. Hide User Profile Setting after initial default setting
@@ -641,17 +679,20 @@ Data Scope  Interacts with localStorage         Interacts directly with
             screenCharts.classList.remove('hidden');
           }
 
-          // 1. My Trends (left button) => only after user profile set
-          const btnTrends = document.getElementById('btn-trends');
-          if (btnTrends) {
-            if (!routing.trendsUrl || routing.trendsUrl === "") {
-              btnTrends.className = "w-full bg-slate-200 text-slate-400 font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 cursor-not-allowed";
-              btnTrends.onclick = () => alert("Trends Sheet Link is unpopulated. Awaiting automated update sweep data.");
-            } else {
-              btnTrends.className = "w-full bg-amber-400 hover:bg-amber-500 active:scale-[0.98] transition font-bold py-3 px-4 rounded-xl text-slate-900 shadow flex items-center justify-center space-x-2";
-              // Pass the live variable string value directly to window.open
-              btnTrends.onclick = () => window.open(routing.trendsUrl, '_blank');
-            }
+          // 1. My Trends (left button) => n/a unless user profile fully set
+          if (routing && routing.trends) {
+            const btnProgress = document.getElementById('btn-trends-overall');
+            if (btnProgress)
+              btnProgress.onclick = () => window
+                .open(routing.trends.overallUrl,fastTAB);
+            const btnCurrent = document.getElementById('btn-trends-recent');
+            if (btnCurrent)
+              btnCurrent.onclick = () => window
+                .open(routing.trends.recentUrl,fastTAB);
+            const btnResults = document.getElementById('btn-trends-results');
+            if (btnResults)
+              btnResults.onclick = () => window
+                .open(routing.trends.resultsUrl,fastTAB);
           }
 
           // 2. Performance Charts (middle button) + dynamic Group prefix 
@@ -666,17 +707,25 @@ Data Scope  Interacts with localStorage         Interacts directly with
             renderDivisionalGroupsCharts(routing.charts);
           }
 
-          // 3. Members Rankings (right buttonO) + Allow me access... 
+          // 3. Members Rankings (right button) + Allow me access... 
           if (routing && routing.rankings) {
             const btnLatest = document.getElementById('btn-rankings-latest');
+            if (btnLatest)
+              btnLatest.onclick = () => window
+                .open(routing.rankings.latestUrl, fastTAB);
             const btnCurrent = document.getElementById('btn-rankings-current');
+            if (btnCurrent)
+              btnCurrent.onclick = () => window
+                .open(routing.rankings.currentUrl,fastTAB);
             const btnBest = document.getElementById('btn-rankings-best');
-
-            if (btnLatest) btnLatest.onclick = () => window.open(routing.rankings.latestUrl, '_blank');
-            if (btnCurrent) btnCurrent.onclick = () => window.open(routing.rankings.currentUrl, '_blank');
-            if (btnBest) btnBest.onclick = () => window.open(routing.rankings.bestEverUrl, '_blank');
+            if (btnBest)
+              btnBest.onclick = () => window
+                .open(routing.rankings.bestEverUrl,fastTAB);
+            const btnChallenge = document.getElementById('btn-rankings-challenge');
+            if (btnChallenge)
+              btnChallenge.onclick = () => window
+                .open(routing.rankings.challengeUrl,fastTAB);
           }
-
         })
         .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
     }
@@ -692,7 +741,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
       const currentStatus = accessStatus || "Needed";
       
       // 1. Target all instances of the common screen wrappers simultaneously
-      const statusDrawers = document.querySelectorAll('.access-status-drawer');
+      const statusDrawers = document.querySelectorAll('access-status-drawer');
       const accessBtn = document.getElementById('access-request-btn');
       // const menuSetup = document.getElementById('menu-setup');
 
@@ -751,11 +800,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
       }
     }
 
-    function openLink(objectPath) {
-      if (!runtimeRouting) return;
-      const url = objectPath.split('.').reduce((o, i) => o[i], runtimeRouting);
-      if (url) window.open(url, '_blank');
-    }
   </script>
 </body>
 </html>
