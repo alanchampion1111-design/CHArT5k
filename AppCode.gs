@@ -57,7 +57,7 @@ const COL_MEMBER = {
 };
 
 /**
- * Devices Table Headers (subset for ALL App users' profile settings)
+ * Devices Table Headers (subset for ALL App users' profile settings) -cache all field values
  */
 const COL_DEVICE = {          // row only exists per actual App user
   TIMESTAMP: "Timestamp",     // A: when user first used (introduced for Web App)
@@ -172,7 +172,7 @@ function initializeApplicationData(devId) {
       }
     }
 
-    // 1D. Active Device Cache Target Profile Verification Check
+    // 1D. Cached Profile for App user, from matching their (stable) device
 
     var cachedProfile = null;
     if (deviceSheet) {
@@ -182,7 +182,9 @@ function initializeApplicationData(devId) {
       var idxDevId = deviceHeaders.indexOf(COL_DEVICE.DEVICE_ID);
       var idxDevGroup = deviceHeaders.indexOf(COL_DEVICE.GROUP_NAME);
       var idxDevSsId = deviceHeaders.indexOf(COL_DEVICE.SS_ID);
-      var idxDevRunner = deviceHeaders.indexOf(COL_DEVICE.RUNNER_ID);
+      var idxDevRunnerId = deviceHeaders.indexOf(COL_DEVICE.RUNNER_ID);
+      var idxDevResultsGid = deviceHeaders.indexOf(COL_DEVICE.RESULTS_GID);
+      var idxDevAccess = deviceHeaders.indexOf(COL_DEVICE.STATUS);
       // Scan registered rows to find a matching, verified active device token
       for (var d = 1; d < dData.length; d++) {
         var dRow = dData[d];
@@ -191,10 +193,12 @@ function initializeApplicationData(devId) {
           if (dRow[idxDevId].toString().trim() === devId.toString().trim()) {
             cachedProfile = {
               groupName: idxDevGroup > -1 ? dRow[idxDevGroup] : "",
-              groupSsId: idxDevSsId > -1 ? dRow[idxDevSsId] : "",
-              runnerId: idxDevRunner > -1 ? dRow[idxDevRunner] : ""
+              ssId: idxDevSsId > -1 ? dRow[idxDevSsId] : "",
+              runnerId: idxDevRunnerId > -1 ? dRow[idxDevRunnerId] : "",
+              resultsGid: idxDevResultsGid > -1 ? dRow[idxDevResultsGid] : "",
+              accessStatus: idxDevAccess > -1 ? dRow[idxDevAccess] : "",
             };
-            break; // Match confirmed, break tracking iteration sweep early
+            break; // Matching device confirmed
           }
         }
       }
@@ -409,7 +413,6 @@ function getDashboardRouting(ssIdKey, runnerId) {
         }
       }
     }
-
     var idxLatestGid = mHeaders.indexOf(COL_MASTER.LATEST_GID);
     var idxRankingsGid = mHeaders.indexOf(COL_MASTER.RANKINGS_GID);
     var idxChallengesGid = mHeaders.indexOf(COL_MASTER.CHALLENGES_GID);
