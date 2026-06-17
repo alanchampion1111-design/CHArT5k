@@ -641,7 +641,7 @@ function renderDivisionalGroupsCharts(charts) {
           listContainer.className = "flex flex-col space-y-2 pb-2";
           validCharts.forEach(chart => {    // for each divisional category
             let btn = document.createElement('button');
-            btn.className = "w-full bg-amber-50/50 hover:bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center "+
+            btn.className = "w-full bg-amber-50/50 hover:bg-amber-50 border border-amber-100 py-3 px-3 rounded-xl flex items-center "+
               "justify-between active:scale-[0.99] transition text-slate-800 text-left";
             btn.onclick = () => window.open(chart.url, fastTAB);
             btn.innerHTML = `
