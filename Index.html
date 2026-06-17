@@ -644,15 +644,10 @@ function renderDivisionalGroupsCharts(charts) {
             btn.className = "w-full bg-amber-50/50 hover:bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center "+
               "justify-between active:scale-[0.99] transition text-slate-800 text-left";
             btn.onclick = () => window.open(chart.url, fastTAB);
-            // btn.innerHTML = `<i class="material-icons text-2xl text-amber-500">insert_chart</i>
-            //  <span class="text-[11px] font-bold text-center leading-tight">${chart.name}</span>`;
-            // 🎯 Minimal change: Restructured string layout for row parsing
             btn.innerHTML = `
-              <div class="flex items-center space-x-3">
-                <i class="material-icons text-amber-500 text-xl">insert_chart</i>
-                <span class="text-xs font-semibold leading-tight">${chart.name}</span>
-              </div>
-              <i class="material-icons text-slate-400 text-sm">open_in_new</i>`;
+              <span class="text-sm font-semibold leading-tight">${chart.name}</span>
+              <i class="material-icons text-amber-500 text-xl">insert_chart</i>
+            `;
             listContainer.appendChild(btn);
           });
           masterCard.appendChild(listContainer);
