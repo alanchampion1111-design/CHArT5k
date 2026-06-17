@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------------------
 /
 / This is a client-end Google App Script that resides within the Family Template
-/ Google Spreadsheet.  The scope here is limited to local synchronous  functions 
+/ Google Spreadsheet.  The scope here is limited to local synchronous functions 
 / that are NOT dependent on GCR functions.  These werw developed as part of phase I
 / although significantly upgraded as a consequence of later phases .
 / The primary five entry-point functions that are bound to macros & keys are:
@@ -1392,6 +1392,23 @@ function GetPerformanceCharts(
 }
 
 /**
+ * Returns the number of runs completed by a runner
+ * @param {string} runner ID
+ * @return {number} of results
+ */
+function getNumRuns(
+  runnerNameId='Alan_13')
+{
+  const numRunsCOL = 13;  // column M of Runners sheet
+  let runnerIdx = Number(runnerNameId
+    .split("_")[1]);
+  let numRuns = lv.allRunnersSheet      //  assume current SS
+    .getRange(lc.runnersStartROW+runnerIdx,numRunsCOL)
+    .getValue();
+  return numRuns ? numRuns : 0;
+}
+
+/**
  * Returns the sharing role for a given email on the active Spreadsheet
  * @param {string} email The email address to check
  * @return {string} "Owner", "Editor", "Viewer", or "Blocked"
@@ -1401,6 +1418,7 @@ function getRole(
   runnerNameId='Alan_13')
 {
   const emailCOL = 4;  // column D of Runners sheet
+  const numRunsCOL = 4;  // column M of Runners sheet
   let runnerIdx = Number(runnerNameId
     .split("_")[1]);
   let email = lv.allRunnersSheet      //  assume current SS
@@ -1448,8 +1466,8 @@ function GetMyTrendsCharts(
   // runnerNameId ='Alan_13')   // for testing
 {
   let runnerTrendCharts = {};
-  var trendsTable = [["Trends","=Overview!B$3","",""]];    // SS Id to span 2 cells propagated into table
-  trendsTable.push(["Runner Id","SS Id","Results Gid","Shared"]);
+  var trendsTable = [["Trends","=Overview!B$3","","",""]];    // SS Id to span 2 cells propagated into table
+  trendsTable.push(["Runner Id","SS Id","Results Gid","#","Shared"]);
   const runnersRANGE = lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN;
   let runnersNames = lv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
@@ -1460,9 +1478,12 @@ function GetMyTrendsCharts(
     let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerId);
     if (runnerResultsSheet) {
       let runnerShared = getRole(runnerId);
+      let runnerNumRuns = getNumRuns(runnerId);
       let runnerResultsSheetId = runnerResultsSheet.getSheetId();
       let runnerResultsCharts = runnerResultsSheet.getCharts();
-      runnerResultsCharts.forEach(trendChart => {
+      // runnerResultsCharts.forEach(trendChart => {
+      for (let trendChart of runnerResultsCharts) {
+
         let chartId = trendChart.getChartId();    // only one, but potentially more
         let chartTitle = trendChart.getOptions().get('title');
         let resultsRange = trendChart.getRanges()[0];
@@ -1475,9 +1496,10 @@ function GetMyTrendsCharts(
             sheetId: runnerResultsSheetId,
             range: chartRange};
         else {  // file all for import
-          trendsTable.push([runnerId,"=B$1",runnerResultsSheetId,runnerShared]);
-        } 
-      });
+          trendsTable.push([runnerId,"=B$1",runnerResultsSheetId,runnerNumRuns,runnerShared]);
+        }
+        break;  // first will suffice; others assumed aligned below
+      }
     }
   });
   if (runnerNameId) {
@@ -1489,9 +1511,8 @@ function GetMyTrendsCharts(
     let csv = trendsTable.map(row => row.join(',')).join('\n');
     Logger.log(csv);
     trendsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
-    // chartsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
-    // let titleRange = chartsSheet.getRange(1,1,1,4);    // table header (below title) has 4 columns
-    // chartsSheet.getRange("B1:D1").merge(); 	// spreadsheet Id spans four columns
+    // trendsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
+    // let titleRange = trendsSheet.getRange(1,1,1,5);    // table header (below title) has 5 columns
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
       .setValues(trendsTable);
   }
