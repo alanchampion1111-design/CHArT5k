@@ -463,6 +463,13 @@ function getDashboardRouting(ssIdKey,runnerId) {
   }
 }
 
+// Allows for dynamic linking of Index.html ref. to JavaScript.html
+//    to include its own front-end <script> content via:
+//    <?!= include('JavaScript'); ?>
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
 function debugRunnerLookup() {
   var testSsId = "1O7njlqIr466GiZzOGGvs9rE3t70yWMlKTyaSU7FmMzY"; // test CHAMPION Parkrunners 
   var result = getRunnerIdsForGroup(testSsId);
