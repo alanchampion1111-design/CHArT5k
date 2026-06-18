@@ -654,12 +654,7 @@ function renderDivisionalGroupsCharts(charts) {
       var currentStatus = cachedProfile
         ? cachedProfile.accessStatus
         : "Needed";   // since initially undefined
-        JSON.parse(JSON.stringify(cachedProfile)));
-      
-      // 1. Target all instances of the common screen wrappers simultaneously
       const drawers = document.querySelectorAll('.access-status-drawer');
-
-      // 2. Execute the Tri-State Drawer & Button Rules Mapping
       // console.log("Drawers found count:", drawers.length);
       drawers.forEach(drawer => {
         const textSpan = drawer.querySelector('.access-text');
@@ -752,7 +747,7 @@ function renderDivisionalGroupsCharts(charts) {
                 .open(routing.rankings.challengeUrl,fastTAB);
           }
 
-          // 4. Update access status (on 3 screen) assumes DOM ready
+          // 4. Update access status (on 3 screens) explicitly thereafter
           syncAccessInterfaceState();
         })
         .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
