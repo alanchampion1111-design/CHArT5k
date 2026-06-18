@@ -362,9 +362,9 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
           var savedGid = dData[d][idxResultsGid];
           if (savedGid) {
             trendsList = {
-              overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL,
-              recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT,
-              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=A" + idxCount.toString()
+              overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
+              recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
+              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=A" + idxCount.toString() + "&viewport=focussed"
             };
           }
           break;
@@ -406,7 +406,7 @@ function getChartsRouting(ssActive,ssIdKey,runnerId,groupTableName) {
             name: name,
             grouping: sectionGroup,
             showLink: showLinkIcon,
-            url: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + targetGid + "&range=" + cellRange
+            url: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + targetGid + "&range=" + cellRange + "&viewport=focussed"
           });
         }
       }
@@ -432,8 +432,8 @@ function getRankingsRouting(ssActive,ssIdKey) {
         groupTableName = mData[i][idxMasterGroup];  // TODO: may need to strip & AC and perhaps Club/Parkrunner
         rankingsList = {
           latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxLatestGid],
-          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT,
-          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST,
+          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
+          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
           challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxChallengesGid]
         };
         break;
