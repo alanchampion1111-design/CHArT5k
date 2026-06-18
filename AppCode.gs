@@ -76,11 +76,10 @@ const COL_DEVICE = {          // row only exists per actual App user
  * Target Table/Chart Cell Location
  */
 const VIEWPORTS = {
-  TRENDS_OVERALL: "N2",     // trend chart location fixed within each runner's results sheet
-  TRENDS_RECENT: "N22",     // trend chart below, focussed on past year (if one exists)
-  TRENDS_RESULTS: "A9999",  // skip to bottom of runner's results sheet (for latest results)
-  RANKINGS_CURRENT: "A8",   // current age-graded table in Rankings sheet location
-  RANKINGS_BEST: "A111",    // best-ever age-graded table (based on max  100 runners in Rankings)
+  TRENDS_OVERALL: "N2:P20",     // trend chart location fixed within each runner's results sheet
+  TRENDS_RECENT: "N22:P40",     // trend chart below, focussed on past year (if one exists)
+  RANKINGS_CURRENT: "A8:K109",   // current age-graded table in Rankings sheet location
+  RANKINGS_BEST: "A111:K212",    // best-ever age-graded table (based on max  100 runners in Rankings)
 };
 
 /**
@@ -103,7 +102,6 @@ function initializeApplicationData(devId) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     // 1A. Fetch 'About' info from MASTER table (via Header Notes)
-
     var masterSheet = ss.getSheetByName(TABLES.MASTER);
     var aboutShort = "Welcome to CHArT5k comparative charts for your parkrun groups";
     var aboutLong = "No matter how far apart you live, share your club or family group parkrun experience together much closer!";
@@ -124,7 +122,6 @@ function initializeApplicationData(devId) {
     }
 
     // 1B. Fetch 'User profile setting' from DEVICES table (via Header Notes)
-
     var deviceSheet = ss.getSheetByName(TABLES.DEVICES);
     var userSetupGuide = "Select your club or family group with your runner Id (if known)";
     var memberRequestGuide = "Select your club or family group (if it exists)";
@@ -146,7 +143,6 @@ function initializeApplicationData(devId) {
     }
 
     // 1C. Directory Generation Loop (Populate Active Group Nodes)
-
     var activeDirectory = [];
     if (masterSheet) {
       // Re-use or establish the master values matrix grid cleanly
@@ -175,7 +171,6 @@ function initializeApplicationData(devId) {
     }
 
     // 1D. Cached Profile for App user, from matching their (stable) device
-
     var cachedProfile = null;
     if (deviceSheet) {
       var dData = deviceSheet.getDataRange().getValues();
@@ -362,9 +357,9 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
           var savedGid = dData[d][idxResultsGid];
           if (savedGid) {
             trendsList = {
-              overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
-              recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
-              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + savedGid + "&range=A" + idxCount.toString() + "&viewport=focussed"
+              overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
+              recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
+              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=A" + idxCount.toString() + "&viewport=focussed"
             };
           }
           break;
@@ -406,7 +401,7 @@ function getChartsRouting(ssActive,ssIdKey,runnerId,groupTableName) {
             name: name,
             grouping: sectionGroup,
             showLink: showLinkIcon,
-            url: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + targetGid + "&range=" + cellRange + "&viewport=focussed"
+            url: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + targetGid + "&range=" + cellRange + "&viewport=focussed"
           });
         }
       }
@@ -431,10 +426,10 @@ function getRankingsRouting(ssActive,ssIdKey) {
       if (mData[i][idxMasterSsId] === ssIdKey) {
         groupTableName = mData[i][idxMasterGroup];  // TODO: may need to strip & AC and perhaps Club/Parkrunner
         rankingsList = {
-          latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxLatestGid],
-          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
-          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
-          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view#gid=" + mData[i][idxChallengesGid]
+          latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
+          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
+          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
+          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid]
         };
         break;
       }
