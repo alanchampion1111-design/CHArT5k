@@ -1,82 +1,5 @@
 <script>
-  let devId = null;
-  let isExistingMode = true;
-  let cachedProfile = null;
-  let activeDirectory = [];
-  let runtimeRouting = null;
-  let userSetupGuideCached = "";
-  let memberRequestGuideCached = "";
-  let runnerIdNoteCached = "";
-  
-  const defaultSCREEN = 'charts';
-  const openTAB = 'GroupSSTab';   // via openLink function
-  const fastTAB = 'SharedSSTab';  // for window.open
-  const mailTAB = 'RequestTab';   // for mailto:
 
-/*
-
-[ FRONT-END / Index.html ]                                  [ BACK-END / AppCode.gs ]
-==========================                                  =========================
-DOMContentLoaded
-        │
-        ▼
-1. resolveDeviceFingerprint() 
-        │
-        ▼
-2. initializeApplicationData() [FE]
-        │
-  (Calls backend via script runner)
-        │
-        └──────────── google.script.run ─────────────────┐
-                                                      ▼
-                                                3. doGet() ──► Renders base HTML
-                                                      │
-                                                      ▼
-                                                4. initializeApplicationData(devId) [BE]
-                                                      ├── 1A: Scan Device Registry
-                                                      ├── 1B: Verify cachedProfile
-                                                      ├── 1C: Pull Active Directory Matrix
-                                                      └── 1D: Calc Access State Matrix
-                                                      │
-        ┌──────────── Async Response Return ─────────────┘
-        ▼
-5. Evaluate UI Pivot Point
-        │
-        ├───[ IF Profile Empty / Incomplete ]──► 6A. showScreen('setup')
-        │                                               │
-        │                                               ▼
-        │                                            toggleSetupMode(useExisting)
-        │                                               ├── Existing -> getRunnerIdsForGroup()
-        │                                               └── New Member -> triggerNewGroupRequest()
-        │
-        └───[ IF Profile Set & Verified ]──────► 6B. fetchLiveRoutingPayload()
-                                                        │
-                                                        ▼
-                                                    getDashboardRouting [BE]
-                                                        │ (Returns target URLs)
-                                                        ▼
-                                                    updateNavigationContext()
-                                                        └── Unhide & highlight footer tabs
-
-The presence of initializeApplicationData on both sides represents a Client-Server Handshake Pattern. They share a name because they represent the same phase of the application life cycle, but their inner responsibilities are entirely complementary:
-
-Attribute   Front-End                           Back-End
-          initializeApplicationData()         initializeApplicationData(devId)
-
-Location  ``Browser JavaScript context          Google Servers
-          (<script> block)                    (AppCode.gs)
-
-Role  	    The Conductor:                      The Source of Truth:
-          Sets up local UI,                   Validates the devId, 
-          kicks off network requests,         queries the spreadsheets, 
-          handles loading screens,            builds the payload object, 
-          and waits for answers.              and assesses security.
-
-Data Scope  Interacts with localStorage         Interacts directly with 
-          and toggles Tailwind utility        Google Sheets API 
-          styles (like .hidden).              and reads user registries.
-
-*/
   function openLink(objectPath) {
     if (!runtimeRouting) {
       console.warn("Route not mapped for: ",objectPath);
@@ -106,7 +29,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
   function initializeApplicationData() {
     // Update the layout status container signaling active synchronization channels
     document.getElementById('status-badge').innerText = "Syncing...";
-    google.script.run  // Cached Profile unknown before init
+    google.script.run // Cached Profile unknown before init
       .withSuccessHandler((response) => {
         if (response.error) { 
           alert("Initialization Failure: " + response.error); 
@@ -143,8 +66,12 @@ Data Scope  Interacts with localStorage         Interacts directly with
         // 4. Verify identity matching tracking vectors to clear layout viewports
         if (response.cachedProfile) {
           // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
-          cachedProfile = response.cachedProfile; // global inside the sandbox
+          // Bridging the divide of 2 files: Map the BE payload directly to FE globals
+          window.cachedProfile = response.cachedProfile;
+          cachedProfile = window.cachedProfile; // global inside the Web App sandbox
           window.myCache = cachedProfile; // truly global from F12 Console
+          activeDirectory = response.activeDirectory || [];
+          devId = response.devId; // in case needed to be passed back?
           updateNavigationContext();
           const menuSetup = document.getElementById('menu-setup');
           if (menuSetup) menuSetup.classList.add('hidden');
@@ -163,7 +90,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
           document.getElementById('btn-cancel-setup').classList.add('hidden');
           document.getElementById('info-user-setup').innerText = userSetupGuideCached;
           document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
-          // Populate the secondary runner selections for the initially selected pull-down option
+          // Populate the runner selections for the initially selected pull-down Group
           if (selectGroup && selectGroup.value) {
             onGroupSelectionChange();
           }
@@ -494,7 +421,7 @@ function renderDivisionalGroupsCharts(charts) {
     if (!cachedProfile || !cachedProfile.runnerId) return;
     google.script.run
       .withSuccessHandler((routing) => {
-        console.log("Cached Profile (at fetch start):",
+        console.log("Cached Profile (at fetchLive start):"+
           JSON.parse(JSON.stringify(cachedProfile)));
         console.log("Full routing:", routing);
         
