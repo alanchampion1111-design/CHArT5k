@@ -299,56 +299,77 @@
 
   /**
    * Update the prefix on the footer nav button with an abbreviated form
-   * of the Group that is sufficiently recognisable by the App User)
+   * of the Group that is recognisable by the App User
    */
-  function updateChartsFooterPrefix(name) {
-    const prefixSpan = document.getElementById('nav-charts-prefix');
+  function updateChartsNavigation(name) {
+    const groupPrefixId = 'nav-charts-prefix';
+    const prefixSpan = document.getElementById(groupPrefixId);
     if (prefixSpan) {
       prefixSpan.innerText = name ? name.split(' ')[0] : 'Our';
+    } else {
+      console.log('Unable to locate DOM Id, ',groupPrefixId);
     }
   }
 
   /**
-   * Dynamically names and toggles navigation elements based on user profile state.
+   * Update the prefix on the footer nav button with a personal form
+   * of the Runner Id
    */
-  function updateNavigationContext() {
+  function updateTrendsNavigation(name) {
+    const runnerPrefixId = 'nav-trends-prefix';
+    const prefixSpan = document.getElementById(runnerPrefixId);
+    if (prefixSpan) {
+      prefixSpan.innerText = name ? name.split('_')[0]+"'s" : 'My';
+    } else {
+      console.log('Unable to locate DOM Id, ',runnerPrefixId);
+    }
+  }
+
+  /**
+   * Refine (footer) navigation buttons based on
+   * user profile Group name and Runner Id settings.
+   */
+  function updateFooterNavigation() {
     // Safely check if a profile is currently active/cached
     const hasProfile = (typeof cachedProfile !== 'undefined' && cachedProfile);
     const ssId = hasProfile ? cachedProfile.ssId : "";
     const groupName = hasProfile ? cachedProfile.groupName : "";
     const runnerId = hasProfile ? cachedProfile.runnerId : "";
-  
+    console.log('Identified runner, ',runnerId,
+      'in Group, ',groupName);
+
     // 1. My Trends (appears if both Group SS and Runner Id known)
-    const btnTrends = document.getElementById('nav-btn-trends');
+    const btnTrends = document.getElementById('nav-trends');
     if (ssId && runnerId) {
-      const labelTrends = document.getElementById('nav-label-trends');
-        if (labelTrends) {
-        if (btnTrends) btnTrends.classList.remove('hidden');
-        labelTrends.innerText = "My Trends ("+runnerId+")";
+      if (btnTrends) {
+        btnTrends.classList.remove('hidden');
+        updateTrendsNavigation(runnerId);
       }
     } else { // Runner Id unknown or pending: Hide button
-      if (btnTrends) btnTrends.classList.add('hidden');
+      if (btnTrends)
+        btnTrends.classList.add('hidden');
     }
   
     // 2. <Group Name> Charts (appears when Group SS known at least)
-    const btnCharts = document.getElementById('nav-btn-charts');
+    const btnCharts = document.getElementById('nav-charts');
     if (ssId && groupName) {
-      const labelCharts = document.getElementById('nav-label-charts');
-      if (labelCharts) {
-        if (btnCharts) btnCharts.classList.remove('hidden');
-        updateChartsFooterPrefix(groupName);
+      if (btnCharts) {
+        btnCharts.classList.remove('hidden');
+        updateChartsNavigation(groupName);
       }
     } else {  // No Group set: Hide button
-      if (btnCharts) btnCharts.classList.add('hidden');
+      if (btnCharts)
+        btnCharts.classList.add('hidden');
     }
   
     // 3. Members Rankings (appears when Group SS known at least)
-    const btnRankings = document.getElementById('nav-btn-rankings');
+    const btnRankings = document.getElementById('nav-rankings');
     if (ssId && groupName) {
-      const labelRankings = document.getElementById('nav-label-rankings');
-      if (btnRankings) btnRankings.classList.remove('hidden');
+      if (btnRankings)
+        btnRankings.classList.remove('hidden');
     } else {  // No Group set: Hide button
-      if (btnRankings) btnRankings.classList.add('hidden');
+      if (btnRankings)
+        btnRankings.classList.add('hidden');
     }
   }
   
@@ -470,8 +491,13 @@ function renderDivisionalGroupsCharts(charts) {
 
         // 2. Comparative Charts (middle button) + dynamic Group prefix 
         const chartsNavBtn = document.getElementById('btn-nav-charts');
+
         if (routing && routing.charts) {
-          renderDivisionalGroupsCharts(routing.charts);
+          try {
+            renderDivisionalGroupsCharts(routing.charts);
+          } catch (err) {
+            console.error("Charts rendering:", err);
+          }
         }
 
         // 3. Members Rankings (right button) + Allow me access... 
@@ -496,7 +522,7 @@ function renderDivisionalGroupsCharts(charts) {
 
         // 4. Update access status (on 3 screens) explicitly thereafter
         syncAccessInterfaceState();
-        updateNavigationContext();
+        updateFooterNavigation();
       })
       .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
   }
