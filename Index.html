@@ -189,6 +189,91 @@
     </div>
   </footer>
 
+  <script>
+    // MUST: globals declared here for GAS (not within include file!) 
+    //        and so need to held in the shared window. storage
+    let devId = null;           // unique per device, generated in the DOM
+    let isExistingMode = true;
+    let cachedProfile = null;
+    let activeDirectory = [];
+    let runtimeRouting = null;
+    
+    const defaultSCREEN = 'charts';
+    const openTAB = 'GroupSSTab';   // used by Group Rankings tables (via openLink)
+    const fastTAB = 'SharedSSTab';  // used by dynamic Trends & Charts (window.open)
+    const mailTAB = 'RequestTab';   // for mailto: new member/group or allow access
+
+/*
+
+[ FRONT-END / Index.html ]                                  [ BACK-END / AppCode.gs ]
+==========================                                  =========================
+DOMContentLoaded
+        │
+        ▼
+1. resolveDeviceFingerprint() 
+        │
+        ▼
+2. initializeApplicationData() [FE]
+        │
+  (Calls backend via script runner)
+        │
+        └──────────── google.script.run ────────────────┐
+                                                      ▼
+                                                3. doGet() ──► Renders base HTML
+                                                      │
+                                                      ▼
+                                                4. initializeApplicationData(devId) [BE]
+                                                      ├── 1A: Scan Device Registry
+                                                      ├── 1B: Verify cachedProfile
+                                                      ├── 1C: Pull Active Directory matrix
+                                                      └── 1D: Calc Access State matrix
+                                                      │
+        ┌──────────── Async Response Return ────────────┘
+        ▼
+5. Evaluate UI Pivot Point
+        │
+        ├───[ IF Profile Empty / Incomplete ]──► 6A. showScreen('setup')
+        │                                               │
+        │                                               ▼
+        │                                            toggleSetupMode(useExisting)
+        │                                               ├── Existing -> getRunnerIdsForGroup()
+        │                                               └── New -> triggerNewGroupRequest()
+        │
+        └───[ IF Profile Set & Verified ]──────► 6B. fetchLiveRoutingPayload()
+
+                                                        │
+                                                        ▼
+                                                    getDashboardRouting [BE]
+                                                        │ (Returns target URLs)
+                                                        ▼
+                                                    updateNavigationContext()
+                                                        ├── Unhide & highlight footer tabs
+                                                        ▼
+                                                    syncAccessInterfaceState()
+                                                        ├── Needed -> enable Access lock
+                                                        ├── Requested -> disable Access lock
+                                                        └── Granted -> discard Access lock
+
+The presence of initializeApplicationData on both sides represents a Client-Server Handshake Pattern. They share a name because they represent the same phase of the application life cycle, but their inner responsibilities are entirely complementary:
+
+Attribute   Front-End                           Back-End
+            initializeApplicationData()         initializeApplicationData(devId)
+
+Location    Browser JavaScript context          Google Servers
+            (<script> block)                    (AppCode.gs)
+
+Role  	    The Conductor:                      The Source of Truth:
+            Sets up local UI,                   Validates the devId, 
+            kicks off network requests,         queries the spreadsheets, 
+            handles loading screens,            builds the payload object, 
+            and waits for answers.              and assesses security.
+
+Data Scope  Interacts with localStorage         Interacts directly with 
+            and toggles Tailwind utility        Google Sheets API 
+            styles (like .hidden).              and reads user registries.
+
+*/
+  </script>
   <?!= include('JavaScript'); ?>
 
 </body>
