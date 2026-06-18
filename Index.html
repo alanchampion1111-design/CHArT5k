@@ -199,7 +199,7 @@
     let memberRequestGuideCached = "";
     let runnerIdNoteCached = "";
     
-    defaultSCREEN = 'charts';
+    const defaultSCREEN = 'charts';
     const openTAB = 'GroupSSTab';   // via openLink function
     const fastTAB = 'SharedSSTab';  // for window.open
     const mailTAB = 'RequestTab';   // for mailto:
@@ -268,11 +268,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
             styles (like .hidden).              and reads user registries.
 
 */
-    function openLinkOrig(objectPath) {
-      if (!runtimeRouting) return;
-      const url = objectPath.split('.').reduce((o, i) => o[i], runtimeRouting);
-      if (url) window.open(url, 'sharedSSTab');
-    }
     function openLink(objectPath) {
       if (!runtimeRouting) {
         console.warn("Route not mapped for: ",objectPath);
