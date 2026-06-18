@@ -64,10 +64,10 @@
       </div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
           - applies universally across all 3 screens -->
-      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
-        <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
-          <i class="material-icons text-base">vpn_key</i>
-          <span>Allow me access...</span>
+      <div class="mt-6 pt-4 border-t border-slate-200 text-center">
+        <button class="access-status-drawer inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition" onclick="triggerAccessRequest();">
+          <i class="material-icons text-base align-middle mr-1">vpn_key</i>
+          <span class="access-text">Allow me access...</span>
         </button>
       </div>
     </section>
@@ -78,10 +78,10 @@
       <div id="charts-wrapper" class="space-y-4"></div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
           - applies universally across all 3 screens -->
-      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
-        <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
-          <i class="material-icons text-base">vpn_key</i>
-          <span>Allow me access...</span>
+      <div class="mt-6 pt-4 border-t border-slate-200 text-center">
+        <button class="access-status-drawer inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition" onclick="triggerAccessRequest();">
+          <i class="material-icons text-base align-middle mr-1">vpn_key</i>
+          <span class="access-text">Allow me access...</span>
         </button>
       </div>
     </section>
@@ -105,10 +105,10 @@
       </div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
           - applies universally across all 3 screens -->
-      <div class="access-status-drawer mt-6 pt-4 border-t border-slate-200 text-center">
-        <button onclick="triggerAccessRequest();" class="inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition">
-          <i class="material-icons text-base">vpn_key</i>
-          <span>Allow me access...</span>
+      <div class="mt-6 pt-4 border-t border-slate-200 text-center">
+        <button class="access-status-drawer inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition" onclick="triggerAccessRequest();">
+          <i class="material-icons text-base align-middle mr-1">vpn_key</i>
+          <span class="access-text">Allow me access...</span>
         </button>
       </div>
     </section>
@@ -198,6 +198,7 @@
     let userSetupGuideCached = "";
     let memberRequestGuideCached = "";
     let runnerIdNoteCached = "";
+    
     defaultSCREEN = 'charts';
     const openTAB = 'GroupSSTab';   // via openLink function
     const fastTAB = 'SharedSSTab';  // for window.open
@@ -301,16 +302,13 @@ Data Scope  Interacts with localStorage         Interacts directly with
     function initializeApplicationData() {
       // Update the layout status container signaling active synchronization channels
       document.getElementById('status-badge').innerText = "Syncing...";
-      google.script.run
+      google.script.runner // Cached Profile unknown before init
         .withSuccessHandler((response) => {
           if (response.error) { 
             alert("Initialization Failure: " + response.error); 
             document.getElementById('status-badge').innerText = "Error";
             return; 
           }
-          console.log("=== initializeApplicationData ===");
-          console.log("CachedProfile (On Arrival):",
-            JSON.parse(JSON.stringify(cachedProfile)));
 
           // 1. Unpack and cache the header notes and fallback preambles from the server
           userSetupGuideCached = response.userSetupGuideCached || "";
@@ -346,8 +344,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
             updateNavigationContext();
             const menuSetup = document.getElementById('menu-setup');
             if (menuSetup) menuSetup.classList.add('hidden');
-            const initialStatus = cachedProfile.accessStatus || "Needed";
-            syncAccessInterfaceState(initialStatus);
             document.getElementById('btn-cancel-setup').classList.remove('hidden');
             if (selectGroup) selectGroup.value = cachedProfile.ssId;
             onGroupSelectionChange(cachedProfile.runnerId);
@@ -360,7 +356,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
             updateNavigationContext();
             const menuSetup = document.getElementById('menu-setup');
             if (menuSetup) menuSetup.classList.remove('hidden');
-            syncAccessInterfaceState("Needed");
             document.getElementById('btn-cancel-setup').classList.add('hidden');
             document.getElementById('info-user-setup').innerText = userSetupGuideCached;
             document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
@@ -371,10 +366,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
             showScreen('setup');  // Force route user straight to Profile Setup screen
             document.getElementById('status-badge').innerText = "Setup Required";
           }
-          console.log("=== initializeApplicationData ===");
-          console.log("CachedProfile (On completion):",
-            JSON.parse(JSON.stringify(cachedProfile)));
-        })
+        }   // Cached Profile set after init
         .initializeApplicationData(devId);
     }
 
@@ -514,9 +506,6 @@ Data Scope  Interacts with localStorage         Interacts directly with
           fetchLiveRoutingPayload();
           showScreen(defaultSCREEN);
           document.getElementById('status-badge').innerText = "Online";
-          console.log("=== saveSetUp ===");
-          console.log("CachedProfile (after Existing Member):",
-            JSON.parse(JSON.stringify(cachedProfile)));
         })
         .saveDeviceProfile(devId, groupName, ssId, runnerId, "AUTO_LOOKUP_GID");
     }
@@ -661,25 +650,54 @@ function renderDivisionalGroupsCharts(charts) {
       }
     }
 
+    /**
+     * Updates the visual state of each screen (after fetch routing)
+     * based on the Cached Profile Access Matrix status string:
+     *    accessStatus - "Needed", "Requested", or "Granted"
+     */
+    function syncAccessInterfaceState() {
+      var currentStatus = cachedProfile
+        ? cachedProfile.accessStatus
+        : "Needed";   // since initially undefined
+        JSON.parse(JSON.stringify(cachedProfile)));
+      
+      // 1. Target all instances of the common screen wrappers simultaneously
+      const drawers = document.querySelectorAll('.access-status-drawer');
+
+      // 2. Execute the Tri-State Drawer & Button Rules Mapping
+      // console.log("Drawers found count:", drawers.length);
+      drawers.forEach(drawer => {
+        const textSpan = drawer.querySelector('.access-text');
+        const icon = drawer.querySelector('.material-icons');
+        switch (currentStatus) {
+         case "Needed":  // show key for user to request access (by email)
+          drawer.style.display = 'inline-flex'; 
+          drawer.disabled = false;
+          if (textSpan) textSpan.innerText = "Allow me access...";
+          if (icon) icon.innerText = "vpn_key";
+          break;
+         case "Requested":  // Assumes requested, pending Owner todo + pull
+          drawer.style.display = 'inline-flex';
+          drawer.disabled = true;          
+          if (textSpan) textSpan.innerText = "Access pending...";
+          if (icon) icon.innerText = "lock_clock"; 
+          break;
+        case "Granted":  // Hide the key completely and simultaneously!
+          drawer.style.display = 'none';   
+          break;
+        default:
+          console.warn("Unknown Access State encountered: " + currentStatus);
+        }
+      });
+    }
+
     function fetchLiveRoutingPayload() {
       if (!cachedProfile || !cachedProfile.runnerId) return;
       google.script.run
         .withSuccessHandler((routing) => {
-          console.log("=== fetchLiveRoutingPayload ===");
-          console.log("CachedProfile (at fetch start):",
+          console.log("Cached Profile (at fetch start):",
             JSON.parse(JSON.stringify(cachedProfile)));
-          console.log("--- SERVER ROUTING PAYLOAD ---");
-          console.log("Full Object:", routing);
-          console.log("Trends sub-object keys:", routing
-            ? Object.keys(routing.trends)
-            : "No trends found");
-          console.log("Charts sub-object keys:", routing 
-            ? Object.keys(routing.charts)
-            : "No charts found");
-          console.log("Rankings sub-object keys:", routing 
-            ? Object.keys(routing.rankings)
-            : "No rankings found");
-          runtimeRouting = routing;
+          console.log("Full routing:", routing);
           
           // 0. Hide User Profile Setting after initial default setting
           const screenProfile = document.getElementById('screen-profile-settings');
@@ -738,49 +756,14 @@ function renderDivisionalGroupsCharts(charts) {
               btnChallenge.onclick = () => window
                 .open(routing.rankings.challengeUrl,fastTAB);
           }
+
+          // 4. Update access status (on 3 screen) assumes DOM ready
+          syncAccessInterfaceState();
         })
         .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
     }
 
     function cancelSetup() { showScreen(defaultSCREEN); }
-
-    /**
-     * Synchronizes the visual state of the application interface 
-     * based on the global Access Matrix status string.
-     * @param {string} accessStatus - "Needed", "Requested", or "Granted"
-     */
-    function syncAccessInterfaceState(accessStatus) {
-      const currentStatus = accessStatus || "Needed";
-      
-      // 1. Target all instances of the common screen wrappers simultaneously
-      const statusDrawers = document.querySelectorAll('access-status-drawer');
-      const accessBtn = document.getElementById('access-request-btn');
-      // const menuSetup = document.getElementById('menu-setup');
-
-      // 2. Execute the Tri-State Drawer & Button Rules Mapping
-      switch (currentStatus) {
-        case "Needed":  // show key for user to request access (by email)
-          statusDrawers.forEach(drawer => drawer.classList.remove('hidden'));
-          if (accessBtn) {
-            accessBtn.disabled = false;
-            accessBtn.innerText = "Allow me access...";
-          }
-          break;
-        case "Requested": // inactive key, pending Group owner action + pull
-          statusDrawers.forEach(drawer => drawer.classList.remove('hidden'));
-          if (accessBtn) {  
-            accessBtn.disabled = true;
-            accessBtn.innerText = "Access pending...";
-          }
-          break;
-        case "Granted": // Hide the key completely and simultaneously!
-          statusDrawers.forEach(drawer => drawer.classList.add('hidden'));
-          // if (menuSetup) menuSetup.classList.add('hidden'); // already hidden?
-          break;         
-        default:
-          console.warn("Unknown Access State encountered: " + currentStatus);
-      }
-    }
     
     function showScreen(screenId) {
       document.querySelectorAll('.app-screen').forEach(s => s.classList.add('hidden'));
