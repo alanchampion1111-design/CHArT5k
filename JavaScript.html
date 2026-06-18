@@ -29,21 +29,21 @@
   function initializeApplicationData() {
     // Update the layout status container signaling active synchronization channels
     document.getElementById('status-badge').innerText = "Syncing...";
-    google.script.run // Cached Profile unknown before init
+    google.script.run
       .withSuccessHandler((response) => {
         if (response.error) { 
           alert("Initialization Failure: " + response.error); 
           document.getElementById('status-badge').innerText = "Error";
           return; 
         }
-
-        // 1. Unpack and cache the header notes and fallback preambles from the server
-        userSetupGuideCached = response.userSetupGuideCached || "";
-        memberRequestGuideCached = response.memberRequestGuideCached || "";
-        runnerIdNoteCached = response.runnerIdNoteCached || "";
-        activeDirectory = response.activeDirectory || [];
+        let userSetupGuideCached = response.userSetupGuideCached || "";
+        let memberRequestGuideCached = response.memberRequestGuideCached || "";
+        let runnerIdNoteCached = response.runnerIdNoteCached || "";
+        window.activeDirectory = response.activeDirectory || [];
+        activeDirectory = window.activeDirectory;
+        // Cached Profile slow to gather (until step 3?)
         
-        // 2. Populate the Master Group Selector Pull-down list
+        // 1. Populate the Group Pull-down list for User set-up
         const selectGroup = document.getElementById('setup-group');
         if (selectGroup) {
           selectGroup.innerHTML = '';
@@ -55,7 +55,7 @@
           });
         }
         
-        // 3. Populate your precise About page elements natively
+        // 2. Populate About menu page elements natively
         if (response.aboutShort) {
           document.getElementById('about-short').innerText = response.aboutShort;
         }
@@ -63,16 +63,13 @@
           document.getElementById('about-full').innerText = response.aboutLong;
         }
         
-        // 4. Verify identity matching tracking vectors to clear layout viewports
+        // 3. Verify identity matching tracking vectors to clear layout viewports
         if (response.cachedProfile) {
           // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
           // Bridging the divide of 2 files: Map the BE payload directly to FE globals
           window.cachedProfile = response.cachedProfile;
           cachedProfile = window.cachedProfile; // global inside the Web App sandbox
           window.myCache = cachedProfile; // truly global from F12 Console
-          activeDirectory = response.activeDirectory || [];
-          devId = response.devId; // in case needed to be passed back?
-          updateNavigationContext();
           const menuSetup = document.getElementById('menu-setup');
           if (menuSetup) menuSetup.classList.add('hidden');
           document.getElementById('btn-cancel-setup').classList.remove('hidden');
@@ -120,7 +117,8 @@
   }
   
   function toggleSetupMode(useExisting) {
-    isExistingMode = useExisting;
+    window.isExistingMode = useExisting;  // for New/Existing member...
+    isExistingMode = window.isExistingMode; // Sync with Web App sandbox
     
     // 1. Instantly swap navigation tab styles
     document.getElementById('toggle-existing').className = useExisting
@@ -178,6 +176,9 @@
   }
 
   function saveSetup() {
+    isExistingMode = window.isExistingMode !== undefined
+      ? window.isExistingMode   // reference Google Web App storage
+      : true;
     const groupSelect = document.getElementById('setup-group');
     const ssId = groupSelect ? groupSelect.value : "";
     const groupName = groupSelect
@@ -197,13 +198,14 @@
             "Thanks, <full name>\n\n(from device, "+devId+")";
           window.open("mailto:"+ownerEmail+"?subject="+subject+
             "&body="+encodeURIComponent(emailBody), mailTAB);
-          cachedProfile = {groupName:groupName,ssId:ssId,runnerId: "" };
+          window.cachedProfile = {groupName:groupName,ssId:ssId,runnerId:""};
+          cachedProfile = window.cachedProfile;
           updateNavigationContext();
           document.getElementById('menu-setup').classList.add('hidden');
           showScreen(defaultSCREEN);
           document.getElementById('status-badge').innerText = "New member pending";
         })
-        .saveDeviceProfile(devId, groupName, ssId, "", "BLANK_NEW_MEMBER_MODE");
+        .saveDeviceProfile(devId,groupName,ssId,"","BLANK_NEW_MEMBER_MODE");
       return;
     }
     const runnerId = document.getElementById('setup-id').value;
@@ -222,8 +224,9 @@
           document.getElementById('status-badge').innerText = "Error";
           return;
         }
-        activeDirectory = payload.activeDirectory || [];  // aligned to local state
-        cachedProfile = {
+        window.activeDirectory = payload.activeDirectory || []; // aligned to local state
+        activeDirectory = window.activeDirectory; 
+        window.cachedProfile = {
           groupName: groupName,
           ssId: ssId,
           runnerId: runnerId,
@@ -231,14 +234,14 @@
           numRuns: payload.numRuns !== undefined ? payload.numRuns : 0,
           accessStatus: payload.accessStatus || "Requested"    // e.g. Granted if already 
         };
-        updateNavigationContext();
+        cachedProfile = window.cachedProfile;
         const menuSetupBtn = document.getElementById('menu-setup');
         if (menuSetupBtn) menuSetupBtn.classList.add('hidden');
         fetchLiveRoutingPayload();
         showScreen(defaultSCREEN);
         document.getElementById('status-badge').innerText = "Online";
       })
-      .saveDeviceProfile(devId, groupName, ssId, runnerId, "AUTO_LOOKUP_GID");
+      .saveDeviceProfile(devId,groupName,ssId,runnerId,"AUTO_LOOKUP_GID");
   }
 
   /**
@@ -421,10 +424,13 @@ function renderDivisionalGroupsCharts(charts) {
     if (!cachedProfile || !cachedProfile.runnerId) return;
     google.script.run
       .withSuccessHandler((routing) => {
-        console.log("Cached Profile (at fetchLive start):"+
+        console.log("Cached Profile (at fetchLive start):",
           JSON.parse(JSON.stringify(cachedProfile)));
         console.log("Full routing:", routing);
-        
+        // 🚀 Bridge the gap for the routing payload between 2 files
+        window.runtimeRouting = routing;
+        runtimeRouting = window.runtimeRouting;
+
         // 0. Hide User Profile Setting after initial default setting
         const screenProfile = document.getElementById('screen-profile-settings');
         if (screenProfile) {
@@ -485,6 +491,7 @@ function renderDivisionalGroupsCharts(charts) {
 
         // 4. Update access status (on 3 screens) explicitly thereafter
         syncAccessInterfaceState();
+        updateNavigationContext();
       })
       .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
   }
