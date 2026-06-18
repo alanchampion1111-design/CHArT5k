@@ -350,12 +350,12 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
     var idxRunnerId = headers.indexOf(COL_DEVICE.RUNNER_ID);
     var idxResultsGid = headers.indexOf(COL_DEVICE.RESULTS_GID);
     var idxCount = headers.indexOf(COL_DEVICE.COUNT);
-    var lastResultRow = dData[d][idxCount]+2; // skip to this row
     // Guard check to ensure all columns actually exist in the spreadsheet
     if (idxSsId !== -1 && idxRunnerId !== -1 && idxResultsGid !== -1) {
       for (var d = 1; d < dData.length; d++) {
         if (dData[d][idxSsId] == ssIdKey && dData[d][idxRunnerId] == runnerId) {
           var savedGid = dData[d][idxResultsGid];
+          var lastResultRow = 2+dData[d][idxCount]; // skip to this row
           if (savedGid) {
             trendsList = {
               overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
