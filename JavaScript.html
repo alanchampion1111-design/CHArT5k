@@ -298,6 +298,17 @@
   }
 
   /**
+   * Update the prefix on the footer nav button with an abbreviated form
+   * of the Group that is sufficiently recognisable by the App User)
+   */
+  function updateChartsFooterPrefix(name) {
+    const prefixSpan = document.getElementById('nav-charts-prefix');
+    if (prefixSpan) {
+      prefixSpan.innerText = name ? name.split(' ')[0] : 'Our';
+    }
+  }
+
+  /**
    * Dynamically names and toggles navigation elements based on user profile state.
    */
   function updateNavigationContext() {
@@ -325,7 +336,7 @@
       const labelCharts = document.getElementById('nav-label-charts');
       if (labelCharts) {
         if (btnCharts) btnCharts.classList.remove('hidden');
-        labelCharts.innerText = groupName + " Charts";
+        updateChartsFooterPrefix(groupName);
       }
     } else {  // No Group set: Hide button
       if (btnCharts) btnCharts.classList.add('hidden');
@@ -372,7 +383,7 @@ function renderDivisionalGroupsCharts(charts) {
           btn.onclick = () => window.open(chart.url, fastTAB);
           btn.innerHTML = `
             <span class="text-sm font-semibold leading-tight">${chart.name}</span>
-            <i class="material-icons text-amber-500 text-xl">insert_chart</i>
+            <i class="material-icons text-amber-500 text-xl">multiline_chart</i>
           `;
           listContainer.appendChild(btn);
         });
@@ -459,12 +470,6 @@ function renderDivisionalGroupsCharts(charts) {
 
         // 2. Comparative Charts (middle button) + dynamic Group prefix 
         const chartsNavBtn = document.getElementById('btn-nav-charts');
-        if (chartsNavBtn && cachedProfile.groupName) {
-          chartsNavBtn.innerHTML = `
-            <span class="block text-[10px] text-slate-400 tracking-wider">${cachedProfile.groupName}</span>
-            <span class="text-sm font-bold">Charts</span>
-          `;
-        }
         if (routing && routing.charts) {
           renderDivisionalGroupsCharts(routing.charts);
         }
