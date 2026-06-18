@@ -106,7 +106,7 @@ Data Scope  Interacts with localStorage         Interacts directly with
   function initializeApplicationData() {
     // Update the layout status container signaling active synchronization channels
     document.getElementById('status-badge').innerText = "Syncing...";
-    google.script.runner // Cached Profile unknown before init
+    google.script.run  // Cached Profile unknown before init
       .withSuccessHandler((response) => {
         if (response.error) { 
           alert("Initialization Failure: " + response.error); 
