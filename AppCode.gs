@@ -349,7 +349,8 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
     var idxSsId = headers.indexOf(COL_DEVICE.SS_ID);
     var idxRunnerId = headers.indexOf(COL_DEVICE.RUNNER_ID);
     var idxResultsGid = headers.indexOf(COL_DEVICE.RESULTS_GID);
-    var idxCount = headers.indexOf(COL_DEVICE.COUNT); // skip to this row
+    var idxCount = headers.indexOf(COL_DEVICE.COUNT);
+    var lastResultRow = dData[d][idxCount]+2; // skip to this row
     // Guard check to ensure all columns actually exist in the spreadsheet
     if (idxSsId !== -1 && idxRunnerId !== -1 && idxResultsGid !== -1) {
       for (var d = 1; d < dData.length; d++) {
@@ -359,7 +360,10 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
             trendsList = {
               overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
               recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
-              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=A" + idxCount.toString() + "&viewport=focussed"
+              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid +
+                "&range=A" + lastResultRow.toString() +
+                ":L" + lastResultRow.toString() +
+                "&viewport=focussed"
             };
           }
           break;
