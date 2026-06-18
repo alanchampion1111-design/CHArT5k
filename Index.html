@@ -74,7 +74,7 @@
 
     <!-- <Group> Charts screen: unreachable until after user profile set (Group SS at least) -->
     <section id="screen-charts" class="app-screen space-y-4 hidden">
-      <h2 id='charts-group-title' class="text-lg font-bold text-slate-700">Performance Charts</h2>
+      <h2 id='charts-group-title' class="text-lg font-bold text-slate-700">Comparative Charts</h2>
       <div id="charts-wrapper" class="space-y-4"></div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
           - applies universally across all 3 screens -->
@@ -725,7 +725,7 @@ function renderDivisionalGroupsCharts(charts) {
                 .open(routing.trends.resultsUrl,fastTAB);
           }
 
-          // 2. Performance Charts (middle button) + dynamic Group prefix 
+          // 2. Comparative Charts (middle button) + dynamic Group prefix 
           const chartsNavBtn = document.getElementById('btn-nav-charts');
           if (chartsNavBtn && cachedProfile.groupName) {
             chartsNavBtn.innerHTML = `
