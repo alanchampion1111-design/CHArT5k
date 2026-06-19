@@ -36,9 +36,9 @@
           document.getElementById('status-badge').innerText = "Error";
           return; 
         }
-        let userSetupGuideCached = response.userSetupGuideCached || "";
-        let memberRequestGuideCached = response.memberRequestGuideCached || "";
-        let runnerIdNoteCached = response.runnerIdNoteCached || "";
+        window.userSetupGuideCached = response.userSetupGuideCached || "";
+        window.memberRequestGuideCached = response.memberRequestGuideCached || "";
+        window.runnerIdNoteCached = response.runnerIdNoteCached || "";
         window.activeDirectory = response.activeDirectory || [];
         activeDirectory = window.activeDirectory;
         // Cached Profile slow to gather (until step 3?)
@@ -85,8 +85,10 @@
           const menuSetup = document.getElementById('menu-setup');
           if (menuSetup) menuSetup.classList.remove('hidden');
           document.getElementById('btn-cancel-setup').classList.add('hidden');
-          document.getElementById('info-user-setup').innerText = userSetupGuideCached;
-          document.getElementById('info-runner-id-note').innerText = runnerIdNoteCached;
+          document.getElementById('info-user-setup')
+            .innerText = window.userSetupGuideCached;
+          document.getElementById('info-runner-id-note')
+            .innerText = window.runnerIdNoteCached;
           // Populate the runner selections for the initially selected pull-down Group
           if (selectGroup && selectGroup.value) {
             onGroupSelectionChange();
@@ -137,9 +139,9 @@
       document.getElementById('wrapper-existing-form').classList.remove('hidden');
       document.getElementById('wrapper-custom-form').classList.add('hidden');
       // Assign the primary and secondary text notes cached from the server
-      groupGuide.innerText = userSetupGuideCached;
+      groupGuide.innerText = window.userSetupGuideCached;
       if (secondaryPreamble) {
-        secondaryPreamble.innerText = runnerIdNoteCached;
+        secondaryPreamble.innerText = window.runnerIdNoteCached;
       }
       // Re-verify the Runner Id subset values list for the selected group
       if (selectGroup && selectGroup.value) {
@@ -152,7 +154,7 @@
       // NO difference expected in the new member preamble - hence unchanged
       // groupGuide.innerText = memberRequestGuideCached;
       if (secondaryPreamble) {
-        secondaryPreamble.innerText = "Please contact the Group Owner directly to add you as a member.";
+        secondaryPreamble.innerText = "You may need to contact the Group Owner directly to add you as a member.";
       }
       const customFormInfo = document.getElementById('info-member-request');
       if (customFormInfo) {
@@ -201,8 +203,9 @@
           window.cachedProfile = {groupName:groupName,ssId:ssId,runnerId:""};
           cachedProfile = window.cachedProfile;
           updateNavigationContext();
+          syncAccessInterfaceState(); // expect 'Access pending...'
           document.getElementById('menu-setup').classList.add('hidden');
-          showScreen(defaultSCREEN);
+          showScreen(minimalistSCREEN);
           document.getElementById('status-badge').innerText = "New member pending";
         })
         .saveDeviceProfile(devId,groupName,ssId,"","BLANK_NEW_MEMBER_MODE");
