@@ -54,8 +54,8 @@
         <button id="btn-trends-overall" onclick="openLink('trends.overallUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Progress Chart</span><i class="material-icons text-amber-500">trending_up</i>
         </button>
-        <!-- Expect recent (past year?) to be hidden if only one chart found for this runner -->
-        <button id="btn-trends-recent" onclick="openLink('trends.recentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+        <!-- Expect recent (past year?) to be revealed if an extra chart found for this runner -->
+        <button id="btn-trends-recent" onclick="openLink('trends.recentUrl')" class="hidden w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Current Trend</span><i class="material-icons text-amber-500">trending_up</i>
         </button>
         <button id="btn-trends-results" onclick="openLink('trends.resultsUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
@@ -90,17 +90,17 @@
     <section id="screen-rankings" class="app-screen space-y-4 hidden">
       <h2 class="text-lg font-bold text-slate-700">Members Rankings</h2>
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2">
-        <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Latest  Results</span><i class="material-icons text-amber-500">table_chart</i>
-        </button>
         <button onclick="openLink('rankings.currentUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">emoji_events</i>
+          <span class="font-medium text-sm text-slate-700">Current Ranking</span><i class="material-icons text-amber-500">star</i>
         </button>
         <button onclick="openLink('rankings.bestEverUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Best-Ever Ranking</span><i class="material-icons text-amber-500">stars</i>
         </button>
         <button onclick="openLink('rankings.challengeUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">Latest Challenge</span><i class="material-icons text-amber-500">table_chart</i>
+          <span class="font-medium text-sm text-slate-700">Latest Challenge</span><i class="material-icons text-amber-500">emoji_events</i>
+        </button>
+        <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700">Latest Results</span><i class="material-icons text-amber-500">auto_awesome</i>
         </button>
       </div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
@@ -199,6 +199,7 @@
     let runtimeRouting = null;
     
     const defaultSCREEN = 'charts';
+    const highNumRUNS = 150;        // runners over 150 runs merit a focussed trends chart  
     const openTAB = 'GroupSSTab';   // used by Group Rankings tables (via openLink)
     const fastTAB = 'SharedSSTab';  // used by dynamic Trends & Charts (window.open)
     const mailTAB = 'RequestTab';   // for mailto: new member/group or allow access
