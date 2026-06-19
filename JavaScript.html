@@ -329,7 +329,7 @@
    * Refine (footer) navigation buttons based on
    * user profile Group name and Runner Id settings.
    */
-  function updateFooterNavigation() {
+  function updateNavigationContext() {
     // Safely check if a profile is currently active/cached
     const hasProfile = (typeof cachedProfile !== 'undefined' && cachedProfile);
     const ssId = hasProfile ? cachedProfile.ssId : "";
@@ -345,6 +345,17 @@
         btnTrends.classList.remove('hidden');
         updateTrendsNavigation(runnerId);
       }
+      const titleTrends = document
+        .getElementById('trends-runner-title');
+      if (titleTrends)
+        titleTrends.innerText = runnerId
+          ? `My Trends (${runnerId})`
+          : "My Trends";
+      const trendCurrent = document
+        .getElementById('btn-trends-recent');
+      if (trendCurrent && cachedProfile
+          && Number(cachedProfile.numRuns) > highNumRUNS)
+        trendCurrent.classList.remove('hidden');
     } else { // Runner Id unknown or pending: Hide button
       if (btnTrends)
         btnTrends.classList.add('hidden');
@@ -357,6 +368,12 @@
         btnCharts.classList.remove('hidden');
         updateChartsNavigation(groupName);
       }
+      const titleCharts = document
+        .getElementById('charts-group-title');
+      if (titleCharts)
+        titleCharts.innerHTML = groupName
+            ? `${groupName}<br/>Comparative Charts`
+            : "Comparative Charts";
     } else {  // No Group set: Hide button
       if (btnCharts)
         btnCharts.classList.add('hidden');
@@ -375,6 +392,12 @@
   
 function renderDivisionalGroupsCharts(charts) {
     if (!charts) return;
+    const categoryIcons = {
+      'Age Groups': 'multiline_chart',
+      'Leagues':    'multiline_chart',
+      'Families':   'family_restroom',    // Man, woman, and child icon
+      'Gender':     'wc'                  // Full-height male and female icons
+    };
     const wrapper = document.getElementById('charts-wrapper');
     wrapper.innerHTML = '';
     const categories = {};
@@ -382,6 +405,7 @@ function renderDivisionalGroupsCharts(charts) {
       if (!categories[c.grouping]) categories[c.grouping] = [];
       categories[c.grouping].push(c);
     });
+
     let masterCard = document.createElement('div');  // onetable with four sub-headings (at most)
     masterCard.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4";
     let hasAnyContent = false;
@@ -404,7 +428,7 @@ function renderDivisionalGroupsCharts(charts) {
           btn.onclick = () => window.open(chart.url, fastTAB);
           btn.innerHTML = `
             <span class="text-sm font-semibold leading-tight">${chart.name}</span>
-            <i class="material-icons text-amber-500 text-xl">multiline_chart</i>
+            <i class="material-icons text-amber-500 text-xl">${categoryIcons[categoryName] || 'multiline_chart'}</i>
           `;
           listContainer.appendChild(btn);
         });
@@ -522,7 +546,7 @@ function renderDivisionalGroupsCharts(charts) {
 
         // 4. Update access status (on 3 screens) explicitly thereafter
         syncAccessInterfaceState();
-        updateFooterNavigation();
+        updateNavigationContext();
       })
       .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
   }
