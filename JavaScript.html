@@ -337,6 +337,7 @@
     const runnerId = hasProfile ? cachedProfile.runnerId : "";
     console.log('Identified runner, ',runnerId,
       'in Group, ',groupName);
+    const hideFooter = (!groupName && !runnerId);
 
     // 1. My Trends (appears if both Group SS and Runner Id known)
     const btnTrends = document.getElementById('nav-trends');
@@ -392,6 +393,14 @@
       if (btnRankings)
         btnRankings.classList.add('hidden');
     }
+
+    // 4. Reclaim footer space?
+    const footerPanel = document.getElementById('nav-panel');
+    if (footerPanel)
+      if (hideFooter)
+        appFooter.classList.add('hidden');
+      else
+        appFooter.classList.remove('hidden');
   }
   
 function renderDivisionalGroupsCharts(charts) {
