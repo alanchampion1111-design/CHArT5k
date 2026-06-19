@@ -65,19 +65,20 @@
         
         // 3. Verify identity matching tracking vectors to clear layout viewports
         if (response.cachedProfile) {
-          // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard
-          // Bridging the divide of 2 files: Map the BE payload directly to FE globals
-          window.cachedProfile = response.cachedProfile;
+          // Known Device: Unhide cancellation option, load profile values, route straight to Dashboard - potentially Group known but no RunnerId yet
+          window.cachedProfile = response.cachedProfile; // Bridging divide of 2 files
           cachedProfile = window.cachedProfile; // global inside the Web App sandbox
           window.myCache = cachedProfile; // truly global from F12 Console
           const menuSetup = document.getElementById('menu-setup');
           if (menuSetup) menuSetup.classList.add('hidden');
-          document.getElementById('btn-cancel-setup').classList.remove('hidden');
-          if (selectGroup) selectGroup.value = cachedProfile.ssId;
-          onGroupSelectionChange(cachedProfile.runnerId);
-          fetchLiveRoutingPayload();
-          showScreen(defaultSCREEN); 
-          document.getElementById('status-badge').innerText = "Online";
+          fetchLiveRoutingPayload(); 
+          if (cachedProfile.status === "Requested" || !cachedProfile.runnerId) {
+            showScreen(minimalistSCREEN); 
+            document.getElementById('status-badge').innerText = "New member pending";
+          } else {
+            showScreen(defaultSCREEN); 
+            document.getElementById('status-badge').innerText = "Online";
+          }
         } else {
           // Unknown Device: Lock down cancel button, present default user profile setups
           cachedProfile = null;
@@ -203,7 +204,7 @@
           window.cachedProfile = {groupName:groupName,ssId:ssId,runnerId:""};
           cachedProfile = window.cachedProfile;
           updateNavigationContext();
-          syncAccessInterfaceState(); // expect 'Access pending...'
+          // syncAccessInterfaceState(); // remains 'Allow me access...' since no Runner Id
           document.getElementById('menu-setup').classList.add('hidden');
           showScreen(minimalistSCREEN);
           document.getElementById('status-badge').innerText = "New member pending";
