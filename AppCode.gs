@@ -266,6 +266,10 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
     var cleanRunnerId = runnerId ? runnerId.toString().trim() : "";
     var resultsGid = "";
     var timestamp = new Date();
+    var numRuns = 0;
+    var accessStatus = resultsGidMode === "BLANK_NEW_MEMBER_MODE"
+      ? "Requested"
+      : "Unknown";
     
     if (cleanRunnerId && resultsGidMode === "AUTO_LOOKUP_GID") {
       var lookupSheet = ss.getSheetByName(TABLES.MEMBERS);
@@ -275,7 +279,7 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
         var idxMemberRunnerId = mHeaders.indexOf(COL_MEMBER.RUNNER_ID);
         var idxMemberSsId     = mHeaders.indexOf(COL_MEMBER.SS_ID);
         var idxMemberGid      = mHeaders.indexOf(COL_MEMBER.RESULTS_GID);
-        var idxMemberNumRuns = deviceHeaders.indexOf(COL_MEMBER.COUNT);
+        var idxMemberNumRuns  = mHeaders.indexOf(COL_MEMBER.COUNT);
         var idxMemberShared   = mHeaders.indexOf(COL_MEMBER.SHARED);
         for (var i = 1; i < lData.length; i++) {
           if (lData[i][idxMemberRunnerId].toString().trim() == cleanRunnerId && 
@@ -292,8 +296,6 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
                     sharedRole === "Viewer" ||
                     sharedRole === "Owner")
               accessStatus = "Granted";
-            // else
-              // accessStatus = "Requested";
             break;
           }
         }
@@ -307,6 +309,7 @@ function saveDeviceProfile(deviceId, groupName, ssId, runnerId, resultsGidMode) 
     var idxDevSsId      = dHeaders.indexOf(COL_DEVICE.SS_ID);
     var idxDevRunnerId  = dHeaders.indexOf(COL_DEVICE.RUNNER_ID);
     var idxDevGid       = dHeaders.indexOf(COL_DEVICE.RESULTS_GID);
+    var idxDevNumRuns   = dHeaders.indexOf(COL_DEVICE.COUNT);
     var idxDevStatus    = dHeaders.indexOf(COL_DEVICE.STATUS);
     var matchedRow = -1;
     for (var d = 1; d < dData.length; d++) {
