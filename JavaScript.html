@@ -17,7 +17,7 @@
     devId = localStorage.getItem('chart5k_uuid');
     if (!devId) {
       devId = 'dev-' + self.crypto.randomUUID();
-      localStorage.setItem('chart5k_uuid', devId);
+      localStorage.setItem('chart5k_uuid',devId);
     }
   }
 
@@ -141,7 +141,7 @@
       if (secondaryPreamble) {
         secondaryPreamble.innerText = runnerIdNoteCached;
       }
-      // Re-verify the runner ID subset values list for the selected group
+      // Re-verify the Runner Id subset values list for the selected group
       if (selectGroup && selectGroup.value) {
         onGroupSelectionChange(); 
       }
@@ -343,6 +343,7 @@
     if (ssId && runnerId) {
       if (btnTrends) {
         btnTrends.classList.remove('hidden');
+        btnTrends.style.display = 'flex';
         updateTrendsNavigation(runnerId);
       }
       const titleTrends = document
@@ -366,6 +367,7 @@
     if (ssId && groupName) {
       if (btnCharts) {
         btnCharts.classList.remove('hidden');
+        btnCharts.style.display = 'flex';
         updateChartsNavigation(groupName);
       }
       const titleCharts = document
@@ -382,8 +384,10 @@
     // 3. Members Rankings (appears when Group SS known at least)
     const btnRankings = document.getElementById('nav-rankings');
     if (ssId && groupName) {
-      if (btnRankings)
+      if (btnRankings) {
         btnRankings.classList.remove('hidden');
+        btnRankings.style.display = 'flex';
+      }
     } else {  // No Group set: Hide button
       if (btnRankings)
         btnRankings.classList.add('hidden');
