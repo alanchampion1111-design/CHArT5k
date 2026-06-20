@@ -86,9 +86,12 @@ const VIEWPORTS = {
  * Web App Entry Point - Serves the HTML frontend shell
  */
 function doGet() {
+  const fileId = "1bihOAy-ShvTm2BrPejmI-siVzKmW1pu9";
+  const iconUrl = "https://lh3.googleusercontent.com/d/"+fileId+"&export=download&format=png";
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('CHArT5k')
+    .setFaviconUrl(iconUrl)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 }
