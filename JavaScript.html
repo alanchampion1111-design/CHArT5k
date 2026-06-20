@@ -72,7 +72,7 @@
           const menuSetup = document.getElementById('menu-setup');
           if (menuSetup) menuSetup.classList.add('hidden');
           fetchLiveRoutingPayload(); 
-          if (cachedProfile.status === "Requested" || !cachedProfile.runnerId) {
+          if (cachedProfile.accessStatus === "Requested" || !cachedProfile.runnerId) {
             showScreen(minimalistSCREEN); 
             document.getElementById('status-badge').innerText = "New member pending";
           } else {
@@ -187,8 +187,44 @@
     const groupName = groupSelect
       ? groupSelect.options[groupSelect.selectedIndex].text
       : "";
-    if (!isExistingMode) {
-      document.getElementById('status-badge').innerText = "Requesting...";
+    if (isExistingMode) { // Existing member (runner Id known)
+      const runnerId = document.getElementById('setup-id').value;
+      if (!ssId || !runnerId) {
+        alert("Selection parameter verification failed.");
+        return;
+      }
+      const applyBtn = document.querySelector("button[onclick='saveSetup()']");
+      if (applyBtn) applyBtn.disabled = true;
+      document.getElementById('status-badge').innerText = "Setting Profile...";
+      google.script.run
+        .withSuccessHandler((payload) => {  // explicit response variable
+          if (!payload || payload.error) {
+            alert("Configuration sync failed: " +
+              (payload ? payload.error : "Empty server response"));
+            document.getElementById('status-badge').innerText = "Error";
+            return;
+          }
+          window.activeDirectory = payload.activeDirectory || []; // aligned to local state
+          activeDirectory = window.activeDirectory; 
+          window.cachedProfile = {
+            groupName: groupName,
+            ssId: ssId,
+            runnerId: runnerId,
+            resultsGid: payload.resultsGid !== undefined ? payload.resultsGid : 0,
+            numRuns: payload.numRuns !== undefined ? payload.numRuns : 0,
+            accessStatus: payload.accessStatus || "Needed" // default Blocked
+          };
+          cachedProfile = window.cachedProfile;
+          const menuSetupBtn = document.getElementById('menu-setup');
+          if (menuSetupBtn) menuSetupBtn.classList.add('hidden');
+          fetchLiveRoutingPayload();
+          showScreen(defaultSCREEN);
+          document.getElementById('status-badge').innerText = "Online";
+        })
+        .saveDeviceProfile(devId,groupName,ssId,runnerId,"AUTO_LOOKUP_GID");
+
+    } else {    // New member...
+          document.getElementById('status-badge').innerText = "Requesting...";
       google.script.run
         .withSuccessHandler(() => {
           const ownerEmail = getOwnerEmail(ssId);
@@ -210,42 +246,7 @@
           document.getElementById('status-badge').innerText = "New member pending";
         })
         .saveDeviceProfile(devId,groupName,ssId,"","BLANK_NEW_MEMBER_MODE");
-      return;
     }
-    const runnerId = document.getElementById('setup-id').value;
-    if (!ssId || !runnerId) {
-      alert("Selection parameter verification failed.");
-      return;
-    }
-    const applyBtn = document.querySelector("button[onclick='saveSetup()']");
-    if (applyBtn) applyBtn.disabled = true;
-    document.getElementById('status-badge').innerText = "Setting Profile...";
-    google.script.run
-      .withSuccessHandler((payload) => {  // explicit response variable
-        if (!payload || payload.error) {
-          alert("Configuration sync failed: " +
-            (payload ? payload.error : "Empty server response"));
-          document.getElementById('status-badge').innerText = "Error";
-          return;
-        }
-        window.activeDirectory = payload.activeDirectory || []; // aligned to local state
-        activeDirectory = window.activeDirectory; 
-        window.cachedProfile = {
-          groupName: groupName,
-          ssId: ssId,
-          runnerId: runnerId,
-          resultsGid: payload.resultsGid !== undefined ? payload.resultsGid : "",
-          numRuns: payload.numRuns !== undefined ? payload.numRuns : 0,
-          accessStatus: payload.accessStatus || "Requested"    // e.g. Granted if already 
-        };
-        cachedProfile = window.cachedProfile;
-        const menuSetupBtn = document.getElementById('menu-setup');
-        if (menuSetupBtn) menuSetupBtn.classList.add('hidden');
-        fetchLiveRoutingPayload();
-        showScreen(defaultSCREEN);
-        document.getElementById('status-badge').innerText = "Online";
-      })
-      .saveDeviceProfile(devId,groupName,ssId,runnerId,"AUTO_LOOKUP_GID");
   }
 
   /**
@@ -424,8 +425,7 @@ function renderDivisionalGroupsCharts(charts) {
     });
 
     let masterCard = document.createElement('div');  // onetable with four sub-headings (at most)
-    masterCard.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4";
-    let hasAnyContent = false;
+    masterCard.className = "bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2";
     for (let categoryName in categories) {
       let validCharts = categories[categoryName]
         .filter(chart => chart
@@ -437,7 +437,8 @@ function renderDivisionalGroupsCharts(charts) {
         header.innerHTML = categoryName;
         masterCard.appendChild(header);
         let listContainer = document.createElement('div');
-        listContainer.className = "flex flex-col space-y-2 pb-2";
+
+        listContainer.className = "flex flex-col space-y-1.5";
         validCharts.forEach(chart => {    // for each divisional category
           let btn = document.createElement('button');
           btn.className = "w-full bg-amber-50/50 hover:bg-amber-50 border border-amber-100 py-1 px-3 rounded-xl flex items-center "+
@@ -472,29 +473,29 @@ function renderDivisionalGroupsCharts(charts) {
       const textSpan = drawer.querySelector('.access-text');
       const icon = drawer.querySelector('.material-icons');
       switch (currentStatus) {
-        case "Needed":  // show key for user to request access (by email)
+       case "Needed":  // show key for user to request access (by email)
         drawer.style.display = 'inline-flex'; 
         drawer.disabled = false;
         if (textSpan) textSpan.innerText = "Allow me access...";
         if (icon) icon.innerText = "vpn_key";
         break;
-        case "Requested":  // Assumes requested, pending Owner todo + pull
+       case "Requested":  // Assumes requested, pending Owner todo + pull
         drawer.style.display = 'inline-flex';
         drawer.disabled = true;          
         if (textSpan) textSpan.innerText = "Access pending...";
         if (icon) icon.innerText = "lock_clock"; 
         break;
-      case "Granted":  // Hide the key completely and simultaneously!
+       case "Granted":  // Hide the key completely and simultaneously!
         drawer.style.display = 'none';   
         break;
-      default:
+       default:
         console.warn("Unknown Access State encountered: " + currentStatus);
       }
     });
   }
 
   function fetchLiveRoutingPayload() {
-    if (!cachedProfile || !cachedProfile.runnerId) return;
+    if (!cachedProfile || !cachedProfile.groupName) return;
     google.script.run
       .withSuccessHandler((routing) => {
         console.log("Cached Profile (at fetchLive start):",
@@ -564,6 +565,9 @@ function renderDivisionalGroupsCharts(charts) {
         // 4. Update access status (on 3 screens) explicitly thereafter
         syncAccessInterfaceState();
         updateNavigationContext();
+        if (cachedProfile.accessStatus === "Requested" && !cachedProfile.runnerId) {
+          showScreen(minimalistSCREEN);  // avoid ghost interference from Charts on Rankings screen!
+        }   
       })
       .getDashboardRouting(cachedProfile.ssId, cachedProfile.runnerId);
   }
