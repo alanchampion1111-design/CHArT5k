@@ -86,8 +86,8 @@ const VIEWPORTS = {
  * Web App Entry Point - Serves the HTML frontend shell
  */
 function doGet() {
-  const fileId = "1bihOAy-ShvTm2BrPejmI-siVzKmW1pu9";
-  const iconUrl = "https://lh3.googleusercontent.com/d/"+fileId+"&export=download&format=png";
+  const fileId = "CHAr-T5k.jpg";
+  const iconUrl = "https://i.postimg.cc/5tvyx15d/"+fileId+"?fakeext=.ico";
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('CHArT5k')
