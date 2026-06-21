@@ -25,6 +25,28 @@
     <div id="status-badge" class="text-xs bg-amber-600 text-white font-semibold px-2 py-1 rounded">Syncing...</div>
   </header>
 
+  <div id="disclaimer-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-100 flex flex-col space-y-4">
+    
+    <div class="flex items-center space-x-3 border-b pb-2 border-slate-100">
+      <img src="https://i.postimg.cc/5tvyx15d/CHAr-T5k.jpg?fakeext=.ico" alt="CHArT5k" class="h-8 w-8 rounded-lg object-cover">
+      <h3 class="text-base font-bold text-slate-800">Welcome to CHArT5k</h3>
+    </div>
+
+    <div class="text-xs text-slate-600 space-y-2.5 leading-relaxed overflow-y-auto max-h-60 pr-1">
+      <p>If the Group spreadsheet has not been explicitly shared with you by the Group owner, you may not have access to any charts or tables.</p>
+      <p class="font-medium text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100/60">
+        ℹ️ To overcome this, contact the Group owner directly, or simply tap the <strong>'Allow me access...'</strong> button to request access from the Group owner.
+      </p>
+      <p><strong>Privacy Assurance:</strong> Any personal information, including email address, date of birth, etc. remain protected and strictly inaccessible within the Group spreadsheet.</p>
+      <p class="text-slate-400">The CHArT5k App itself does not retain any personal data nor parkrun results, except your selected club or family Group, the corresponding parkrun club Group id (if any), your fist name and your number of parkruns to date.  The parkrun organisation and their parkrun App is completely unrelated to this App.</p>
+    </div>
+
+    <button id="disclaimer-ack-btn" class="w-full bg-slate-800 hover:bg-slate-900 active:scale-[0.99] text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition shadow-sm">
+      Continue
+    </button>
+  </div>
+
   <div id="sidebar-overlay" onclick="toggleMenu(false)" class="fixed inset-0 bg-black/40 z-50 hidden opacity-0 transition-opacity duration-300"></div>
   <div id="sidebar" class="fixed top-0 bottom-0 left-0 w-72 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col">
     <div class="p-5 bg-amber-400 font-bold text-lg text-slate-950 flex justify-between items-center">
@@ -66,7 +88,7 @@
           <span class="font-medium text-sm text-slate-700">Recent Results</span><i class="material-icons text-amber-500">table_chart</i>
         </button>
       </div>
-      <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
+      <!-- 'Access pending' appears after user sends to owner, then fully disappears after actioned
           - applies universally across all 3 screens -->
       <div class="mt-6 pt-4 border-t border-slate-200 text-center">
         <button class="access-status-drawer inline-flex items-center space-x-2 text-sm text-slate-500 hover:text-amber-600 font-medium p-2 rounded transition" onclick="triggerAccessRequest();">
@@ -105,6 +127,9 @@
         </button>
         <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Latest Results</span><i class="material-icons text-amber-500">auto_awesome</i>
+        </button>
+        <button id="btn-rankings-parkrun" onclick="openLink('rankings.parkrunClubUrl')" class="hidden w-full text-left p-2 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
+          <span class="font-medium text-sm text-slate-700"><italic>parkrun Consolidated Report<italic></span><i class="material-icons text-amber-500">report</i>
         </button>
       </div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
