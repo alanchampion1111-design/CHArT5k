@@ -26,7 +26,7 @@ const COL_MASTER = {
   RANKINGS_GID: "Rankings Gid",     // e.g. current ranking used for League divisions
   CHALLENGES_GID: "Challenges Gid", // ordered results from planned event (same venue?)
   COUNT: "#",                       // Number of members imported
-  GROUP_ID: "Parkrun Group No."     // optional (if it exists?)
+  PARKRUN_ID: "Parkrun Group No."     // optional (if it exists?)
   // Other virtual columns include generated latest/current/ranking table links
 };
 
@@ -431,6 +431,7 @@ function getRankingsRouting(ssActive,ssIdKey) {
     var idxLatestGid = mHeaders.indexOf(COL_MASTER.LATEST_GID);
     var idxRankingsGid = mHeaders.indexOf(COL_MASTER.RANKINGS_GID);
     var idxChallengesGid = mHeaders.indexOf(COL_MASTER.CHALLENGES_GID);
+    var idxParkrunClub = mHeaders.indexOf(COL_MASTER.PARKRUN_ID);
     var rankingsList = {};
     for (var i = 1; i < mData.length; i++) {
       if (mData[i][idxMasterSsId] === ssIdKey) {
@@ -439,7 +440,8 @@ function getRankingsRouting(ssActive,ssIdKey) {
           latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
           currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
           bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
-          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid]
+          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid],
+          parkrunClubUrl: "https://www.parkrun.com/results/consolidatedclub/?clubNum="+mData[i][idxParkrunClub]
         };
         break;
       }
