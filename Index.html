@@ -129,8 +129,8 @@
         <button onclick="openLink('rankings.latestUrl')" class="w-full text-left p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
           <span class="font-medium text-sm text-slate-700">Latest Results</span><i class="material-icons text-amber-500">auto_awesome</i>
         </button>
-        <button id="btn-rankings-parkrun" onclick="openLink('rankings.parkrunClubUrl')" class="hidden italic w-full text-left p-2 hover:bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-slate-100 transition">
-          <span class="font-medium text-sm text-slate-700">parkrun Consolidated Report</span><i class="material-icons text-amber-500">description</i>
+        <button id="btn-rankings-parkrun" onclick="openLink('rankings.parkrunClubUrl')" class="hidden italic w-full text-left p-2 hover:bg-amber-50/50 rounded-xl flex items-center justify-between border border-slate-100 active:bg-amber-100 transition">
+          <span class="font-medium text-sm text-amber-600">parkrun Consolidated Report</span><i class="material-icons text-amber-500">description</i>
         </button>
       </div>
       <!-- 'Request pending' appears after user sends to owner, then fully disappears after actioned
@@ -238,7 +238,7 @@
     const doDEBUG = true;
     const defaultSCREEN = 'charts';
     const minimalistSCREEN = 'rankings';
-    const parkrunGlobalURL = "https://www.parkrun.com/results/consolidatedclub/?clubNum="; // declared in AppCode.gs also
+    const parkrunURL = "https://www.parkrun."; // country specific
     const highNumRUNS = 150;  // over 150 runs merit a current trends chart?  
     const openTAB = 'GroupSSTab';   // used by Group Rankings tables (via openLink)
     const fastTAB = 'SharedSSTab';  // used by dynamic Trends & Charts (window.open)
