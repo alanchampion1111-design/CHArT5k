@@ -1,5 +1,9 @@
 // FILE: AppCode.gs
 
+const workSHEET = "https://docs.google.com/spreadsheets/d/";  // works if shared
+const parkrunGlobalURL =  // open access
+  "https://www.parkrun.com/results/consolidatedclub/?clubNum=";
+
 /**
  * Global App Tables (Owner protected except Devices is open to all)
  */
@@ -145,10 +149,10 @@ function initializeApplicationData(devId) {
       }
     }
 
-    // 1C. Directory Generation Loop (Populate Active Group Nodes)
+    // 1C. Active Directory (from Group setting)
     var activeDirectory = [];
     if (masterSheet) {
-      // Re-use or establish the master values matrix grid cleanly
+      // Re-use or establish the Group values cleanly
       var mData = masterSheet.getDataRange().getValues();
       var masterHeaders = mData[0];
       // Locate structural index maps via master schema definitions
@@ -156,6 +160,7 @@ function initializeApplicationData(devId) {
       var idxGroupName = masterHeaders.indexOf(COL_MASTER.GROUP_NAME);
       var idxSsId = masterHeaders.indexOf(COL_MASTER.SS_ID);
       var idxOwner = masterHeaders.indexOf(COL_MASTER.OWNER);
+      var idxParkrunId = masterHeaders.indexOf(COL_MASTER.PARKRUN_ID);
       // Scan directory rows to extract verified, active groups
       for (var i = 1; i < mData.length; i++) {
         var row = mData[i];
@@ -166,7 +171,9 @@ function initializeApplicationData(devId) {
             activeDirectory.push({
               groupName: idxGroupName > -1 ? row[idxGroupName] : "",
               ssId: idxSsId > -1 ? row[idxSsId] : "",
-              ownerEmail: idxOwner > -1 ? row[idxOwner] : ""
+              ownerEmail: idxOwner > -1 ? row[idxOwner] : "",
+              parkrunGroupId: idxParkrunId > -1
+              ? row[idxParkrunId] : 0,
             });
           }
         }
@@ -364,9 +371,9 @@ function getTrendsRouting(ssActive,ssIdKey,runnerId) {
           var lastResultRow = 2+dData[d][idxCount]; // skip to this row
           if (savedGid) {
             trendsList = {
-              overallUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
-              recentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
-              resultsUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + savedGid +
+              overallUrl: workSHEET + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_OVERALL + "&viewport=focussed",
+              recentUrl: workSHEET + ssIdKey + "/view?gid=" + savedGid + "&range=" + VIEWPORTS.TRENDS_RECENT + "&viewport=focussed",
+              resultsUrl: workSHEET + ssIdKey + "/view?gid=" + savedGid +
                 "&range=A" + lastResultRow.toString() +
                 ":L" + lastResultRow.toString() +
                 "&viewport=focussed"
@@ -411,7 +418,7 @@ function getChartsRouting(ssActive,ssIdKey,runnerId,groupTableName) {
             name: name,
             grouping: sectionGroup,
             showLink: showLinkIcon,
-            url: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + targetGid + "&range=" + cellRange + "&viewport=focussed"
+            url: workSHEET + ssIdKey + "/view?gid=" + targetGid + "&range=" + cellRange + "&viewport=focussed"
           });
         }
       }
@@ -437,11 +444,11 @@ function getRankingsRouting(ssActive,ssIdKey) {
       if (mData[i][idxMasterSsId] === ssIdKey) {
         groupTableName = mData[i][idxMasterGroup];  // TODO: may need to strip & AC and perhaps Club/Parkrunner
         rankingsList = {
-          latestUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
-          currentUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
-          bestEverUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
-          challengeUrl: "https://docs.google.com/spreadsheets/d/" + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid],
-          parkrunClubUrl: "https://www.parkrun.com/results/consolidatedclub/?clubNum="+mData[i][idxParkrunClub]
+          latestUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
+          currentUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
+          bestEverUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
+          challengeUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid],
+          parkrunClubUrl:parkrunGlobalURL+mData[i][idxParkrunClub]
         };
         break;
       }
