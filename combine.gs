@@ -17,10 +17,6 @@ const templateNameCELL = "E1";            // Runners cell identifies the seed te
 const templateNAME = allRunnersSheet      // The seed template may be readily reconfigured
   .getRange(templateNameCELL)     // See the note on Runners!J1 cell
   .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
-const templateSPREADSHEET = 'FAMILY Template';
-const templateFOLDER ='Spawned';
-const clubTYPE = 'Parkrunners';   // alternatively, 'Clubrunners'?
-const clubSUFFIX = "Clubrunners";
 
 const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';    // Google Cloud service in operation
 // const sampleURL = 'https://www.example.com';  // default test
