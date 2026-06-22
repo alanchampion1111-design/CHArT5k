@@ -13,6 +13,26 @@
     else console.warn("Click failed for: ",objectPath);
   }
 
+  // 1. The Promise Gatekeeper for invited Existing member
+  function presentDisclaimer() {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('disclaimer-overlay');
+      const ackBtn = document.getElementById('disclaimer-ack-btn');
+      // Unhide the overlay visually
+      overlay.classList.remove('hidden');
+      // When clicked, hide the overlay and resolve the promise to resume execution
+      ackBtn.onclick = () => {
+        overlay.classList.add('hidden');
+        resolve(); // 👈 This wakes up the async function waiting on it!
+      };
+    });
+  }
+
+  // 2. Your Existing Member Submission Trigger
+  async function handleExistingMemberSubmission() {
+    await presentDisclaimer();  // PAUSE EXECUTION RIGHT HERE 
+  }
+
   function resolveDeviceFingerprint() {
     devId = localStorage.getItem('chart5k_uuid');
     if (!devId) {
@@ -32,7 +52,7 @@
     google.script.run
       .withSuccessHandler((response) => {
         if (response.error) { 
-          alert("Initialization Failure: " + response.error); 
+          console.warn("Initialization Failure: " + response.error); 
           document.getElementById('status-badge').innerText = "Error";
           return; 
         }
@@ -167,15 +187,26 @@
   }
 
   /**
-   * Helper: Resolves the target owner email from activeDirectory.
+   * Resolves the target owner email from activeDirectory.
    * Falls back to the template owner (Row 0) if no group is selected or found.
    */
   function getOwnerEmail(thisSsId) {
     const targetGroupObject = activeDirectory.find(g =>
-      g.ssId === thisSsId) || activeDirectory[0]
+      g.ssId === thisSsId) || activeDirectory[0];
     return targetGroupObject
       ? targetGroupObject.ownerEmail
       : "";
+  }
+
+  /**
+   * Resolves the target Parkrun Group Id from activeDirectory.
+   */
+  function getParkrunGroupId(thisSsId) {
+    const targetGroupObject = activeDirectory.find(g =>
+      g.ssId === thisSsId);
+    return targetGroupObject
+      ? targetGroupObject.parkrunGroupId
+      : 0;
   }
 
   function saveSetup() {
@@ -190,7 +221,8 @@
     if (isExistingMode) { // Existing member (runner Id known)
       const runnerId = document.getElementById('setup-id').value;
       if (!ssId || !runnerId) {
-        alert("Selection parameter verification failed.");
+        console.warn("Existing profile expects Group and Runner Id");
+        document.getElementById('status-badge').innerText = "Error";
         return;
       }
       const applyBtn = document.querySelector("button[onclick='saveSetup()']");
@@ -199,19 +231,22 @@
       google.script.run
         .withSuccessHandler((payload) => {  // explicit response variable
           if (!payload || payload.error) {
-            alert("Configuration sync failed: " +
-              (payload ? payload.error : "Empty server response"));
+            console.warn("Save setup failed: " +
+              (payload ? payload.error : "Server response error"));
             document.getElementById('status-badge').innerText = "Error";
             return;
           }
-          window.activeDirectory = payload.activeDirectory || []; // aligned to local state
+          window.activeDirectory = payload.activeDirectory
+            || []; // contains ALL groups (assuming loaded?)
           activeDirectory = window.activeDirectory; 
           window.cachedProfile = {
             groupName: groupName,
             ssId: ssId,
             runnerId: runnerId,
-            resultsGid: payload.resultsGid !== undefined ? payload.resultsGid : 0,
-            numRuns: payload.numRuns !== undefined ? payload.numRuns : 0,
+            resultsGid: payload.resultsGid !== undefined
+              ? payload.resultsGid : 0,
+            numRuns: payload.numRuns !== undefined
+              ? payload.numRuns : 0,
             accessStatus: payload.accessStatus || "Needed" // default Blocked
           };
           cachedProfile = window.cachedProfile;
@@ -237,7 +272,11 @@
             "Thanks, <full name>\n\n(from device, "+devId+")";
           window.open("mailto:"+ownerEmail+"?subject="+subject+
             "&body="+encodeURIComponent(emailBody), mailTAB);
-          window.cachedProfile = {groupName:groupName,ssId:ssId,runnerId:""};
+          window.cachedProfile = {
+            groupName:groupName,
+            ssId:ssId,
+            runnerId:""
+          };
           cachedProfile = window.cachedProfile;
           updateNavigationContext();
           // syncAccessInterfaceState(); // remains 'Allow me access...' since no Runner Id
@@ -312,7 +351,7 @@
     if (prefixSpan) {
       prefixSpan.innerText = name ? name.split(' ')[0] : 'Our';
     } else {
-      console.log('Unable to locate DOM Id, ',groupPrefixId);
+      console.error('Unable to locate DOM Id, ',groupPrefixId);
     }
   }
 
@@ -326,7 +365,7 @@
     if (prefixSpan) {
       prefixSpan.innerText = name ? name.split('_')[0]+"'s" : 'My';
     } else {
-      console.log('Unable to locate DOM Id, ',runnerPrefixId);
+      console.error('Unable to locate DOM Id, ',runnerPrefixId);
     }
   }
 
@@ -337,11 +376,16 @@
   function updateNavigationContext() {
     // Safely check if a profile is currently active/cached
     const hasProfile = (typeof cachedProfile !== 'undefined' && cachedProfile);
-    const ssId = hasProfile ? cachedProfile.ssId : "";
-    const groupName = hasProfile ? cachedProfile.groupName : "";
-    const runnerId = hasProfile ? cachedProfile.runnerId : "";
-    console.log('Identified runner, ',runnerId,
-      'in Group, ',groupName);
+    let ssId = hasProfile ? cachedProfile.ssId : "";
+    let groupName = hasProfile ? cachedProfile.groupName : "";
+    let runnerId = hasProfile ? cachedProfile.runnerId : "";
+    let numRuns = hasProfile ? cachedProfile.numRuns : 0;
+    const isActive = (typeof activeDirectory !== 'undefined' && activeDirectory);
+    let parkrunGroupId = ssId && isActive
+      ? getParkrunGroupId(ssId)
+      : -1;
+      if (doDEBUG)
+        console.log("Parkrun Group Id: ", parkrunGroupId);
     const hideFooter = (!groupName && !runnerId);
 
     // 1. My Trends (appears if both Group SS and Runner Id known)
@@ -356,12 +400,12 @@
         .getElementById('trends-runner-title');
       if (titleTrends)
         titleTrends.innerText = runnerId
-          ? `My Trends (${runnerId})`
+          ? "My Trends ("+runnerId+": "+numRuns+" runs)"
           : "My Trends";
       const trendCurrent = document
         .getElementById('btn-trends-recent');
       if (trendCurrent && cachedProfile
-          && Number(cachedProfile.numRuns) > highNumRUNS)
+          && Number(numRuns) > highNumRUNS)
         trendCurrent.classList.remove('hidden');
     } else { // Runner Id unknown or pending: Hide button
       if (btnTrends)
@@ -378,10 +422,16 @@
       }
       const titleCharts = document
         .getElementById('charts-group-title');
-      if (titleCharts)
+      if (doDEBUG)
+        console.log("Parkrun Group Id (",groupName,"): ",parkrunGroupId);
+      if (titleCharts) {
+        let linkedGroupOpt = parkrunGroupId
+          ? "<a href='"+parkrunGlobalURL+parkrunGroupId+"',"+groupName+"</a>"
+          : groupName;
         titleCharts.innerHTML = groupName
-            ? `${groupName}<br/>Comparative Charts`
-            : "Comparative Charts";
+          ? linkedGroupOpt + "<br/>Comparative Charts"
+          : "Comparative Charts";
+      }
     } else {  // No Group set: Hide button
       if (btnCharts)
         btnCharts.classList.add('hidden');
@@ -393,6 +443,11 @@
       if (btnRankings) {
         btnRankings.classList.remove('hidden');
         btnRankings.style.display = 'flex';
+        const rankingsParkrunId = document
+          .getElementById('btn-rankings-parkrun');
+        if (rankingsParkrunId &&
+            Number(parkrunGroupId) > 0) // parkrun Group exists for this Group?
+          rankingsParkrunId.classList.remove('hidden');
       }
     } else {  // No Group set: Hide button
       if (btnRankings)
@@ -464,11 +519,12 @@ function renderDivisionalGroupsCharts(charts) {
    *    accessStatus - "Needed", "Requested", or "Granted"
    */
   function syncAccessInterfaceState() {
-    var currentStatus = cachedProfile
+    let currentStatus = cachedProfile
       ? cachedProfile.accessStatus
       : "Needed";   // since initially undefined
     const drawers = document.querySelectorAll('.access-status-drawer');
-    // console.log("Drawers found count:", drawers.length);
+    if (doDEBUG)
+      console.log("Screen status drawers:", drawers.length);
     drawers.forEach(drawer => {
       const textSpan = drawer.querySelector('.access-text');
       const icon = drawer.querySelector('.material-icons');
@@ -489,7 +545,8 @@ function renderDivisionalGroupsCharts(charts) {
         drawer.style.display = 'none';   
         break;
        default:
-        console.warn("Unknown Access State encountered: " + currentStatus);
+        console.warn("Unknown Access State: " + currentStatus);
+        document.getElementById('status-badge').innerText = "Error";
       }
     });
   }
@@ -498,9 +555,13 @@ function renderDivisionalGroupsCharts(charts) {
     if (!cachedProfile || !cachedProfile.groupName) return;
     google.script.run
       .withSuccessHandler((routing) => {
-        console.log("Cached Profile (at fetchLive start):",
-          JSON.parse(JSON.stringify(cachedProfile)));
-        console.log("Full routing:", routing);
+        if (doDEBUG) {
+          console.log("Groups directory:",
+            JSON.parse(JSON.stringify(activeDirectory)));
+          console.log("Profile (at fetchLive start):",
+            JSON.parse(JSON.stringify(cachedProfile)));
+          console.log("Full routing:", routing);
+        }
         // 🚀 Bridge the gap for the routing payload between 2 files
         window.runtimeRouting = routing;
         runtimeRouting = window.runtimeRouting;
@@ -543,6 +604,7 @@ function renderDivisionalGroupsCharts(charts) {
         }
 
         // 3. Members Rankings (right button) + Allow me access... 
+        // TODO: Three btn-rankings buttons are undefined! => openTAB used
         if (routing && routing.rankings) {
           const btnLatest = document.getElementById('btn-rankings-latest');
           if (btnLatest)
@@ -560,6 +622,10 @@ function renderDivisionalGroupsCharts(charts) {
           if (btnChallenge)
             btnChallenge.onclick = () => window
               .open(routing.rankings.challengeUrl,fastTAB);
+          const btnParkrun = document.getElementById('btn-rankings-parkrun');
+          if (btnParkrun) // hidden by default unless parkrun Group exists
+            btnParkrun.onclick = () => window
+              .open(routing.rankings.parkrunClubUrl,fastTAB);
         }
 
         // 4. Update access status (on 3 screens) explicitly thereafter
