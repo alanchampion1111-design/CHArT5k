@@ -107,7 +107,7 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
-  debug: false,               // WARNING: may slow down performance if true
+  debug: true,               // WARNING: may slow down performance if true
   runnerNameCOLUMN: "A",      // Runners name in column A 
   runnerSurnameCOLUMN: "B",   // Runners surname in column B
   dobINDEX: 4,                // Runners sheet in column E (for arrays or range offsets)
