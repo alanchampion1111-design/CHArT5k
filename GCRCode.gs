@@ -108,6 +108,10 @@
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
   debug: true,               // WARNING: may slow down performance if true
+  templateSPREADSHEET: 'Family / Club Template',
+  templateFOLDER: 'Spawned',
+  clubTYPE: 'Parkrunners',    // alternatively, 'Clubrunners'?
+  clubSUFFIX: "Clubrunners",
   runnerNameCOLUMN: "A",      // Runners name in column A 
   runnerSurnameCOLUMN: "B",   // Runners surname in column B
   dobINDEX: 4,                // Runners sheet in column E (for arrays or range offsets)
@@ -802,7 +806,7 @@ async function GetEventsResults(eventDate) {
   );
   let clubNameCell = gv.allRunnersSheet.getRange(gc.titleNameCELL);
   // var clubName = clubNameCell.getValue()  // // e.g. Overton Harriers & AC
-  //  .replace(clubSUFFIX,"").trim().replace('&','&amp;');
+  //  .replace(gc.clubSUFFIX,"").trim().replace('&','&amp;');
   let clubWideResultsUrl = clubNameCell.getRichTextValue()
     .getLinkUrl();   // hyperlink to consolidated results in A1
   var eventsResults;
@@ -1391,8 +1395,8 @@ function AddFirstMember(
 }
 
 function CreateNewSpreadsheet(
-  templateFolder = templateFOLDER,
-  templateName = templateSPREADSHEET)
+  templateFolder = gc.templateFOLDER,
+  templateName = gc.templateSPREADSHEET)
 {
   let targetFolder = DriveApp.getFoldersByName(templateFolder).next();
   if (!targetFolder) {
@@ -1407,14 +1411,15 @@ function CreateNewSpreadsheet(
 }
 
 async function InstantiateFamilySpreadSheet(
-  clubType = clubTYPE,   // or Clubrunners
+  clubType = gc.clubTYPE,   // or Clubrunners
   runnerNames = ['Peter','WALLIS'],  // into cols A & B of 1st Runners row of new family Spreadsheet
   gender = 'Male',    // for col C
   email = '',         // for Col D
   dob = undefined,    // for Col E (hidden for security, as also F..H)
   parkrunnerId)       // for col J (after derived age-category in col. I)
 {
-  let [targetFolder,templateId] = CreateNewSpreadsheet(templateFOLDER,templateSPREADSHEET);
+  let [targetFolder,templateId] = CreateNewSpreadsheet(
+    gc.templateFOLDER,gc.templateSPREADSHEET);
   if (gc.debug) Logger.log('Template Id: '+templateId);
   let templateFile = DriveApp.getFileById(templateId);
   if (gc.debug) Logger.log('Template File: '+templateFile);
@@ -1484,7 +1489,7 @@ function DoSpawnNewFamily(
       if (gc.debug)
         Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
       return InstantiateFamilySpreadSheet(
-        clubTYPE,
+        gc.clubTYPE,
         runnerNames,gender, // into cols A & B, C of 1st row of new Runners instance
         email,dob,          // into cols.D & E (hidden for security, as also F..H)
         parkrunnerId)       // into col J (after derived age-category in col. I)
