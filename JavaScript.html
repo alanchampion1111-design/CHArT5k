@@ -199,14 +199,16 @@
   }
 
   /**
-   * Resolves the target Parkrun Group Id from activeDirectory.
+   * Resolves the target Parkrun Group Id and Domain from activeDirectory.
    */
   function getParkrunGroupId(thisSsId) {
     const targetGroupObject = activeDirectory.find(g =>
       g.ssId === thisSsId);
     return targetGroupObject
-      ? targetGroupObject.parkrunGroupId
-      : 0;
+      ? {id: targetGroupObject.parkrunGroupId,
+         domain: targetGroupObject.parkrunGroupDomain || "org.uk" // Fallback default
+        }
+      : {id:-1,domain:""};
   }
 
   function saveSetup() {
@@ -381,11 +383,12 @@
     let runnerId = hasProfile ? cachedProfile.runnerId : "";
     let numRuns = hasProfile ? cachedProfile.numRuns : 0;
     const isActive = (typeof activeDirectory !== 'undefined' && activeDirectory);
-    let parkrunGroupId = ssId && isActive
+    let {id:parkrunGroupId,domain:parkrunGroupDomain} = ssId && isActive
       ? getParkrunGroupId(ssId)
-      : -1;
+      : {id:-1,domain:""};
       if (doDEBUG)
-        console.log("Parkrun Group Id: ", parkrunGroupId);
+        console.log("Parkrun Group Id:", parkrunGroupId,
+          "( in domain:",parkrunGroupDomain,")");
     const hideFooter = (!groupName && !runnerId);
 
     // 1. My Trends (appears if both Group SS and Runner Id known)
@@ -422,11 +425,12 @@
       }
       const titleCharts = document
         .getElementById('charts-group-title');
-      if (doDEBUG)
-        console.log("Parkrun Group Id (",groupName,"): ",parkrunGroupId);
       if (titleCharts) {
-        let linkedGroupOpt = parkrunGroupId
-          ? "<a href='"+parkrunGlobalURL+parkrunGroupId+"',"+groupName+"</a>"
+        let linkedGroupOpt = parkrunGroupId && Number(parkrunGroupId) > 0
+          ? "<a href='"+parkrunURL+parkrunGroupDomain+  // Groups are country-based
+            "/groups/"+parkrunGroupId+"' target='_blank' "+
+            "class='text-amber-600 hover:text-amber-700 underline decoration-amber-500/40 hover:decoration-amber-500 transition-colors'>"+
+            groupName+"</a>"
           : groupName;
         titleCharts.innerHTML = groupName
           ? linkedGroupOpt + "<br/>Comparative Charts"
