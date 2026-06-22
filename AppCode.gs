@@ -1,7 +1,7 @@
 // FILE: AppCode.gs
 
 const workSHEET = "https://docs.google.com/spreadsheets/d/";  // works if shared
-const parkrunGlobalURL =  // open access
+const parkrunGroupReportURL =  // open access
   "https://www.parkrun.com/results/consolidatedclub/?clubNum=";
 
 /**
@@ -30,7 +30,8 @@ const COL_MASTER = {
   RANKINGS_GID: "Rankings Gid",     // e.g. current ranking used for League divisions
   CHALLENGES_GID: "Challenges Gid", // ordered results from planned event (same venue?)
   COUNT: "#",                       // Number of members imported
-  PARKRUN_ID: "Parkrun Group No."     // optional (if it exists?)
+  PARKRUN_ID: "Parkrun Group No.",  // if group exists on Parkrun 
+  PARKRUN_DOMAIN: "Group Domain"    // Group exclusive to country
   // Other virtual columns include generated latest/current/ranking table links
 };
 
@@ -161,6 +162,7 @@ function initializeApplicationData(devId) {
       var idxSsId = masterHeaders.indexOf(COL_MASTER.SS_ID);
       var idxOwner = masterHeaders.indexOf(COL_MASTER.OWNER);
       var idxParkrunId = masterHeaders.indexOf(COL_MASTER.PARKRUN_ID);
+      var idxParkrunDomain = masterHeaders.indexOf(COL_MASTER.PARKRUN_DOMAIN);
       // Scan directory rows to extract verified, active groups
       for (var i = 1; i < mData.length; i++) {
         var row = mData[i];
@@ -173,7 +175,10 @@ function initializeApplicationData(devId) {
               ssId: idxSsId > -1 ? row[idxSsId] : "",
               ownerEmail: idxOwner > -1 ? row[idxOwner] : "",
               parkrunGroupId: idxParkrunId > -1
-              ? row[idxParkrunId] : 0,
+                ? row[idxParkrunId] : -1,
+              parkrunGroupDomain: (idxParkrunDomain > -1 && row[idxParkrunDomain]) 
+                ? row[idxParkrunDomain].toString().trim()
+                : "org.uk"
             });
           }
         }
@@ -448,7 +453,7 @@ function getRankingsRouting(ssActive,ssIdKey) {
           currentUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
           bestEverUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
           challengeUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid],
-          parkrunClubUrl:parkrunGlobalURL+mData[i][idxParkrunClub]
+          parkrunClubUrl:parkrunGroupReportURL+mData[i][idxParkrunClub]
         };
         break;
       }
