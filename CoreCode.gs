@@ -1300,6 +1300,7 @@ function GetOverview() {
   ];
   // "#" is derived from Runners! - assume =COUNTIF(Runners!K:K,TRUE)
   // "Parkrun Group No." is in Runners! - assume J1
+  // "Parkrun Domain" is in Runners! - assume D1
   var resultsSheetIds = [];
   resultsSheets.forEach(([resultsSheetName,resultsSheetIdHeader]) => {
     let resultsSheet = lv.activeSpreadsheet.getSheetByName(resultsSheetName);
@@ -1524,9 +1525,9 @@ function GetMyTrendsCharts(
  * after completed import AND after successful generation of all of the comparative charts.
  */
 function PrepareAppSheets() {
-  GetOverview();
-  GetMyTrendsCharts();   // with access status
-  GetPerformanceCharts();
+  GetOverview();        // incl. count of members, parkrun group id & domain
+  GetMyTrendsCharts();  // incl. number of runs per member and SS access status
+  GetPerformanceCharts(); // 4 divisional categories, e.g. 7 Leagues, 8 Age Groups
 }
 
 // Surplus extras may be useful
