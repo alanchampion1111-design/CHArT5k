@@ -8,9 +8,9 @@ const parkrunGroupReportURL =  // open access
  * Global App Tables (Owner protected except Devices is open to all)
  */
 const TABLES = {
-  MASTER: "CHArT5k",      // contains list of Groups with summary extracts
-  DEVICES: "Devices",     // ALL App users' settings locked to their device
-  MEMBERS: "Results Gids" // composite of members' results across ALL Groups
+  MASTER: "CHArT5k",   // contains list of Groups with summary extracts
+  DEVICES: "Devices",  // ALL App users' settings locked to their device
+  MEMBERS: "Members"   // composite of members' results across ALL Groups
   // A table also exists per named group; hence COL_GROUP below
 };
 
@@ -20,7 +20,6 @@ const TABLES = {
  *  to avoid blockages with dynamic accesses during App usage
  */
 const COL_MASTER = {
-  // DRIVER: "Active SS Id",  // pending IMPORTRANGE formula => triggered pull extracts
   READY: "Ready",             // initial results imported? (with About 1-liner in Note)
   GROUP_NAME: "Spreadsheet",  // configured Group spreadsheet (with About desc in Note )
   SS_ID: "SS Id",             // ...with its unique linkable Google worksheet id,
