@@ -9,7 +9,7 @@
 /       (ProtectEachRunnerResultsSheets - Ctrl+Alt+Shift+4)
 / 	2.  Colour legends in Groups (distinct for all males and females)
 /       (ColourLegendsInGroups          - Ctrl+Alt+Shift+5)
-/   3.  Generate charts from Groups (executed now in 4 batches)
+/   3.  Generate charts from Groups (executed in 4 batches)
 /       (GenBatchChartsFromGroups       - Ctrl+Alt+Shift+6)
 /   4.  Append non-parkrun result
 /       (AppendNonParkrunResult)
@@ -601,13 +601,10 @@ function onSelectionChange(e) {
 
       GenerateAgeGroupCharts    
         GenerateChartsFromGroups (Age-Groups)
-
       GenerateLeagueGroupCharts    
         GenerateChartsFromGroups (Leagues)
-
       GenerateFamiliesGroupCharts    
         GenerateChartsFromGroups (Families)
-
       GenerateGenderGroupCharts    
         GenerateChartsFromGroups (Gender)
 
@@ -939,7 +936,7 @@ function EmbedGroupResultsChart(
  */
 function ClearGroupChartsOnSheet(
   perfSheetName = "Leagues",
-  index = 0)  // TODO: remove merges 
+  index = 0)
 {
   var perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
   if (!perfSheet)
@@ -948,15 +945,25 @@ function ClearGroupChartsOnSheet(
     } catch (err) {
       return null;
     }
-  if (index === 0) {
+  if (index === 0) {  // fresh start from the top?
     var charts = perfSheet.getCharts();
     var numCharts = charts.length;
     if (numCharts > 0) {
-      charts.forEach(function(chart) {
-        perfSheet.removeChart(chart);
-      });
+      var charts = perfSheet.getCharts();
+      for (var i = charts.length-1; i >= 0; i--)
+        perfSheet.removeChart(charts[i]);
     }
     perfSheet.getDataRange().breakApart();  // remove merges to allow shift between tables
+    // Clear content, styles, formats, backgrounds, and text rotations
+    //    retain same number of rows and columns
+    var maxRows = perfSheet.getMaxRows();
+    var maxCols = perfSheet.getMaxColumns();
+    perfSheet.getRange(1, 1, maxRows, maxCols).clear({
+      contentsOnly: false, // Wipes the values/formulas
+      formatOnly: false,   // Wipes fonts, alignments, fills, text direction
+      validationsOnly: false, 
+      commentsOnly: false
+    });
   }
   return perfSheet;
 }
@@ -1083,6 +1090,23 @@ function getCaller() {
 }
 
 /**
+ * Cleans up triggers after any for generating charts
+ *  @param {string} [classScript='Generate'] - starts like this?
+ */
+function CleanupCoreBatch(
+  classScript = 'Generate')
+{
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = triggers.length-1; i >= 0; i--) {
+    var trigger = triggers[i];
+    let foundTrigger = trigger.getHandlerFunction();
+    Logger.log('Trigger handler cleaning: '+foundTrigger);
+    if (trigger && foundTrigger.indexOf(classScript) === 0)
+      ScriptApp.deleteTrigger(trigger);
+  }
+}
+
+/**
  * Generates charts in performance sheets based on config in the Groups sheet.
  * Groups are organised into blocks, each with a different target sheet - e.g Leagues
  *    @param {string} [groupsSheetName="Groups"] - existing sheet with Groups config
@@ -1172,15 +1196,12 @@ function GenerateChartsFromGroups(
 function GenerateAgeGroupCharts() {
   GenerateChartsFromGroups('Groups',['Age Groups']);
 }
-
 function GenerateLeagueGroupCharts() {
   GenerateChartsFromGroups('Groups',['Leagues']);
 }
-
 function GenerateGenderGroupCharts() {
   GenerateChartsFromGroups('Groups',['Gender']);
 }
-
 function GenerateFamiliesGroupCharts() {
   GenerateChartsFromGroups('Groups',['Families']);
 }
@@ -1188,6 +1209,7 @@ function GenerateFamiliesGroupCharts() {
 function GenBatchChartsFromGroups() {
   const batchGapMINS = 20;
   const parallelGapMINS = 9;
+  CleanupCoreBatch("Generate"); // clear to go; avoid max triggers
   ScriptApp.newTrigger('GenerateAgeGroupCharts')
     .timeBased()
     .after(5000)
