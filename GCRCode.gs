@@ -107,7 +107,7 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
-  debug: true,               // WARNING: may slow down performance if true
+  debug: false,               // WARNING: may slow down performance if true
   templateSPREADSHEET: 'Family / Club Template',
   templateFOLDER: 'Spawned',
   clubTYPE: 'Parkrunners',    // alternatively, 'Clubrunners'?
@@ -926,12 +926,13 @@ function ImportResultForEachRunner(
         }
         return promise
           .then(() => {
+            CleanupGCRBatch(importResultsFN);
             if (gc.debug)
               Logger.log('Completed number of imports ('+gv.numImports+')')
           })
           .catch(esc => {
             if (esc === 'Avoid timeout') {
-              ScriptApp.newTrigger('ImportResultForEachRunner')
+              ScriptApp.newTrigger(importResultsFN)
                 .timeBased()
                 .after(10*1000) // resume in 10 seconds
                 .create();
@@ -1583,7 +1584,9 @@ async function SyncPositionsPerRunner(
   }
 }
 
-const threadBatchFN = recurseBatchFN ='BatchPositionsForRunner';  // threaded & potentially recursed
+const threadBatchFN = recurseBatchFN ='BatchPositionsForRunner';  // either recursed or threaded
+const anotherCatchupFN = 'CatchUpAllPositions';
+const importResultsFN = 'ImportResultForEachRunner';
 const lockINDEX = 'lockIndex';
 const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
 
@@ -1591,15 +1594,19 @@ const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
  * Cleans up triggers and script properties after batching for each runner has completed
  *  @param {string} [thisScript=threadBatchFN] - script to clean up
  */
-function CleanupBatch(
-  thisScript = threadBatchFN) 
+function CleanupGCRBatch(
+  thisScript = threadBatchFN,
+  anotherscript) // optional 2nd script
 {
   var triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(trigger => {
-    Logger.log('Trigger handler cleaning: '+trigger.getHandlerFunction());
-    if (trigger && trigger.getHandlerFunction() == thisScript)
+  for (var i = triggers.length-1; i >= 0; i--) {
+    var trigger = triggers[i];
+    let foundTrigger = trigger.getHandlerFunction();
+    Logger.log('Trigger handler cleaning: '+foundTrigger);
+    if ((trigger && foundTrigger == thisScript)
+      || (anotherscript && foundTrigger == anotherscript))
       ScriptApp.deleteTrigger(trigger);
-  });
+  }
   PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
   PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
 }
@@ -1698,18 +1705,13 @@ function BatchPositionsForRunner() {
   })
   .then((moreToDo) => { 
     if (moreToDo) {
-      // Avoid limitation on triggers - clean as you go!
-      ScriptApp.getProjectTriggers().forEach(trigger => {
-        Logger.log('Trigger handler reduction: '+trigger.getHandlerFunction());
-        if (trigger.getHandlerFunction() === 'BatchPositionsForRunner')
-          ScriptApp.deleteTrigger(trigger);
-      });
+      CleanupGCRBatch(recurseBatchFN);  // clean as you go!
       Logger.log('Recursing runner: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);  
     } else {
       let runnersStatus = MarkRunnerPositionsDone(runnerIndex);
       if (AllPositionsDone(runnersStatus)) {
-        CleanupBatch(threadBatchFN);
+        CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
         return;
       } else  // loop back for next "unfinished" runner
         ScriptApp.newTrigger('CatchUpAllPositions')
@@ -1759,7 +1761,7 @@ function CatchUpAllPositions() {
     }
   }
   if (AllPositionsDone(runnersStatus)) {
-    CleanupBatch(threadBatchFN);
+    CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
     return;
   }
 }
