@@ -1705,7 +1705,7 @@ function BatchPositionsForRunner() {
   })
   .then((moreToDo) => { 
     if (moreToDo) {
-      CleanupGCRBatch(recurseBatchFN);  // clean as you go!
+      CleanupGCRBatch(recurseBatchFN,anotherCatchupFN);  // clean as you go!
       Logger.log('Recursing runner: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);  
     } else {
