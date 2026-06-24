@@ -45,6 +45,7 @@ const loadSECS = 30;            // max time to load each runner's results page
 const minClubTableCOUNT = 1;    // 1..10+ tables for event locations for a family/club? 
 const loadDetailSECS = 40;      // max time to load any event results page or global site consolidated club results page
 let initPromise;      // browser "finished" after initialised (although still active)
+let isLaunching = false; // PREVENT concurrent re-launch spikes inside loadUrl
 
 /**
  *  Launches a headless Chrome browser with specified session limit.
@@ -219,11 +220,11 @@ exports.stopBrowser = async (_, res) => {
 */
 
 /**
- *  Loads URL in Puppeteer and waits for page load
- *    @param {string} thisUrl - URL to load
- *    @param {number} tableCount [default 3] -  (-1 meansd returns thisPage)
- *    @param {number} timeSecs - max timeout (in secs) to load (with table?)
- *    @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
+ * Loads URL in Puppeteer and waits for page load
+ *   @param {string} thisUrl - URL to load
+ *   @param {number} tableCount [default 3] -  (-1 meansd returns thisPage)
+ *   @param {number} timeSecs - max timeout (in secs) to load (with table?)
+ *   @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
  *  @returns the HTML content when table # is loaded, or thisPage object for alternative detailed searching
  */
 async function loadUrl(thisUrl,
@@ -235,38 +236,58 @@ async function loadUrl(thisUrl,
   try {
     var timeMax = timeSecs*1000;
     const selectResultsTABLE = 'table[id*="results"]';  // 3 tables with id="results"
-    if (!thisBrowserWSEp) {
-      console.error('ERROR: Persistent browser NOT found:',thisBrowserWSEp);
-      throw new Error('Persistent browser NOT found!');
-    } else {
-      console.log('Persistent browser found,',thisBrowserWSEp,'with ongoing timeout:',browserTimeout);
-      var thisBrowser = await puppeteer
-        .connect({browserWSEndpoint: thisBrowserWSEp, timeout: browserTimeout});     // actually reconnects 
-      var thisPage;
-      if (caching) {  // CAUTION: Caching common event is slower with new page overheads (rely on parkrun caching instead?)
+    if (!thisBrowserWSEp && !isLaunching) {  // Auto-heal if endpoint was wiped by a timeout or container spin-up
+      console.warn('WARNING: Persistent browser NOT found. Re-launching internally...');
+      isLaunching = true;
+      await cloudBrowser(60);
+      isLaunching = false;
+    } else if (!thisBrowserWSEp) {
+      throw new Error('Persistent browser is currently launching elsewhere!');
+    }
+    console.log('Persistent browser found,',thisBrowserWSEp,'with ongoing timeout:',browserTimeout);
+    var thisBrowser;
+    try {
+      thisBrowser = await puppeteer
+        .connect({browserWSEndpoint: thisBrowserWSEp, timeout: 10000});     // actually reconnects 
+    } catch (connectErr) {
+      // Catch hidden socket timeouts or closed browser instances cleanly
+      console.error('ERROR: Connection to WS Endpoint failed. Re-building browser session:', connectErr);
+      clearTimeout(browserTimer);
+      initPromise = undefined;
+      isLaunching = true;
+      await cloudBrowser(60);
+      isLaunching = false;
+      thisBrowser = await puppeteer
+        .connect({browserWSEndpoint: thisBrowserWSEp, timeout: timeMax});
+    }
+    var thisPage;
+    if (caching) {  // CAUTION: Caching common event is slower with new page overheads (rely on parkrun caching instead?)
+      thisPage = await thisBrowser.newPage();
+      await thisPage.setDefaultTimeout(timeMax);    // for individual queries?
+    } else {  // re-use
+      thisPage = (await thisBrowser.pages())
+        .find(page => page.target()._targetId === thisPageId);
+      if (!thisPage) {
+        console.warn('WARNING: Persistent page missing from warm browser. Spawning fresh target context...');
         thisPage = await thisBrowser.newPage();
-        await thisPage.setDefaultTimeout(timeMax);    // for individual queries?
-      } else {  // re-use
-        thisPage = (await thisBrowser.pages())
-          .find(page => page.target()._targetId === thisPageId);
-        if (!thisPage) {
-          console.error('ERROR: Persistent page NOT found:',thisPageId,'with refreshed timeout,',timeSecs,'seconds');
-          throw new Error('Persistent page NOT found!');
-        }
-      }
-      await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
-      if (tableCount < 0) {
-        console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
-        return thisPage;
-      } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
-        await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
-          document.querySelectorAll(selectResultsTABLE).length >= tableCount,
-          {timeout: timeMax},tableCount,selectResultsTABLE);
-        console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
-        return await thisPage.content();   // when page content is fully loaded
+        thisPageId = await thisPage.target()._targetId;
+        await thisPage.setUserAgent(userAgent);
       }
     }
+    await thisPage.setDefaultTimeout(timeMax); // Ensure active page timeout matches current transaction scope
+    await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
+    if (tableCount < 0) {
+      console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
+      return thisPage;
+    } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
+      await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
+        document.querySelectorAll(selectResultsTABLE).length >= tableCount,
+        {timeout: timeMax},tableCount,selectResultsTABLE);
+      console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
+      return await thisPage.content();   // when page content is fully loaded
+    }
   } catch (err) {
+    isLaunching = false;
     console.error('ERROR: Failed to retrieve results page:',err);
     throw err;
   }
