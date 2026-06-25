@@ -107,11 +107,11 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
-  debug: false,               // WARNING: may slow down performance if true
+  debug: true,               // WARNING: may slow down performance if true
   templateSPREADSHEET: 'Family / Club Template',
   templateFOLDER: 'Spawned',
-  clubTYPE: 'Parkrunners',    // alternatively, 'Clubrunners'?
-  clubSUFFIX: "Clubrunners",
+  familyTYPE: 'Parkrunners',  //
+  clubTYPE: "Clubrunners",
   runnerNameCOLUMN: "A",      // Runners name in column A 
   runnerSurnameCOLUMN: "B",   // Runners surname in column B
   dobINDEX: 4,                // Runners sheet in column E (for arrays or range offsets)
@@ -143,6 +143,8 @@ const gc = {
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
+  summaryGroupURL: 'https://www.parkrun.org.uk/groups/',
+  consolidatedReportURL: 'https://www.parkrun.com/results/consolidatedclub/?clubNum=',
   runnersSheetNAME: 'Runners',
   browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',    // shared GCR service
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
@@ -1124,15 +1126,15 @@ function CreateRunnerResultsSheet(
 /         LockCallerForwardsTo-> (triggers)
 //          Trigger task, BatchPositionsForRunner...
 /
-/   2.  SpawnNewFamily (to be owned by first member)
-/         PromptForRunner(spawnCASE)-> to get parkrun id, Dob,..
+/   2.  SpawnNewGroup (to be owned by first member)
+/         PromptForRunner(spawnCASE)-> to get Group id/name parkrun id, Dob,..
 /         :
-/       DoSpawnNewFamily
+/       DoSpawnNewGroup
 /         OpenChromeBrowser->
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
 /         GetRunnerDetails
-/         >InstantiateFamilySpreadSheet (new spreasdsheet, fs)
+/         >InstantiateGroupSpreadSheet (new spreasdsheet, fs)
 /           CreateNewSpreadsheet
 /         >AddFirstMember (as a member of new family/club)
 /         CreateRunnerResultsSheet (in fs, with Name & index 0)
@@ -1201,8 +1203,12 @@ function PromptForRunner(
   var formHTML = '\n'+
     '<form onsubmit="if(!document.getElementById(\'dob\').checkValidity()) {'+
     '    document.getElementById(\'dob\').focus();return false;}">\n'+
-    '  <div>'+thisCase.desc+'</div><br>\n'+
-    '  <label>parkrun Id (barcode numeric part only):\t</label>\n'+
+    '  <div>'+thisCase.desc+'</div><br>\n';
+  if (thisCase == spawnCASE) formHTML +=
+    '  <label>Group (parkrun id if it exists, or name):\t</label>\n'+
+    '    <input type="text" id="groupId"><br><br>\n';
+  formHTML +=
+    '  <label>parkrun Id (member\'s numeric barcode):\t</label>\n'+
     '    <input type="number" id="parkrunnerId"><br><br>\n'+
     '  <label>Date of birth (for verifying age-grade):\t</label>\n'+
     '    <input type="text" id="dob" pattern="'+ dobRegex.source+'" placeholder="'+dobPlace+'"><br><br>\n';
@@ -1214,16 +1220,18 @@ function PromptForRunner(
     '    onclick="document.getElementById(\'submitButton\').disabled=true;\n'+
     '      document.getElementById(\'submitButton\').value=\'Processing...\';\n'+
     '    google.script.run.withSuccessHandler(function() { google.script.host.close(); }).'+
-          thisCase.handler+'([document.getElementById(\'parkrunnerId\').value,\n'+
+    thisCase.handler+'([document.getElementById(\'parkrunnerId\').value,\n'+
     '      document.getElementById(\'dob\').value';
   if (thisCase != deleteCASE) formHTML +=
     ',\n      document.getElementById(\'email\').value';
+  if (thisCase == spawnCASE) formHTML +=
+    ',\n      document.getElementById(\'groupId\').value';
   formHTML +=
     ']);">\n         <input type="button" value="Cancel"\n'+
     '    onclick="google.script.host.close();">\n'+
     '  </form>\n';
   var form = ui.showModalDialog(HtmlService.createHtmlOutput(formHTML),thisCase.title);
-  // return [parkrunnerId,dob,email];
+  // return [parkrunnerId,dob,email,groupId];
 }
 
 /**
@@ -1395,7 +1403,7 @@ function AddFirstMember(
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
-function CreateNewSpreadsheet(
+function GetTemplateSpreadsheet(
   templateFolder = gc.templateFOLDER,
   templateName = gc.templateSPREADSHEET)
 {
@@ -1411,51 +1419,98 @@ function CreateNewSpreadsheet(
   }
 }
 
-async function InstantiateFamilySpreadSheet(
-  clubType = gc.clubTYPE,   // or Clubrunners
-  runnerNames = ['Peter','WALLIS'],  // into cols A & B of 1st Runners row of new family Spreadsheet
+async function RenameGroupSpreadsheet(groupName,parkrunGroupId) {
+  SpreadsheetApp.flush();   // update sheet (if necessary?)
+  try {   // 
+    // let summaryGroupInfo = await
+    //   AccessPage(gc.summaryGroupURL+parkrunGroupId);  // requires login?
+    // let match = summaryGroupInfo.match(/<h1>(.*?)<\/h1>/i);
+    let consolidatedReport = await
+      AccessPage(gc.consolidatedReportURL+parkrunGroupId);  // fully open
+    let match = consolidatedReport.match(/members of\s*<a[^>]*>(.*?)<\/a>/i);
+    let rawTitle = match ? match[1].trim() : "";
+    if (rawTitle) {
+      let cleanName = rawTitle.replace(/\bRunners?\b$/i, '').trim();
+      groupName = cleanName+' '+gc.clubTYPE;
+      gv.allRunnersSheet.getRange(gc.titleNameCELL) // title in A1
+        .setValue(groupName);   // template-based hyperlink formula preserved
+      DriveApp.getFileById(gv.activeSpreadsheetId)
+        .setName(groupName);    // match filename likewise
+    } else {
+      if (gc.debug)
+        Logger.log("WARNING: No ref. to Group name; retaining original Group name");
+    }
+  } catch(e) {
+    if (gc.debug)
+      Logger.log("ERROR: Scrape failed; retaining original Group name: " + e);
+  }
+  return groupName;
+}
+
+async function InstantiateGroupSpreadSheet(
+  groupId = "2061",       // for J1 only if parkrun No. (above parkrunner Ids)
+  // groupId = "",       // for J1 only if parkrun No. (above parkrunner Ids)
+  parkrunnerId = 755577,  // for col J (after derived age-category in col. I)
+  runnerNames = ['Peter','WALLIS'],  // into cols A & B of 1st Runners row of new Group Spreadsheet
   gender = 'Male',    // for col C
-  email = '',         // for Col D
-  dob = undefined,    // for Col E (hidden for security, as also F..H)
-  parkrunnerId)       // for col J (after derived age-category in col. I)
+  email = 'wallis21@wallis21.fsnet.co.uk',         // for Col D
+  dob = undefined)    // for Col E (hidden for security, as also F..H)
 {
-  let [targetFolder,templateId] = CreateNewSpreadsheet(
+  var groupName;
+  let parkrunGroupId = Number(groupId); // else isNaN(groupId)
+  if (parkrunGroupId) {   // reference the <Group name> later
+    groupName = "Group " +groupId+' '+gc.clubTYPE;  // temporary name
+    if (gc.debug) Logger.log('Interim Club Group sheet: '+groupName);
+  } else if (groupId && groupId.trim() !== "") {  // custom name
+    groupName = groupId+' '+gc.clubTYPE;
+    if (gc.debug) Logger.log('Club Group sheet: '+groupName);
+  } else {  // default to Family
+    let familyName = runnerNames[1];
+    groupName = familyName+' '+gc.familyTYPE;
+    if (gc.debug) Logger.log('Family Group sheet: '+groupName);
+  }
+  let [libraryFolder,templateSSId] = GetTemplateSpreadsheet(
     gc.templateFOLDER,gc.templateSPREADSHEET);
-  if (gc.debug) Logger.log('Template Id: '+templateId);
-  let templateFile = DriveApp.getFileById(templateId);
-  if (gc.debug) Logger.log('Template File: '+templateFile);
-  let familyName = runnerNames[1];
-  let familySheetFile = familyName+' '+clubType;
-  if (gc.debug) Logger.log('Family sheet: '+familySheetFile);
-  let familySpreadsheet = templateFile.makeCopy(familySheetFile,targetFolder);  // temp
-  familySpreadsheetId = familySpreadsheet.getId();
-  if (gc.debug) Logger.log('Family spreadsheet Id: '+familySpreadsheetId);
-  familySpreadsheet = SpreadsheetApp.openById(familySpreadsheetId); // real object
-  // Now switch context completely hereafter...
-  // ...with the exception, scripts remain from the originator 
-  SpreadsheetApp.setActiveSpreadsheet(familySpreadsheet);   // flushes content?
-  gv.activeSpreadsheet = familySpreadsheet;
-  gv.activeSpreadsheetId = familySpreadsheetId;
+  if (gc.debug) Logger.log('Template Id: '+templateSSId);
+  let templateFile = DriveApp.getFileById(templateSSId);
+  if (gc.debug)
+    Logger.log('Template File: '+gc.templateFOLDER+'/'+templateFile);
+  let activeFile = DriveApp.getFileById(gv.activeSpreadsheet.getId());
+  let currentFolder = activeFile.getParents().next();
+  let groupSpreadsheet = templateFile.makeCopy(groupName,currentFolder);
+  groupSpreadsheetId = groupSpreadsheet.getId();
+  if (gc.debug) Logger.log('Group spreadsheet Id: '+groupSpreadsheetId);
+  groupSpreadsheet = SpreadsheetApp.openById(groupSpreadsheetId); // real object
+  // Switch context completely hereafter (assumes no parallel activity!)...
+  // ...with the exception, scripts remain from the originator for now
+  SpreadsheetApp.setActiveSpreadsheet(groupSpreadsheet);   // flushes content?
+  gv.activeSpreadsheet = groupSpreadsheet;
+  gv.activeSpreadsheetId = groupSpreadsheetId;
   gv.allRunnersSheet = gv.activeSpreadsheet
     .getSheetByName(gc.runnersSheetNAME) // ...for 1st runner
   gv.allRunnersSheet.getRange(1,1)
-    .setValue(familySheetFile);   // conveniently file name in A1
-  gv.allRunnersSheet.getRange(gc.runnersStartROW,1,1,5)        // cols A..E ) 5 params
+    .setValue(groupName);   // file name in A1; assume formula undisturbed?
+  gv.allRunnersSheet.getRange(gc.runnersStartROW,1,1,5) // runner in cols A..E
     .setValues([[...runnerNames,gender,email,dob]]);  //  MAP formulae undisturbed
   gv.allRunnersSheet.getRange(gc.runnersStartROW,gc.parkrunnerIdCOL)
     .setValue(parkrunnerId);
-  return familySheetFile; // with GLOBAL gv.activeSpreadsheet & Id, and gv.allRunnersSheet
+  if (parkrunGroupId) {
+    let hyperlink = gc.consolidatedReportURL+parkrunGroupId+parkrunGroupId;
+    let groupFormula = '=HYPERLINK("'+hyperlink+'",'+parkrunGroupId+')';
+    gv.allRunnersSheet.getRange(clubIdCELL).setFormula(groupFormula);  // in J1
+    groupName = await RenameGroupSpreadsheet(groupName,parkrunGroupId);  // scrape into A1
+    if (gc.debug)
+      Logger.log('Renamed SS with title: ../'+groupName);
+  }
+  return groupName; // + gv.activeSpreadsheet & Id, &  gv.allRunnersSheet
 }
 
 const spawnCASE = {
-  title: 'Spawn New Family / Club',
-  desc: 'This spawns a new family/club Spreadsheet that captures all results for that first '
-        +'member. The surname of this parkrunner is taken as the name of the new Spreadsheet file '
-        +'within which they will appear in the 1st row of the Runners sheet, with a separate sheet '
-        +'(&lt;first name&gt;_0) containing their results, with detailed positions eventially '
-        +'appearing (via a background batch process).',
+  title: 'Spawn New Club / Family',
+  desc: 'This spawns a new club or family Spreadsheet that captures all results for its first member. '+
+    ' For the Group, provide an official parkrun Group No.(best for efficiency), a custom Club Name, or leave blank for a Family.',
   action: 'Spawn',
-  handler: 'DoSpawnNewFamily'
+  handler: 'DoSpawnNewGroup'
 };
 
 /**
@@ -1463,44 +1518,45 @@ const spawnCASE = {
  *  1. Prompts for a new parkrunner id, etc.
  *  2. Opens the browser session
  *  3. Gets the Runner's Details on their Results Page
- *  4. Instantiates a new Family SpreadSheet
+ *  4. Instantiates a new Group SpreadSheet for Club/Family)
  *  4a.  Adds the first Row on empty Runners Sheet
  *  4b.  Establish the new spreadshhet as active henceforth
  *  5. Add First Member in new Spreadsheet (with results)
  */
-function SpawnNewFamily() {
+function SpawnNewGroup() {
   PromptForRunner(spawnCASE); 
-  // callback to DoSpawnNewFamily with [parkrunnerId,dob,email] from form
+  // callback to DoSpawnNewGroup with [parkrunnerId,dob,email] from form
 }
 
-function DoSpawnNewFamily(
-  form = ['21283','30-Jan-1969',undefined]
+function DoSpawnNewGroup(
+  form = ['21283','30-Jan-1969',undefined,""]
 ) {
-  let [parkrunnerId,dob,email] = form;
+  let [parkrunnerId,dob,email,groupId] = form;
   parkrunnerId = +parkrunnerId;
   if (gc.debug) Logger.log('1. Prompt: '+form);
   return OpenChromeBrowser()
     .then(() => {   // allow time to open browser on server
       if (gc.debug) Logger.log('2. Open: '+parkrunnerId);
-      return GetRunnerResultsPage(parkrunnerId);
+      return GetRunnerResultsPage(parkrunnerId);  // from parkrun site
     })
     .then(resultsPage => {   // after load page in browser
       if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
       let [runnerNames,gender] = GetRunnerDetails(resultsPage);
       if (gc.debug)
         Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
-      return InstantiateFamilySpreadSheet(
-        gc.clubTYPE,
-        runnerNames,gender, // into cols A & B, C of 1st row of new Runners instance
-        email,dob,          // into cols.D & E (hidden for security, as also F..H)
-        parkrunnerId)       // into col J (after derived age-category in col. I)
-        .then(familySheetFile => [familySheetFile,runnerNames,resultsPage])
+      return InstantiateGroupSpreadSheet(
+        groupId,            // into J1 if numeric, or A1 if name
+        parkrunnerId,       // into col J (after derived age-category in col. I)
+        runnerNames,gender, // into cols A & B, C of 1st row of Runners instance
+        email,dob           // into cols D & E + F..H (hidden for security)  
+        )            
+        .then(groupNameFile => [groupNameFile,runnerNames,resultsPage])
     })
-    .then(([familySheetFile,runnerNames,resultsPage]) => {
-      if (gc.debug) Logger.log('Family Spread sheet: '+familySheetFile);
-      let [familyName,clubType] = familySheetFile.split(' ');
+    .then(([groupNameFile,runnerNames,resultsPage]) => {
+      if (gc.debug) Logger.log('Group Spreadsheet name: '+groupNameFile);
+      let [groupName,clubType] = groupNameFile.split(' ');
       if (gc.debug) {
-        Logger.log('4. Instantiate 1st runner in: '+familyName+' ['+clubType+']');
+        Logger.log('4. Instantiate 1st runner in: '+groupName+' ['+clubType+']');
       }
       AddFirstMember(parkrunnerId,runnerNames,resultsPage);
     })
@@ -1705,7 +1761,7 @@ function BatchPositionsForRunner() {
   })
   .then((moreToDo) => { 
     if (moreToDo) {
-      CleanupGCRBatch(recurseBatchFN,anotherCatchupFN);  // clean as you go!
+      CleanupGCRBatch(recurseBatchFN);  // clean as you go!
       Logger.log('Recursing runner: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);  
     } else {
