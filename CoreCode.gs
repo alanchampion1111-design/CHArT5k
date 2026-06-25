@@ -959,10 +959,10 @@ function ClearGroupChartsOnSheet(
     var maxRows = perfSheet.getMaxRows();
     var maxCols = perfSheet.getMaxColumns();
     perfSheet.getRange(1, 1, maxRows, maxCols).clear({
-      contentsOnly: false, // Wipes the values/formulas
-      formatOnly: false,   // Wipes fonts, alignments, fills, text direction
-      validationsOnly: false, 
-      commentsOnly: false
+      contentsOnly: true, // Wipes the values/formulas
+      formatOnly: true,   // Wipes fonts, alignments, fills, text direction
+      validationsOnly: true, 
+      commentsOnly: true
     });
   }
   return perfSheet;
