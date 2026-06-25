@@ -85,15 +85,15 @@ function onOpen() {
       "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
       'GenBatchChartsFromGroups')
     .addSeparator()
-    .addItem("Add family (or club) member"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+7",
+    .addItem("Add new member"+
+      "\u00A0".repeat(35)+"Ctrl+Alt+Shift+7",
       'AddFamilyMember')
-    .addItem("Delete family (or club) member"+
-      "\u00A0".repeat(12)+"Ctrl+Alt+Shift+8",
+    .addItem("Delete existing member"+
+      "\u00A0".repeat(24)+"Ctrl+Alt+Shift+8",
       'DeleteFamilyMember')
-    .addItem("Spawn new family (or club)"+
-      "\u00A0".repeat(19)+"Ctrl+Alt+Shift+9",
-      'SpawnNewFamily')
+    .addItem("Spawn new club or family"+
+      "\u00A0".repeat(21)+"Ctrl+Alt+Shift+9",
+      'SpawnNewGroup')
     // .insertMenu(ui,5)   // ideally before Tools 
     .addToUi();
 }
