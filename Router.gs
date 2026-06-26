@@ -51,9 +51,6 @@ function GenerateFamiliesGroupCharts() {
 function PrepareAppSheets() {
   CHArT5kPlanet.PrepareAppSheets();
 }
-function onEditDetectNeedToReprotect(event) {
-  CHArT5kPlanet.onEditDetectNeedToReprotect(event);
-}
 
 // 1c. Extra Macro entry points
 function AcceptCookies() {
@@ -61,14 +58,17 @@ function AcceptCookies() {
 }
 
 // 1d. UI Callback entry points
-function DoSpawnNewGroup() {
-  CHArT5kPlanet.DoSpawnNewGroup();
+function onEditDetectNeedToReprotect(event) {  // callback
+  CHArT5kPlanet.onEditDetectNeedToReprotect(event);
 }
-function DoAddNewMember() {
-  CHArT5kPlanet.DoAddNewMember();
+function DoSpawnNewGroup(formData) {
+  CHArT5kPlanet.DoSpawnNewGroup(formData);
 }
-function DoDeleteExistingMember() {
-  CHArT5kPlanet.DoDeleteExistingMember();
+function DoAddNewMember(formData) {
+  CHArT5kPlanet.DoAddNewMember(formData);
+}
+function DoDeleteExistingMember(formData) {
+  CHArT5kPlanet.DoDeleteExistingMember(formData);
 }
 
 // 2. Universal UI/Trigger/Macro Router
