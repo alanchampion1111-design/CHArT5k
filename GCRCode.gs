@@ -146,7 +146,8 @@ const gc = {
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
-  summaryGroupURL: 'https://www.parkrun.org.uk/groups/',
+  summaryGroupURL: 'https://www.parkrun.org.uk/groups/',  
+  summaryPrefixURL: 'https://www.parkrun.', // org.uk (domain) in D1
   consolidatedReportURL: 'https://www.parkrun.com/results/consolidatedclub/?clubNum=',
   runnersSheetNAME: 'Runners',
   browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',    // shared GCR service
@@ -1434,10 +1435,14 @@ async function RenameGroupSpreadsheet(groupName,parkrunGroupId) {
     if (rawTitle) {
       let cleanName = rawTitle.replace(/\bRunners?\b$/i, '').trim();
       groupName = cleanName+' '+gc.clubTYPE;
+      let hyperlink = gc.summaryPrefixURL+D$1+'/groups/'+J$1   // ref. parkrunGroupId in D1
+      let groupFormula = '=HYPERLINK("'+hyperlink+'","'+groupName+'")';
       gv.allRunnersSheet.getRange(gc.titleNameCELL) // title in A1
-        .setValue(groupName);   // template-based hyperlink formula preserved
+        .setFormula(groupFormula); // template-based hyperlink in J1
       DriveApp.getFileById(gv.activeSpreadsheetId)
         .setName(groupName);    // match filename likewise
+      if (gc.debug)
+        Logger.log('Renamed Group SS with title: ../'+groupName);
     } else {
       if (gc.debug)
         Logger.log("WARNING: No ref. to Group name; retaining original Group name");
@@ -1497,12 +1502,12 @@ async function InstantiateGroupSpreadSheet(
   gv.allRunnersSheet.getRange(gc.runnersStartROW,gc.parkrunnerIdCOL)
     .setValue(parkrunnerId);
   if (parkrunGroupId) {
-    let hyperlink = gc.consolidatedReportURL+parkrunGroupId+parkrunGroupId;
+    let hyperlink = gc.summaryPrefixURL+'D$1/groups/'+
+      parkrunGroupId;   // instead of softlink
     let groupFormula = '=HYPERLINK("'+hyperlink+'",'+parkrunGroupId+')';
-    gv.allRunnersSheet.getRange(clubIdCELL).setFormula(groupFormula);  // in J1
+    gv.allRunnersSheet.getRange(gc.clubIdCELL)
+      .setFormula(groupFormula);  // in J1
     groupName = await RenameGroupSpreadsheet(groupName,parkrunGroupId);  // scrape into A1
-    if (gc.debug)
-      Logger.log('Renamed SS with title: ../'+groupName);
   }
   return groupName; // + gv.activeSpreadsheet & Id, &  gv.allRunnersSheet
 }
