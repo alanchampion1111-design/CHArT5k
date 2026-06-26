@@ -1435,7 +1435,7 @@ async function RenameGroupSpreadsheet(groupName,parkrunGroupId) {
     if (rawTitle) {
       let cleanName = rawTitle.replace(/\bRunners?\b$/i, '').trim();
       groupName = cleanName+' '+gc.clubTYPE;
-      let hyperlink = gc.summaryPrefixURL+'"&D$1&"/groups/"J$1"'   // ref. parkrunGroupId in D1
+      let hyperlink = gc.summaryPrefixURL+'"&D$1&"/groups/"&J$1';   // ref. parkrunGroupId in J1
       let groupFormula = '=HYPERLINK("'+hyperlink+'","'+groupName+'")';
       gv.allRunnersSheet.getRange(gc.titleNameCELL) // title in A1
         .setFormula(groupFormula); // template-based hyperlink in J1
@@ -1502,9 +1502,9 @@ async function InstantiateGroupSpreadSheet(
   gv.allRunnersSheet.getRange(gc.runnersStartROW,gc.parkrunnerIdCOL)
     .setValue(parkrunnerId);
   if (parkrunGroupId) {
-    let hyperlink = gc.summaryPrefixURL+'"D$1"/groups/'+
+    let hyperlink = gc.summaryPrefixURL+'"&D$1&"/groups/'+
       parkrunGroupId;   // instead of softlink
-    let groupFormula = '=HYPERLINK("'+hyperlink+'",'+parkrunGroupId+')';
+    let groupFormula = '=HYPERLINK('+hyperlink+','+parkrunGroupId+')';
     gv.allRunnersSheet.getRange(gc.clubIdCELL)
       .setFormula(groupFormula);  // in J1
     groupName = await RenameGroupSpreadsheet(groupName,parkrunGroupId);  // scrape into A1
