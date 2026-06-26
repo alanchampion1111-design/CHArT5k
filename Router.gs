@@ -51,13 +51,24 @@ function GenerateFamiliesGroupCharts() {
 function PrepareAppSheets() {
   CHArT5kPlanet.PrepareAppSheets();
 }
-
-// 1c. Extra Macro entry points
 function onEditDetectNeedToReprotect(event) {
   CHArT5kPlanet.onEditDetectNeedToReprotect(event);
 }
+
+// 1c. Extra Macro entry points
 function AcceptCookies() {
   CHArT5kPlanet.AcceptCookies();
+}
+
+// 1d. UI Callback entry points
+function DoSpawnNewGroup() {
+  CHArT5kPlanet.DoSpawnNewGroup();
+}
+function DoAddNewMember() {
+  CHArT5kPlanet.DoAddNewMember();
+}
+function DoDeleteExistingMember() {
+  CHArT5kPlanet.DoDeleteExistingMember();
 }
 
 // 2. Universal UI/Trigger/Macro Router
