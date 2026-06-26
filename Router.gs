@@ -53,6 +53,9 @@ function PrepareAppSheets() {
 }
 
 // 1c. Extra Macro entry points
+function onEditDetectNeedToReprotect(event) {
+  CHArT5kPlanet.onEditDetectNeedToReprotect(event);
+}
 function AcceptCookies() {
   CHArT5kPlanet.AcceptCookies();
 }
