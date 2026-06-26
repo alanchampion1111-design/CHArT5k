@@ -16,11 +16,11 @@
 /   4.  Batch positions for runner        (Phase IV)    
 /       (BatchPositionsForRunner        - threading)
 /   5.  Add family (or club) member       (Phase V)
-/       (AddFamilyMember                - Ctrl+Alt+Shift+7)
+/       (AddNewMember                   - Ctrl+Alt+Shift+7)
 /   6.  Delete family (or club) member    (Phase V)
-/       (DeleteFamilyMember             - Ctrl+Alt+Shift+8)   
+/       (DeleteExistingMember           - Ctrl+Alt+Shift+8)   
 /   7.  Spawn new family (or club)        (Phase V)
-/       (SpawnNewFamily                 - Ctrl+Alt+Shift+9)
+/       (SpawnNewGroup                  - Ctrl+Alt+Shift+9)
 /   8.  Add first member                  (Phase V) - effected by 7. Spawn...
 /       (AddFirstMember)
 /
@@ -78,7 +78,10 @@
 /   2.  CatchUpAllPositions
 /         OpenChromeBrowser ->
 //        Loop for each member runner...
-/           LockCallerForwardsTo ->
+/           LockCallerForwardsTo-> (triggers)
+//            Trigger task, BatchPositionsForRunner...
+//        If more catch up for member runner...
+//           Trigger recursive task, CatchUpAllPositions...
 /         >CloseChromeBrowser
 /
 /   2a. BatchPositionsForRunner (threaded in series)
@@ -120,7 +123,7 @@ const gc = {
   hasResultsCOLUMN: "K",      // ...results exist (D3:D), with Parkrunner Id in col J
   hasPosnsCOLUMN: "L",        // ...has Positions up-to-date (I3:I) based on genderPosnCOL
   resultsStartROW: 3,
-  runnerNameCELL: 'A1',
+  runnerNameCELL: 'A1',       // full name with soft link in EACH runner's Results sheet
   runnersStartROW: 3,
   parkrunnerIdCOL: 10,        // in column J on Runners sheet
   titleNameCELL: "A1",        // Runners cell club/family name (with link to consolidated results)
@@ -1084,7 +1087,7 @@ function CreateRunnerResultsSheet(
   // ensure the content of the new sheet is unique
     let runnerFullName = runnerNames.join(" ");
     const allRunnersGID = gv.allRunnersSheet.getSheetId();
-    newResultsSheet.getRange(gc.titleNameCELL)
+    newResultsSheet.getRange(gc.runnerNameCELL)
       .setFormula('=HYPERLINK("#gid='+allRunnersGID+'","'+runnerFullName+'")');
   // return to Runners sheet and add the link back and the fast results link
     let newResultsGid = newResultsSheet.getSheetId();
@@ -1107,10 +1110,10 @@ function CreateRunnerResultsSheet(
 /*
 /  Hierarchy for two use-cases prompting for a runner:
 /
-/   1.  AddFamilyMember (as a member of your family/club)
+/   1.  AddNewMember (as a member of your family/club)
 /         PromptForRunner(addCASE)-> to get parkrun id, Dob,..
 /         :
-/       DoAddFamilyMember
+/       DoAddNewMember
 /         OpenChromeBrowser->   
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
@@ -1134,7 +1137,7 @@ function CreateRunnerResultsSheet(
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
 /         GetRunnerDetails
-/         >InstantiateGroupSpreadSheet (new spreasdsheet, fs)
+/         >InstantiateGroupSpreadSheet (new spreadsheet, fs)
 /           CreateNewSpreadsheet
 /         >AddFirstMember (as a member of new family/club)
 /         CreateRunnerResultsSheet (in fs, with Name & index 0)
@@ -1148,10 +1151,10 @@ function CreateRunnerResultsSheet(
 /         LockCallerForwardsTo-> (triggers)
 //          Trigger task, BatchPositionsForRunner...
 /
-/   3.  DeleteFamilyMember (as a member of your family/club)
+/   3.  DeleteExistingMember (as a member of your family/club)
 /         PromptForRunner(deleteCASE)-> to get parkrun id, Dob,..
 /         :
-/       DoDeleteFamilyMember
+/       DoDeleteExistingMember
 /         FindRunnerIndex (matching parkrunner Id)
 /         If runner found in Runners table matching DoB on the form...
 /           ...delete runner's results page
@@ -1191,7 +1194,7 @@ const addCASE = {
         +'results of that new parkrun family member (based on their first name and unique row index), '
         +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
-  handler: 'DoAddFamilyMember'
+  handler: 'DoAddNewMember'
 };
 
 function PromptForRunner(
@@ -1267,7 +1270,7 @@ const deleteCASE = {
         +'The runner row is removed from the Runners sheet with their sheet for their results (based '
         +'on row index), where indices and result sheet names of runners below are affected.',
   action: 'Delete',
-  handler: 'DoDeleteFamilyMember'
+  handler: 'DoDeleteExistingMember'
 };
 
 /**
@@ -1278,12 +1281,12 @@ const deleteCASE = {
  *  4. Removes runner's row from the 'Runners' sheet (impacting indices of others below)
  *  5. Renames the results sheets of runners with higher indices.
  */
-function DeleteFamilyMember() {
+function DeleteExistingMember() {
   PromptForRunner(deleteCASE);    // default addCASE
-  // callback to DoDeleteFamilyMember with [parkrunnerId,dob] from form
+  // callback to DoDeleteExistingMember with [parkrunnerId,dob] from form
 }
 
-function DoDeleteFamilyMember(
+function DoDeleteExistingMember(
   form = ['357161','1-Nov-87'])      // as a callback, values are passed as strings
 {
   let [parkrunnerId,dob] = form;
@@ -1332,12 +1335,12 @@ function DoDeleteFamilyMember(
  *  5. Imports all the results for the new Runner (without Positions)
  *  6. Triggers the Batch process to append positions
  */
-function AddFamilyMember() {
+function AddNewMember() {
   PromptForRunner();    // default addCASE
-  // callback to DoAddFamilyMember with [parkrunnerId,dob,email] from form
+  // callback to DoAddNewMember with [parkrunnerId,dob,email] from form
 }
 
-async function DoAddFamilyMember(form) {
+async function DoAddNewMember(form) {
   let [parkrunnerId,dob,email] = form;
   parkrunnerId = +parkrunnerId;
   if (gc.debug) Logger.log('1. Prompt: '+form);
@@ -1420,7 +1423,6 @@ function GetTemplateSpreadsheet(
 }
 
 async function RenameGroupSpreadsheet(groupName,parkrunGroupId) {
-  SpreadsheetApp.flush();   // update sheet (if necessary?)
   try {   // 
     // let summaryGroupInfo = await
     //   AccessPage(gc.summaryGroupURL+parkrunGroupId);  // requires login?
@@ -1488,7 +1490,7 @@ async function InstantiateGroupSpreadSheet(
   gv.activeSpreadsheetId = groupSpreadsheetId;
   gv.allRunnersSheet = gv.activeSpreadsheet
     .getSheetByName(gc.runnersSheetNAME) // ...for 1st runner
-  gv.allRunnersSheet.getRange(1,1)
+  gv.allRunnersSheet.getRange(gc.runnerNameCELL)
     .setValue(groupName);   // file name in A1; assume formula undisturbed?
   gv.allRunnersSheet.getRange(gc.runnersStartROW,1,1,5) // runner in cols A..E
     .setValues([[...runnerNames,gender,email,dob]]);  //  MAP formulae undisturbed
@@ -1820,6 +1822,57 @@ function CatchUpAllPositions() {
     CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
     return;
   }
+}
+
+/**
+ * AUTOMATED TRIGGER INITIALIZATION (Runs in the Central Hub)
+ * Called during the 'InstantiateGroupSpreadSheet' phase.
+ */
+function SetupPlanetTriggers(targetSpreadsheetId) {
+  // 1. Open the specific Planet script context to deploy triggers directly into it
+  // Note: Triggers must be created within the execution scope of the target sheet.
+  
+  // 2. Calculate the staggered hour and minute based on the unique Spreadsheet ID
+  // This guarantees an even, deterministic distribution (Max 20 per hour)
+  var score = targetSpreadsheetId.split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  var slotIndex = score % 20; // 20 structural slots
+  var minutesBase = slotIndex * 15; // 0, 15, 30, 45 minute marks
+  var hourOffset = Math.floor(minutesBase / 60);
+  var staggeredHour = 11 + hourOffset; // Automatically distributes between 11 AM and 4 PM
+  var staggeredMinute = minutesBase % 60;
+
+  // 3. Programmatically clear any accidental pre-existing triggers to prevent duplicates
+  var currentTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < currentTriggers.length; i++) {
+    ScriptApp.deleteTrigger(currentTriggers[i]);
+  }
+
+  // 4. DEPLOY TRIGGER 1: Weekly Import Loop (Staggered to prevent clashes)
+  ScriptApp.newTrigger('ImportResultForEachRunner')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour)
+           .nearMinute(staggeredMinute)
+           .create();
+
+  // 5. DEPLOY TRIGGER 2: Weekly Generate Divisional Charts (e.g., 2 hours after main import?)
+  ScriptApp.newTrigger('GenBatchChartsFromGroups')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour + 2)
+           .nearMinute(staggeredMinute)
+           .create();
+
+  // 6. DEPLOY TRIGGER 3: Push to Prepare App Sheets, aligned to Pull on the Moon
+  ScriptApp.newTrigger('PrepareAppSheets')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour + 4)
+           .nearMinute(0)
+           .create();
+           
+  Logger.log('Successfully deployed automated triggers for Planet. Scheduled hour: ' + staggeredHour + ':' + staggeredMinute);
 }
 
 /**
