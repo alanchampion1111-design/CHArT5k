@@ -15,9 +15,9 @@
 /       (CatchUpAllPositions            - Ctrl+Alt+Shift+3)
 /   4.  Batch positions for runner        (Phase IV)    
 /       (BatchPositionsForRunner        - threading)
-/   5.  Add family (or club) member       (Phase V)
+/   5.  Add new member                    (Phase V)
 /       (AddNewMember                   - Ctrl+Alt+Shift+7)
-/   6.  Delete family (or club) member    (Phase V)
+/   6.  Delete existing member            (Phase V)
 /       (DeleteExistingMember           - Ctrl+Alt+Shift+8)   
 /   7.  Spawn new family (or club)        (Phase V)
 /       (SpawnNewGroup                  - Ctrl+Alt+Shift+9)
@@ -115,6 +115,7 @@ const gc = {
   templateFOLDER: 'Spawned',
   familyTYPE: 'Parkrunners',  //
   clubTYPE: "Clubrunners",
+  defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   runnerNameCOLUMN: "A",      // Runners name in column A 
   runnerSurnameCOLUMN: "B",   // Runners surname in column B
   dobINDEX: 4,                // Runners sheet in column E (for arrays or range offsets)
@@ -1092,7 +1093,7 @@ function CreateRunnerResultsSheet(
       .setFormula('=HYPERLINK("#gid='+allRunnersGID+'","'+runnerFullName+'")');
   // return to Runners sheet and add the link back and the fast results link
     let newResultsGid = newResultsSheet.getSheetId();
-    let parkrunnerResultsUrl = parkrunnerURL+parkrunnerId+gc.allForONE;
+    let parkrunnerResultsUrl = parkrunnerURL+parkrunnerId+allForONE;
     rangeRow = gv.allRunnersSheet.getLastRow();
     gv.allRunnersSheet.getRange(rangeRow,1)     // Col. A
       .setFormula('=HYPERLINK("#gid='+newResultsGid+'","'
@@ -1189,10 +1190,10 @@ function GetRunnerDetails(thisPage) {
 }
 
 const addCASE = {
-  title: 'Add Family / Club Member',
+  title: 'Add New Member',
   desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
         +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the '
-        +'results of that new parkrun family member (based on their first name and unique row index), '
+        +'results of that new parkrun member (based on their first name and unique row index), '
         +'where the detailed positions of those results will eventually appear from a background task.',
   action: 'Add',
   handler: 'DoAddNewMember'
@@ -1266,7 +1267,7 @@ function FindRunnerIndex(runnersRange,thisParkrunnerId,thisDob) {
 }
 
 const deleteCASE = {
-  title: 'Delete Family / Club Member',
+  title: 'Delete Existing Member',
   desc:  'This deletes an existing member parkrunner from the current Spreadsheet with related impact. '
         +'The runner row is removed from the Runners sheet with their sheet for their results (based '
         +'on row index), where indices and result sheet names of runners below are affected.',
@@ -1288,7 +1289,7 @@ function DeleteExistingMember() {
 }
 
 function DoDeleteExistingMember(
-  form = ['357161','1-Nov-87'])      // as a callback, values are passed as strings
+  form = ['77',gc.defaultDATE])      // as a callback, values are passed as strings
 {
   let [parkrunnerId,dob] = form;
   parkrunnerId = +parkrunnerId; // number expected for matching
@@ -1341,7 +1342,9 @@ function AddNewMember() {
   // callback to DoAddNewMember with [parkrunnerId,dob,email] from form
 }
 
-async function DoAddNewMember(form) {
+async function DoAddNewMember(
+  form = ['77',gc.defaultDATE,''])
+{
   let [parkrunnerId,dob,email] = form;
   parkrunnerId = +parkrunnerId;
   if (gc.debug) Logger.log('1. Prompt: '+form);
@@ -1361,8 +1364,10 @@ async function DoAddNewMember(form) {
           return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
             .then(() => {
               let [runnerName,runnerIndex] = runnerNameId.split('_');
-              Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
-              LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
+              if (dob != gc.defaultDATE) {  // if dob missing, then skip adding (age-based) positions
+                Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
+                LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
+              }
             });
         })
     })
@@ -1382,7 +1387,7 @@ async function DoAddNewMember(form) {
  *  3. Triggers the Batch process to append positions
  */
 function AddFirstMember(
-  parkrunnerId,runnerNames,resultsPage)
+  parkrunnerId,runnerNames,dob,resultsPage)
 {   // assumes famSpreadsheetId now set and active Spreadsheet switched
   if (gc.debug) Logger.log('New spreadsheet Id: '+gv.activeSpreadsheetId);
   if (gc.debug) Logger.log('First parkrunner: '+parkrunnerId);
@@ -1395,8 +1400,10 @@ function AddFirstMember(
   return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
     .then(() => {
       let [runnerName,runnerIndex] = runnerNameId.split('_');
-      Logger.log('Forking new: '+runnerName+'\t['+runnerIndex+']');
-      LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
+      if (dob != gc.defaultDATE) {  // if dob missing, then skip adding (age-based) positions
+        Logger.log('Forking new: '+runnerName+'\t['+runnerIndex+']');
+        LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
+      }
     })
     .catch(err => {
       Logger.log('ERROR: Add First Member, '+parkrunnerId+'\n'+err);
@@ -1513,7 +1520,7 @@ async function InstantiateGroupSpreadSheet(
 }
 
 const spawnCASE = {
-  title: 'Spawn New Club / Family',
+  title: 'Spawn New Club / Family Group',
   desc: 'This spawns a new club or family Spreadsheet that captures all results for its first member. '+
     ' For the Group, provide an official parkrun Group No.(best for efficiency), a custom Club Name, or leave blank for a Family.',
   action: 'Spawn',
@@ -1536,7 +1543,7 @@ function SpawnNewGroup() {
 }
 
 function DoSpawnNewGroup(
-  form = ['21283','30-Jan-1969',undefined,""]
+  form = ['77','1-Jan-1945',undefined,""]
 ) {
   let [parkrunnerId,dob,email,groupId] = form;
   parkrunnerId = +parkrunnerId;
@@ -1565,7 +1572,7 @@ function DoSpawnNewGroup(
       if (gc.debug) {
         Logger.log('4. Instantiate 1st runner in: '+groupName+' ['+clubType+']');
       }
-      AddFirstMember(parkrunnerId,runnerNames,resultsPage);
+      AddFirstMember(parkrunnerId,runnerNames,dob,resultsPage);
     })
     .catch(err => {
       Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
