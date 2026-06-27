@@ -221,6 +221,8 @@ async function GetRunnerResultsPage(
 {
   if (thisPage) return thisPage;
   const thisParkrunnerURL = parkrunnerURL+parkrunnerId+allForONE;
+  if (gc.debug)
+    Logger.log('2a. Runner URL: '+thisParkrunnerURL);
   return AccessPage(thisParkrunnerURL)
   .then (htmlContent => {  // ensures htmlContent is not a Promise
     return htmlContent;
@@ -1064,13 +1066,13 @@ async function ImportAllResultsForRunner(
  * @return {String} the name of the new results sheetm based on first name and row number
  */
 function CreateRunnerResultsSheet(
-  runnerNames,gender,
-  email,dob ,  // otherwise null dob if runnerIndex row exists with these details
+  runnerNames,gender, // otherwise null gender if runnerIndex row exists with these details
+  email,dob,
   parkrunnerId,
   runnerIndex = undefined   // add  to bottom (index) in Runners sheet unless updating 
 )
 {
-  if (gender && dob) {    // for new members except the first runner entry 
+  if (gender) {    // for new members except the first runner entry 
     rangeRow = gv.allRunnersSheet.appendRow(
       [...runnerNames,        // A..B
       gender,email,dob,       // C..E
@@ -1184,7 +1186,7 @@ function GetRunnerDetails(thisPage) {
   var gender = category
     ? ( category.includes('M') ? 'Male'
       : category.includes('W') ? 'Female'
-      : null)
+      : 'Male')   // earliest parkrunners (<7777) may not have had a known age category!!
     : null;
   return [runnerNames,gender]; 
 }
@@ -1289,7 +1291,7 @@ function DeleteExistingMember() {
 }
 
 function DoDeleteExistingMember(
-  form = ['77',gc.defaultDATE])      // as a callback, values are passed as strings
+  form = ['7777',gc.defaultDATE]) // test case deletes same member as default in DoAddNewMember 
 {
   let [parkrunnerId,dob] = form;
   parkrunnerId = +parkrunnerId; // number expected for matching
@@ -1343,7 +1345,7 @@ function AddNewMember() {
 }
 
 async function DoAddNewMember(
-  form = ['77',gc.defaultDATE,''])  // if no DoB entered, then skips adding positions 
+  form = ['7777',gc.defaultDATE,''])  // where no known DoB, skips adding positions 
 {
   let [parkrunnerId,dob,email] = form;
   parkrunnerId = +parkrunnerId;
@@ -1353,7 +1355,7 @@ async function DoAddNewMember(
       if (gc.debug) Logger.log('2. Open: '+parkrunnerId);
       return GetRunnerResultsPage(parkrunnerId)
         .then(resultsPage => {   // after load page in browser
-          if (gc.debug) Logger.log('3a. Runner:'+parkrunnerId);
+          if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
           let [runnerNames,gender] = GetRunnerDetails(resultsPage);
           if (gc.debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
           let runnerNameId = CreateRunnerResultsSheet(
@@ -1394,7 +1396,7 @@ function AddFirstMember(
   const firstINDEX = 0;
   let runnerNameId = CreateRunnerResultsSheet(
     runnerNames,undefined,  // gender, with
-    undefined,undefined,    // email & DoB already processed
+    undefined,undefined, // email & DoB already processed
     parkrunnerId,           // MUST not overwrite MAP formulae
     firstINDEX);    // update first row in new (active) Runners sheet
   return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
