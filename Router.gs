@@ -1,73 +1,79 @@
-// 1. Collated Distribution Router (Connects to CHArT5k Planet Hub)
+// 1. Collated Distribution Router (Connects to sources mastered on CHArT5k Planet Hub)
 
 // 1a. All menu entry points (Ctrl-0..Ctrl-9)
-function ImportResultForEachRunner() {    // also a trigger
-  CHArT5kPlanet.ImportResultForEachRunner();
+function ImportResultForEachRunner(eventDate) {    // also a scheduled trigger (default eventDate)
+  CHArT5kPlanet.ImportResultForEachRunner(eventDate);
 }
-function ImportResultsOnEventDate() {
+function ImportResultsOnEventDate() {              // prompts for date from user to call 1a. ImportResult...
   CHArT5kPlanet.ImportResultsOnEventDate();
 }
-function AppendNonParkrunResult() {
+function AppendNonParkrunResult() {              // creates a new result row for manual entry
   CHArT5kPlanet.AppendNonParkrunResult();
 }
-function CatchUpAllPositions() {    // also a trigger
+function CatchUpAllPositions() {                  // also triggered from 1d. DoAdd... & DoSpawn...
   CHArT5kPlanet.CatchUpAllPositions();
 }
-function ReprotectResultsSheetPerRunner() {
+function ReprotectResultsSheetPerRunner() {        // also called from 1d. OnEdit...
   CHArT5kPlanet.ReprotectResultsSheetPerRunner();
 }
-function ColourLegendsInGroups() {
+function ColourLegendsInGroups() {                // potentially also called from GenBatch...
   CHArT5kPlanet.ColourLegendsInGroups();
 }
-function GenBatchChartsFromGroups() {
+function GenBatchChartsFromGroups() {            // also a scheduled trigger after (series of) ImportResult...
   CHArT5kPlanet.GenBatchChartsFromGroups();
 }
-function AddNewMember() {
+function AddNewMember() {                // form entry to callback 1d. DoAddNewMember(formData)
   CHArT5kPlanet.AddNewMember();
 }
-function DeleteExistingMember() {
+function DeleteExistingMember() {        // form entry to  callback1d. DoDeleteExistingMember(formData)
   CHArT5kPlanet.DeleteExistingMember();
 }
-function SpawnNewGroup() {
+function SpawnNewGroup() {              // form entry to callback 1d. DoSpawnNewGroup(formData)
   CHArT5kPlanet.SpawnNewGroup();
 }
 
-// 1b. Trigger entry points
-function BatchPositionsForRunner() {    // needs properties
+// 1b. Triggered entry points
+function ReImportResultForEachRunner(eventDate) {    // called from 1a. ImportResult... (and needs cleaned)
+  CHArT5kPlanet.ReImportResultForEachRunner(eventDate);
+}
+function BatchPositionsForRunner() {        // called from 1a. CatchUp... needs properties (and needs cleaned)
   CHArT5kPlanet.BatchPositionsForRunner();
 }
-function GenerateAgeGroupCharts() {     // uses index on property
+function GenerateAgeGroupCharts() {         // called from GenBatch... as a series with index on sheet (and needs cleaned)
   CHArT5kPlanet.GenerateAgeGroupCharts();
 }
-function GenerateLeagueGroupCharts() {
+function GenerateLeagueGroupCharts() {      // called from GenBatch... as a series with index on sheet (and needs cleaned)
   CHArT5kPlanet.GenerateLeagueGroupCharts();
 }
-function GenerateGenderGroupCharts() {
+function GenerateGenderGroupCharts() {      // called from GenBatch... as a series with index on sheet (and needs cleaned)
   CHArT5kPlanet.GenerateGenderGroupCharts();
 }
-function GenerateFamiliesGroupCharts() {
+function GenerateFamiliesGroupCharts() {    // called from GenBatch... as a series with index on sheet (and needs cleaned)
   CHArT5kPlanet.GenerateFamiliesGroupCharts();
 }
-function PrepareAppSheets() {
+function PrepareAppSheets() {              // Scheduled trigger to export extract (after import & generate) for App to pull
   CHArT5kPlanet.PrepareAppSheets();
 }
 
 // 1c. Extra Macro entry points
-function AcceptCookies() {
+function AcceptCookies() {                // If required (under stealth), perhaps once per six moths?
   CHArT5kPlanet.AcceptCookies();
 }
 
 // 1d. UI Callback entry points
-function onEditDetectNeedToReprotect(event) {  // callback
+function onOpen() {                      // built-in Google default here and in the Hub 
+  CHArT5kPlanet.onOpen();                // Assumes that contains:  var ui = SpreadsheetApp.getActiveSpreadsheet().getUi();
+}
+function onEditDetectNeedToReprotect(event) {        // callback from 1a. AppendNonParkrunResult
   CHArT5kPlanet.onEditDetectNeedToReprotect(event);
 }
-function DoSpawnNewGroup(formData) {
+function DoSpawnNewGroup(formData) {                 // callback from 1a. SpawnNewGroup
   CHArT5kPlanet.DoSpawnNewGroup(formData);
 }
-function DoAddNewMember(formData) {
+function DoAddNewMember(formData) {                  // callback from 1a. AddNewMember
   CHArT5kPlanet.DoAddNewMember(formData);
 }
-function DoDeleteExistingMember(formData) {
+function DoDeleteExistingMember(formData) {          // callback from 1a. DeleteExistingMember
   CHArT5kPlanet.DoDeleteExistingMember(formData);
 }
 
@@ -78,55 +84,4 @@ function ActionRouter(e) {
   if (functionToRun && typeof CHArT5kPlanet[functionToRun] === 'function') {
     CHArT5kPlanet[functionToRun]();
   }
-}
-
-// 3. onOpen functions
-/**
- * Sets up the Parkruns menu on opening the spreadsheet.
- *  Instructions to set up (and execute?) the trigger:
- *    1. Go to the Apps Script (Macros) editor.
- *    2. Click on the clock icon (Triggers) in the left sidebar.
- *    3. Click on "Create trigger".
- *    4. Set up the trigger with the following settings:
- *        - Choose function: onOpen
- *        - Select event type: On open
- *        - Save
- */
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  var parkrunsMenu = ui.createMenu('parkrun')
-    .addItem("Import result for each runner"+
-      "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
-      'ImportResultForEachRunner')
-    .addItem("Import results on event date"+
-      "\u00A0".repeat(17)+"Ctrl+Alt+Shift+1",
-      'ImportResultsOnEventDate')
-    .addItem("Append non-parkrun result"+
-      "\u00A0".repeat(20)+"Ctrl+Alt+Shift+2",
-      "AppendNonParkrunResult")
-    .addItem("Catch-up all positions"+
-      "\u00A0".repeat(28)+"Ctrl+Alt+Shift+3",
-      'CatchUpAllPositions')
-    .addSeparator()
-    .addItem("Protect results sheet per runner"+
-      "\u00A0".repeat(11)+"Ctrl+Alt+Shift+4",
-      'ReprotectResultsSheetPerRunner')
-    .addItem("Colour legends in Groups"+
-      "\u00A0".repeat(22)+"Ctrl+Alt+Shift+5",
-      'ColourLegendsInGroups')
-    .addItem("Generate charts from Groups"+
-      "\u00A0".repeat(15)+"Ctrl+Alt+Shift+6",
-      'GenBatchChartsFromGroups')
-    .addSeparator()
-    .addItem("Add new member"+
-      "\u00A0".repeat(35)+"Ctrl+Alt+Shift+7",
-      'AddNewMember')
-    .addItem("Delete existing member"+
-      "\u00A0".repeat(24)+"Ctrl+Alt+Shift+8",
-      'DeleteExistingMember')
-    .addItem("Spawn new club or family"+
-      "\u00A0".repeat(21)+"Ctrl+Alt+Shift+9",
-      'SpawnNewGroup')
-    // .insertMenu(ui,5)   // ideally before Tools 
-    .addToUi();
 }
