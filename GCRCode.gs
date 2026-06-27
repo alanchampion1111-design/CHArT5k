@@ -1193,8 +1193,8 @@ const addCASE = {
   title: 'Add New Member',
   desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
         +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the '
-        +'results of that new parkrun member (based on their first name and unique row index), '
-        +'where the detailed positions of those results will eventually appear from a background task.',
+        +'results of that new parkrun member (based on their first name and a unique member index), '
+        +'where detailed positions are also added (in the background) provided their DoB is entered.',
   action: 'Add',
   handler: 'DoAddNewMember'
 };
@@ -1343,7 +1343,7 @@ function AddNewMember() {
 }
 
 async function DoAddNewMember(
-  form = ['77',gc.defaultDATE,''])
+  form = ['77',gc.defaultDATE,''])  // if no DoB entered, then skips adding positions 
 {
   let [parkrunnerId,dob,email] = form;
   parkrunnerId = +parkrunnerId;
@@ -1522,7 +1522,8 @@ async function InstantiateGroupSpreadSheet(
 const spawnCASE = {
   title: 'Spawn New Club / Family Group',
   desc: 'This spawns a new club or family Spreadsheet that captures all results for its first member. '+
-    ' For the Group, provide an official parkrun Group No.(best for efficiency), a custom Club Name, or leave blank for a Family.',
+    ' For the Group, provide an official parkrun Group No.(best for efficiency), a custom Club Name, '+
+    'or leave blank for a Family.',
   action: 'Spawn',
   handler: 'DoSpawnNewGroup'
 };
