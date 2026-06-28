@@ -884,6 +884,16 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
 }
 
 /**
+ *  This triggered function gets called recursively and needs cleaned out whereas The primary caller
+ *  ImportResultForEachRunner is scheduled trigger than needs to be preserved.
+ */
+function ReImportResultForEachRunner(
+  eventDate = undefined)  // undefined means latest Saturday - return to this state otherwise
+{
+  ImportResultForEachRunner(eventDate);
+}
+
+/**
  *  Imports the latest results for each of member runners from Parkrun site,
  *  potentially on a specific date (if scheduled or missed), otherwise the latest is assume
  */
@@ -935,13 +945,13 @@ function ImportResultForEachRunner(
         }
         return promise
           .then(() => {
-            CleanupGCRBatch(importResultsFN);
+            CleanupGCRBatch(reImportResultsFN);
             if (gc.debug)
               Logger.log('Completed number of imports ('+gv.numImports+')')
           })
           .catch(esc => {
             if (esc === 'Avoid timeout') {
-              ScriptApp.newTrigger(importResultsFN)
+              ScriptApp.newTrigger(reImportResultsFN)
                 .timeBased()
                 .after(10*1000) // resume in 10 seconds
                 .create();
@@ -1395,14 +1405,14 @@ function AddFirstMember(
   if (gc.debug) Logger.log('First parkrunner: '+parkrunnerId);
   const firstINDEX = 0;
   let runnerNameId = CreateRunnerResultsSheet(
-    runnerNames,undefined,  // gender, with
-    undefined,undefined, // email & DoB already processed
+    runnerNames,undefined,  // gender, means already processed (same row)
+    undefined,dob,          // assumes default DoB if not specified
     parkrunnerId,           // MUST not overwrite MAP formulae
     firstINDEX);    // update first row in new (active) Runners sheet
   return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
     .then(() => {
       let [runnerName,runnerIndex] = runnerNameId.split('_');
-      if (dob != gc.defaultDATE) {  // if dob missing, then skip adding (age-based) positions
+      if (dob != gc.defaultDATE) {  // if DoB omitted, then skip adding (age-based) positions
         Logger.log('Forking new: '+runnerName+'\t['+runnerIndex+']');
         LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
       }
@@ -1659,9 +1669,8 @@ async function SyncPositionsPerRunner(
 
 const threadBatchFN = recurseBatchFN ='BatchPositionsForRunner';  // either recursed or threaded
 const anotherCatchupFN = 'CatchUpAllPositions';
-const importResultsFN = 'ImportResultForEachRunner';
-const lockINDEX = 'lockIndex';
-const lockSPREADSHEET = 'lockSpreadsheet';     // in original or new family?
+const reImportResultsFN = 'ReImportResultForEachRunner';  // this is recursed and can be cleaned out 
+const lockINDEX = 'positionIndex';
 
 /**
  * Cleans up triggers and script properties after batching for each runner has completed
@@ -1680,8 +1689,7 @@ function CleanupGCRBatch(
       || (anotherscript && foundTrigger == anotherscript))
       ScriptApp.deleteTrigger(trigger);
   }
-  PropertiesService.getScriptProperties().deleteProperty(lockINDEX);
-  PropertiesService.getScriptProperties().deleteProperty(lockSPREADSHEET);
+  PropertiesService.getScriptProperties().deleteProperty(lockINDEX+'_'+gv.activeSpreadsheetId);
 }
 
 /**
@@ -1730,13 +1738,8 @@ function MarkRunnerPositionsDone(runnerIndex = 0) {
 function UnlockCallerForwarded() {
   var lock = LockService.getScriptLock();
   let thisRunnerNameId = PropertiesService.getScriptProperties()
-    .getProperty(lockINDEX);
-  spreadsheetId = PropertiesService.getScriptProperties()
-    .getProperty(lockSPREADSHEET);
-  gv.activeSpreadsheet = SpreadsheetApp.openById(spreadsheetId);
-  gv.activeSpreadsheetId = spreadsheetId;     // both Id & object set globally
-  Logger.log('Batch processing of unique runner, '+thisRunnerNameId
-    +' within spreadsheet, '+spreadsheetId);
+    .getProperty(lockINDEX+'_'+gv.activeSpreadsheetId);
+  Logger.log('Batch processing of unique runner, '+thisRunnerNameId);
   lock.releaseLock();   // unlock lock (unique for this node service)
   return thisRunnerNameId;
 }
@@ -1748,9 +1751,7 @@ function LockCallerForwardsTo(thisFunction,withReason,thisRunnerNameId) {
   var lock = LockService.getScriptLock();
   try {
     PropertiesService.getScriptProperties()
-      .setProperty(lockINDEX,thisRunnerNameId);
-    PropertiesService.getScriptProperties()
-      .setProperty(lockSPREADSHEET,gv.activeSpreadsheetId);
+      .setProperty(lockINDEX+'_'+gv.activeSpreadsheetId,thisRunnerNameId);
     ScriptApp.newTrigger(thisFunction)
       .timeBased()
       .after(1000)
