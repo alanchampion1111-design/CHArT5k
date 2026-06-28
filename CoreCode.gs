@@ -1106,6 +1106,8 @@ function CleanupCoreBatch(
   }
 }
 
+const continueINDEX = 'chartIndex';
+
 /**
  * Generates charts in performance sheets based on config in the Groups sheet.
  * Groups are organised into blocks, each with a different target sheet - e.g Leagues
@@ -1133,8 +1135,10 @@ function GenerateChartsFromGroups(
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
     let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
-    var index = parseInt(PropertiesService.getScriptProperties()
-      .getProperty('index_' + perfSheetName)) || 0;   // where to continue if re-invoked
+    var index = parseInt(PropertiesService
+      .getScriptProperties()
+      .getProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName))
+        || 0;   // continue from index
     // ONLY clear/clean a perf chart sheet if one or more charts NOT disabled
     var perfSheet = ClearGroupChartsOnSheet(perfSheetName,index);
     if (lc.debug && index === 0)
@@ -1176,8 +1180,9 @@ function GenerateChartsFromGroups(
         if (continueGenerate) {
           Logger.log('Exiting loop and continuing chart generation beyond index, '+index+
             ' by re-triggering '+continueGenerate);
-          PropertiesService.getScriptProperties()
-            .setProperty('index_'+perfSheetName,index+1);
+          PropertiesService
+            .getScriptProperties()
+            .setProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName,index+1);
           ScriptApp.newTrigger(continueGenerate)
             .timeBased()
             .after(10*1000) // resume in 10 seconds
@@ -1189,7 +1194,7 @@ function GenerateChartsFromGroups(
       }
     }   // Generated all charts for this perfSheetName 
     PropertiesService.getScriptProperties()
-          .deleteProperty('index_' + perfSheetName);
+      .deleteProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName);
   }
 }
                
@@ -1306,6 +1311,34 @@ function GetChart(sheetName,chartId) {
 }
 
 /**
+ * Validates if a trigger matches the expected profile type.
+ *    @param {string} trigger name - e.g. 'PrepareAppSheets' for export to the Moon App!
+ *    @param {string} eventType - Either "time-based" (default) or  starts "From spreadsheet".
+ *  @return {boolean} True if matches, false otherwise.
+ */
+function IsTriggerType(
+  triggerName,
+  eventType = "time-based")
+{
+  try {
+    let activeTriggers = ScriptApp.getProjectTriggers();
+    let triggerMatch = activeTriggers.find(t => t.getHandlerFunction() === triggerName);
+    if (triggerMatch) {
+      let source = triggerMatch.getTriggerSource();
+      if (eventType === "time-based" 
+          && source === ScriptApp.TriggerSource.CLOCK)
+        return true;
+      else
+        return (eventType.startsWith("From spreadsheet")
+          && source === ScriptApp.TriggerSource.SPREADSHEETS);
+    } else
+      return false;
+  } catch (e) {
+    return false; // Return false safely if properties are locked down
+  }
+}
+
+/**
  * This updates the Oveview sheet content after extracting the owner, spreadsheet Id and results sheet gids
  */
 function GetOverview() {
@@ -1320,15 +1353,26 @@ function GetOverview() {
     ["Rankings","Rankings Gid"],
     ["Challenges","Challenges Gid"]
   ];
-  // "#" is derived from Runners! - assume =COUNTIF(Runners!K:K,TRUE)
-  // "Parkrun Group No." is in Runners! - assume J1
-  // "Parkrun Domain" is in Runners! - assume D1
-  var resultsSheetIds = [];
   resultsSheets.forEach(([resultsSheetName,resultsSheetIdHeader]) => {
     let resultsSheet = lv.activeSpreadsheet.getSheetByName(resultsSheetName);
     let resultsSheetId = resultsSheet.getSheetId();
     overviewTable.push([resultsSheetIdHeader,resultsSheetId]);
   });
+  const triggerEvents = [
+    ["ImportResultForEachRunner","time-based","Imports Exec"],
+    ["GenBatchChartsFromGroups","time-based","Charts Exec"],
+    ["PrepareAppSheets","time-based","Export Exec"],
+    ["onEditDetectNeedToReprotect","From spreadsheet - On edit","Non-Parkruns?"]
+  ];
+  triggerEvents.forEach(([triggerFunction,triggerEvent,triggerLabel]) => {
+    let triggerExists = IsTriggerType(triggerFunction,triggerEvent);
+    overviewTable.push([triggerLabel,triggerExists]);
+  });
+  // "#" is derived from Runners! - assume =COUNTIF(Runners!K:K,TRUE)
+  // "Ages Correct?" is in Runners!F1 (if all position caught up,if )
+  // "Parkrun Group No." is in Runners! - assume J1
+  // "Parkrun Domain" is in Runners! - assume D1
+
   let csv = overviewTable.map(row => row.join(',')).join('\n');
   Logger.log(csv);
   let overviewSheet = lv.activeSpreadsheet.getSheetByName('Overview');
@@ -1480,6 +1524,17 @@ function GetSpreadsheetShares() {
 }
 
 /**
+ * This prepares the overview (for rank tables), individual trends charts (for each member)
+ * with access status), and the performance charts (for filtering links) on a weekly basis
+ * after completed import AND after successful generation of all of the comparative charts.
+ */
+function PrepareAppSheets() {
+  GetOverview();        // incl. count of members, parkrun group id & domain
+  GetMyTrendsCharts();  // incl. number of runs per member and SS access status
+  GetPerformanceCharts(); // 4 divisional categories, e.g. 7 Leagues, 8 Age Groups
+}
+
+/**
  * This gets the results trend chart(s) from a runner's sheet.
  *    @param {string} runnerNameId - <first name>_<index> (default test: Alan_2)
  *  returns {Array of key pairs} selectPerfCharts - perf. charts of those with runner, otherwise all are options 
@@ -1506,7 +1561,6 @@ function GetMyTrendsCharts(
       let runnerResultsCharts = runnerResultsSheet.getCharts();
       // runnerResultsCharts.forEach(trendChart => {
       for (let trendChart of runnerResultsCharts) {
-
         let chartId = trendChart.getChartId();    // only one, but potentially more
         let chartTitle = trendChart.getOptions().get('title');
         let resultsRange = trendChart.getRanges()[0];
@@ -1539,17 +1593,6 @@ function GetMyTrendsCharts(
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
       .setValues(trendsTable);
   }
-}
-
-/**
- * This prepares the overview (for rank tables), individual trends charts (for each member)
- * with access status), and the performance charts (for filtering links) on a weekly basis
- * after completed import AND after successful generation of all of the comparative charts.
- */
-function PrepareAppSheets() {
-  GetOverview();        // incl. count of members, parkrun group id & domain
-  GetMyTrendsCharts();  // incl. number of runs per member and SS access status
-  GetPerformanceCharts(); // 4 divisional categories, e.g. 7 Leagues, 8 Age Groups
 }
 
 // Surplus extras may be useful
