@@ -274,7 +274,7 @@ function ReprotectResultsRanges(rangeFreeze,rangeChange) {
 function ReprotectResultsSheet(
   runnerNameId = 'Alan_13')
 {
-  const resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
+  const resultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
   if (resultsSheet) {
     resultsSheet.activate();
     UnprotectResultsSheet(resultsSheet);  // whether legacy/temporary
@@ -341,7 +341,7 @@ function AppendNonParkrunResult() {     // user
     Logger.log('Attempting to add non-parkrun result to '+runnerNameId+'...');
   let userEmail = Session.getEffectiveUser().getEmail();  // user permitted?
   let protection = resultsSheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)[1];
-  // const ownerEmail = activeSpreadsheet.getOwner().getEmail();
+  // const ownerEmail = lv.activeSpreadsheet.getOwner().getEmail();
   let editorEmails = (protection)   // get actual list of editors from existing protection
     ? protection.getEditors().map(editor => editor.getEmail())
     : GetResultsEditorsForRunner(runnerNameId);   // ...OR get expected list (if not already set)
@@ -679,7 +679,7 @@ function FilterDatedGroupResults(chartTitle,runners,
     }
     let runnerNameId = runnerName+'_'+runnerIndex;
     try {
-      var resultsSheet = activeSpreadsheet.getSheetByName(runnerNameId);
+      var resultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
       if (!resultsSheet) {
         SpreadsheetApp.getUi().alert('Error',
           'No results in unique runner sheet, '+runnerNameId,
@@ -938,10 +938,10 @@ function ClearGroupChartsOnSheet(
   perfSheetName = "Leagues",
   index = 0)
 {
-  var perfSheet = activeSpreadsheet.getSheetByName(perfSheetName);
+  var perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
   if (!perfSheet)
     try {
-      perfSheet = activeSpreadsheet.insertSheet(perfSheetName);
+      perfSheet = lv.activeSpreadsheet.insertSheet(perfSheetName);
     } catch (err) {
       return null;
     }
@@ -1118,7 +1118,7 @@ function GenerateChartsFromGroups(
   perfSheetNames = ['Age Groups','Leagues','Families','Gender'])
   // perfSheetNames = ['Age Groups'])    // test performance
 {
-  const groupsSheet = activeSpreadsheet.getSheetByName(groupsSheetName);
+  const groupsSheet = lv.activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
   let groupsEndRow = groupsSheet.getLastRow();
   let groupsCount = (groupsEndRow-lc.groupsStartROW+1)/lc.numGroupROWS;
@@ -1137,7 +1137,7 @@ function GenerateChartsFromGroups(
     let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
     var index = parseInt(PropertiesService
       .getScriptProperties()
-      .getProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName))
+      .getProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName))
         || 0;   // continue from index
     // ONLY clear/clean a perf chart sheet if one or more charts NOT disabled
     var perfSheet = ClearGroupChartsOnSheet(perfSheetName,index);
@@ -1182,7 +1182,7 @@ function GenerateChartsFromGroups(
             ' by re-triggering '+continueGenerate);
           PropertiesService
             .getScriptProperties()
-            .setProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName,index+1);
+            .setProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName,index+1);
           ScriptApp.newTrigger(continueGenerate)
             .timeBased()
             .after(10*1000) // resume in 10 seconds
@@ -1194,7 +1194,7 @@ function GenerateChartsFromGroups(
       }
     }   // Generated all charts for this perfSheetName 
     PropertiesService.getScriptProperties()
-      .deleteProperty(continueINDEX+'_'+gv.activeSpreadsheetId+'_'+perfSheetName);
+      .deleteProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName);
   }
 }
                
@@ -1236,7 +1236,7 @@ function GenBatchChartsFromGroups() {
 function ColourLegendsInGroups(
   sheetName="Groups")
 {
-  var sheet = activeSpreadsheet.getSheetByName(sheetName);
+  var sheet = lv.activeSpreadsheet.getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
   for (var gi=0; gi<values.length; gi++) {
@@ -1643,5 +1643,5 @@ function swapColumns() {
     range1.setValues(range2.getValues());
     range2.setValues(temp);
   });
-  // activeSpreadsheet.getActiveRangeList().removeAllRanges();
+  // lv.activeSpreadsheet.getActiveRangeList().removeAllRanges();
 }
