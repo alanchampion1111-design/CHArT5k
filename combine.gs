@@ -3,22 +3,11 @@
 // used to track the main spreadsheet operation which may flip
 // from current to a new context after creating a new family instance
 const debug = false;   // WARNING: debug if true may slow down performance and may skip runners!!
-const runnersSheetNAME = 'Runners';
-var allRunnersSheet = activeSpreadsheet   // MUST redo after a dynamic shift during spawning
-  .getSheetByName(runnersSheetNAME);      // ...for new runners from initiating Spreadsheet 
 const importDateCELL = "I1";              // Runners cell for the last import date (d-MMM-yy)
 const clubIdCELL = "J1";                  // Runners cell identifies the club or family group id
 const importIndexCELL = "K1";             // Runners cell with index of runner to continue import
 const importTotalCELL = "L1";             // Runners cell with number of runners on import date
 const templateNameCELL = "E1";            // Runners cell identifies the seed template (e.g. Joe_90)
-const templateNAME = allRunnersSheet      // The seed template may be readily reconfigured
-  .getRange(templateNameCELL)     // See the note on Runners!J1 cell
-  .getValue();                    //  ...where only the first 3 (or 4) rows are relevant
-
-const browserURL = 'https://browser-automation-service-224251628103.europe-west1.run.app';    // Google Cloud service in operation
-// const sampleURL = 'https://www.example.com';  // default test
-const sampleURL = 'https://www.parkrun.org.uk/colchestercastle/results/116'
-var browserSession;   // Shared by threaded/recursed processes for up to 30 minutes because browser lingers
 
 // used for import,etc,
 const runnersStartROW = 3;        // start after title & header rows (2)
