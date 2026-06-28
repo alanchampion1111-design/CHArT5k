@@ -3,9 +3,6 @@
 // used to track the main spreadsheet operation which may flip
 // from current to a new context after creating a new family instance
 const debug = false;   // WARNING: debug if true may slow down performance and may skip runners!!
-var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();  // allows dynamic shift to new context
-var activeSpreadsheetId = activeSpreadsheet.getId();   // the originator ID
-if (debug) Logger.log('Current Spreadsheet Id: '+activeSpreadsheetId);
 const runnersSheetNAME = 'Runners';
 var allRunnersSheet = activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(runnersSheetNAME);      // ...for new runners from initiating Spreadsheet 
@@ -50,7 +47,7 @@ const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on
 
 /**
  * Sets up the Parkruns menu on opening the spreadsheet.
- *  Instructions to set up (and execute?) the trigger:
+ *  Original instructions to set up (and execute?) the trigger:
  *    1. Go to the Apps Script (Macros) editor.
  *    2. Click on the clock icon (Triggers) in the left sidebar.
  *    3. Click on "Create trigger".
@@ -60,7 +57,7 @@ const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on
  *        - Save
  */
 function onOpen() {
-  var ui = SpreadsheetApp.getUi();
+  var ui = SpreadsheetApp.getActiveSpreadsheet().getUi();
   var parkrunsMenu = ui.createMenu('parkrun')
     .addItem("Import result for each runner"+
       "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
