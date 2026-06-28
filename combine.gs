@@ -2,19 +2,12 @@
 
 // used to track the main spreadsheet operation which may flip
 // from current to a new context after creating a new family instance
-const debug = false;   // WARNING: debug if true may slow down performance and may skip runners!!
-const importDateCELL = "I1";              // Runners cell for the last import date (d-MMM-yy)
-const clubIdCELL = "J1";                  // Runners cell identifies the club or family group id
-const importIndexCELL = "K1";             // Runners cell with index of runner to continue import
-const importTotalCELL = "L1";             // Runners cell with number of runners on import date
-const templateNameCELL = "E1";            // Runners cell identifies the seed template (e.g. Joe_90)
 
 // used for import,etc,
 const runnersStartROW = 3;        // start after title & header rows (2)
 const dobINDEX = 4;               // in column E on Runners sheet (for arrays or range offsets)
 const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
 const parkrunnerIdCOL = 10;       // in column J on Runners sheet
-const resultsStartROW = 3;        // start after title & header rows (2)
 const PBtickBoxCOL = 8;           // column H tick-box on Results sheets, ticked if value in G is PB
 const genderPosnCOL = 9;          // column I on each Results sheet (until on parkrun results page?)
 const ageCatPosnCOL = 10;         // column J on each Results sheet
