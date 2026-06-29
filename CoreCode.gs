@@ -585,7 +585,6 @@ function onSelectionChange(e) {
     For maintenance needs, here is the hierarchy of functions for the comparative charts:
 
       GenerateChartsFromGroups (four Group sheets)
-        ColourLegendsInGroups
         PrepassBlocksOfGroups
         For each block of groups...
           For each group required, related to same target sheet...
@@ -602,7 +601,7 @@ function onSelectionChange(e) {
 
       GenerateAgeGroupsBlockCharts    
         GenerateChartsFromGroups (Age-Groups)
-      GenerateLeaguesBlockGroupCharts    
+      GenerateLeaguesBlockCharts    
         GenerateChartsFromGroups (Families)
       GenerateGenderBlockCharts    
         GenerateChartsFromGroups (Gender)
@@ -610,9 +609,10 @@ function onSelectionChange(e) {
         GenerateChartsFromGroups (Families)
 
       GenBatchChartsFromGroups (in 4 batches)
+        ColourLegendsInGroups
         triggers -> GenerateAgeGroupsBlockCharts
         triggers -> GenerateGenderBlockCharts (in parallel)
-        triggers -> GenerateLeaguesBlockGroupCharts (after 10 minutes?)
+        triggers -> GenerateLeaguesBlockCharts (after 10 minutes?)
         triggers -> GenerateFamiliesBlockCharts (in parallel)
 
       When any change of hex colour codes in the top Legends table...
