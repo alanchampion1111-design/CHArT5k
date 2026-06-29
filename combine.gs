@@ -66,10 +66,10 @@ function onOpen(event) {
     .addSeparator()
     .addItem("Add new member"+
       "\u00A0".repeat(35)+"Ctrl+Alt+Shift+7",
-      'AddFamilyMember')
+      'AddNewMember')
     .addItem("Delete existing member"+
       "\u00A0".repeat(24)+"Ctrl+Alt+Shift+8",
-      'DeleteFamilyMember')
+      'DeleteExistingMember')
     .addItem("Spawn new club or family"+
       "\u00A0".repeat(21)+"Ctrl+Alt+Shift+9",
       'SpawnNewGroup')
