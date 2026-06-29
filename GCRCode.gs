@@ -1104,7 +1104,8 @@ function CreateRunnerResultsSheet(
   // Create runner's results sheet if it doesn't exist
   let [runnerName,runnerSurname] = runnerNames;
   let runnerNameId = runnerName+'_'+runnerIndex;
-  let templateResults = gv.activeSpreadsheet.getSheetByName(gc.templateNAME);
+  let templateResultsName = gv.allRunnersSheet.getRange(gc.templateNameCELL);
+  let templateResults = gv.activeSpreadsheet.getSheetByName(templateResultsName);
   let newResultsSheet = templateResults.copyTo(gv.activeSpreadsheet).setName(runnerNameId);
   // ensure the content of the new sheet is unique
     let runnerFullName = runnerNames.join(" ");
