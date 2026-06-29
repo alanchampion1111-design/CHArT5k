@@ -36,22 +36,22 @@ function SpawnNewGroup() {              // form entry to callback 1d. DoSpawnNew
 function ReImportResultForEachRunner(eventDate) {    // called from 1a. ImportResult... (and needs cleaned)
   CHArT5kPlanet.ReImportResultForEachRunner(eventDate);
 }
-function BatchPositionsForRunner() {        // called from 1a. CatchUp... needs properties (and needs cleaned)
+function BatchPositionsForRunner() {         // called from 1a. CatchUp... needs properties (and needs cleaned)
   CHArT5kPlanet.BatchPositionsForRunner();
 }
-function GenerateAgeGroupCharts() {         // called from GenBatch... as a series with index on sheet (and needs cleaned)
-  CHArT5kPlanet.GenerateAgeGroupCharts();
+function GenerateAgeGroupsBlockCharts() {    // called from GenBatch... as a series with index on sheet (and needs cleaned)
+  CHArT5kPlanet.GenerateAgeGroupsBlockCharts();
 }
-function GenerateLeagueGroupCharts() {      // called from GenBatch... as a series with index on sheet (and needs cleaned)
-  CHArT5kPlanet.GenerateLeagueGroupCharts();
+function GenerateLeaguesBlockCharts() {      // called from GenBatch... as a series with index on sheet (and needs cleaned)
+  CHArT5kPlanet.GenerateLeaguesBlockCharts();
 }
-function GenerateGenderGroupCharts() {      // called from GenBatch... as a series with index on sheet (and needs cleaned)
-  CHArT5kPlanet.GenerateGenderGroupCharts();
+function GenerateGenderBlockCharts() {       // called from GenBatch... as a series with index on sheet (and needs cleaned)
+  CHArT5kPlanet.GenerateGenderBlockCharts();
 }
-function GenerateFamiliesGroupCharts() {    // called from GenBatch... as a series with index on sheet (and needs cleaned)
-  CHArT5kPlanet.GenerateFamiliesGroupCharts();
+function GenerateFamiliesBlockCharts() {     // called from GenBatch... as a series with index on sheet (and needs cleaned)
+  CHArT5kPlanet.GenerateFamiliesBlockCharts();
 }
-function PrepareAppSheets() {              // Scheduled trigger to export extract (after import & generate) for App to pull
+function PrepareAppSheets() {                // Scheduled trigger to export extract (after import & generate) for App to pull
   CHArT5kPlanet.PrepareAppSheets();
 }
 
