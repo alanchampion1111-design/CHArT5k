@@ -113,7 +113,7 @@
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
   debug: true,               // WARNING: may slow down performance if true
-  templateSPREADSHEET: 'Family / Club Template',
+  templateFILENAME: 'Family / Club Template',
   templateFOLDER: 'Spawned',
   familyTYPE: 'Parkrunners',  //
   clubTYPE: "Clubrunners",
@@ -1091,12 +1091,16 @@ function CreateRunnerResultsSheet(
 )
 {
   if (gender) {    // for new members except the first runner entry 
-    rangeRow = gv.allRunnersSheet.appendRow(
+    gv.allRunnersSheet.appendRow(
       [...runnerNames,        // A..B
       gender,email,dob,       // C..E
       undefined,undefined,undefined,undefined,  // F..I since derived categories
       parkrunnerId,null,null] // J..L parkrun + derived tick boxes: has results. has positions
     );
+    let runnerValues = gv.allRunnersSheet
+      .getRange(gv.allRunnersSheet.getLastRow(),1,1,6)
+      .getValues();
+    if (gc.debug) Logger.log ('3d. Runner values: '+runnerValues);
     runnerIndex = gv.allRunnersSheet.getLastRow()-gc.runnersStartROW;
   } else {
     // Assume details already on Runners Sheet for first runner
@@ -1104,9 +1108,13 @@ function CreateRunnerResultsSheet(
   // Create runner's results sheet if it doesn't exist
   let [runnerName,runnerSurname] = runnerNames;
   let runnerNameId = runnerName+'_'+runnerIndex;
-  let templateResultsName = gv.allRunnersSheet.getRange(gc.templateNameCELL);
+  let templateResultsName = gv.allRunnersSheet
+    .getRange(gc.templateNameCELL)
+    .getValue();
   let templateResults = gv.activeSpreadsheet.getSheetByName(templateResultsName);
-  let newResultsSheet = templateResults.copyTo(gv.activeSpreadsheet).setName(runnerNameId);
+  let newResultsSheet = templateResults
+    .copyTo(gv.activeSpreadsheet)
+    .setName(runnerNameId);
   // ensure the content of the new sheet is unique
     let runnerFullName = runnerNames.join(" ");
     const allRunnersGID = gv.allRunnersSheet.getSheetId();
@@ -1226,6 +1234,7 @@ function PromptForRunner(
   const ui = SpreadsheetApp.getUi();
   const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])-[A-Za-z]{3}-(19|20)?\d{2}$/;
   const dobPlace = 'dd-Mmm-yyyy';
+  const formDefaultDate = String(gc.defaultDATE);
   var formHTML = '\n'+
     '<form onsubmit="if(!document.getElementById(\'dob\').checkValidity()) {'+
     '    document.getElementById(\'dob\').focus();return false;}">\n'+
@@ -1247,7 +1256,7 @@ function PromptForRunner(
     '      document.getElementById(\'submitButton\').value=\'Processing...\';\n'+
     '    google.script.run.withSuccessHandler(function() { google.script.host.close(); }).'+
     thisCase.handler+'([document.getElementById(\'parkrunnerId\').value,\n'+
-    '      document.getElementById(\'dob\').value';
+    '      document.getElementById(\'dob\').value || \'' + formDefaultDate + '\'';
   if (thisCase != deleteCASE) formHTML +=
     ',\n      document.getElementById(\'email\').value';
   if (thisCase == spawnCASE) formHTML +=
@@ -1377,7 +1386,7 @@ async function DoAddNewMember(
           if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
           let [runnerNames,gender] = GetRunnerDetails(resultsPage);
           if (gc.debug)
-            Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
+            Logger.log('3c. Details: '+runnerNames+' '+gender+' (email: '+email+') '+dob);
           let runnerNameId = CreateRunnerResultsSheet(
             runnerNames,gender,  // to go into cols A & B, C
             email,dob,           // into cols.D & E (hidden for security, as also F..H)
@@ -1438,7 +1447,7 @@ function AddFirstMember(
 
 function GetTemplateSpreadsheet(
   templateFolder = gc.templateFOLDER,
-  templateName = gc.templateSPREADSHEET)
+  templateName = gc.templateFILENAME)
 {
   let targetFolder = DriveApp.getFoldersByName(templateFolder).next();
   if (!targetFolder) {
@@ -1506,7 +1515,7 @@ async function InstantiateGroupSpreadSheet(
     if (gc.debug) Logger.log('Family Group sheet: '+groupName);
   }
   let [libraryFolder,templateSSId] = GetTemplateSpreadsheet(
-    gc.templateFOLDER,gc.templateSPREADSHEET);
+    gc.templateFOLDER,gc.templateFILENAME);
   if (gc.debug) Logger.log('Template Id: '+templateSSId);
   let templateFile = DriveApp.getFileById(templateSSId);
   if (gc.debug)
@@ -1567,7 +1576,7 @@ function SpawnNewGroup() {
 }
 
 function DoSpawnNewGroup(
-  form = ['77','1-Jan-1945',undefined,""]
+  form = ['7777',gc.defaultDATE,undefined,""]
 ) {
   let [parkrunnerId,dob,email,groupId] = form;
   parkrunnerId = +parkrunnerId;
@@ -1581,7 +1590,7 @@ function DoSpawnNewGroup(
       if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
       let [runnerNames,gender] = GetRunnerDetails(resultsPage);
       if (gc.debug)
-        Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
+        Logger.log('3c. Details: '+runnerNames+' '+gender+' (email: '+email+') '+dob);
       return InstantiateGroupSpreadSheet(
         groupId,            // into J1 if numeric, or A1 if name
         parkrunnerId,       // into col J (after derived age-category in col. I)
