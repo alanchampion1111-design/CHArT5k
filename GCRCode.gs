@@ -813,21 +813,27 @@ async function GetEventsResults(eventDate) {
     eventDate.toString(),   // dd/MM/yyyy not recognised as a date constructor
     gc.universalDateFORMAT
   );
-  let clubNameCell = gv.allRunnersSheet.getRange(gc.titleNameCELL);
-  // var clubName = clubNameCell.getValue()  // // e.g. Overton Harriers & AC
-  //  .replace(gc.clubSUFFIX,"").trim().replace('&','&amp;');
-  let clubWideResultsUrl = clubNameCell.getRichTextValue()
-    .getLinkUrl();   // hyperlink to consolidated results in A1
-  var eventsResults;
-  if (clubWideResultsUrl) { // most recent results without a date
-    let effectiveUrl = clubWideResultsUrl+'&eventdate='+effectiveDate;
-    let clubWideResults = await AccessPage(effectiveUrl,30);
-    clubWideResults = clubWideResults
-      .slice(clubWideResults.indexOf('<div class="floatleft">'),
+  let eventsResults;
+  let clubId = gv.allRunnersSheet
+    .getRange(gc.clubIdCELL)
+    .getValue();
+  if (clubId) {
+    let clubReportUrl = gc.consolidatedReportURL+clubId;  // latest result (previous date?)
+    let effectiveReportUrl = clubReportUrl+'&eventdate='+effectiveDate;
+    Logger.log('INFO: Referencing consolidated report for date, '+effectiveDate+
+      '; thus filtering report (if ready) for efficiency');
+    var clubWideResults = await AccessPage(effectiveReportUrl,30);
+    if (clubWideResults && clubWideResults.includes('<div class="floatleft">')) {
+      clubWideResults = clubWideResults.slice(
+        clubWideResults.indexOf('<div class="floatleft">'),
         clubWideResults.indexOf('<div class="results-error">'));
-    eventsResults = clubWideResults.match(/<table[^>]*>(.*?)<\/table>/gs);
-    if (gc.debug)
-      Logger.log('No. of events covered: '+eventsResults.length);
+      eventsResults = clubWideResults.match(/<table[^>]*>(.*?)<\/table>/gs);
+      if (eventsResults)
+        Logger.log('INFO: No. of events in club report covered: '+eventsResults.length);
+      else
+        Logger.log('WARNING: Club report not yet produced for event date, '+effectiveDate);
+    } else
+      Logger.log('ERROR: Club report format may have changed');
   } else
     Logger.log('WARNING: No defined group OR consolidated report for date does not exist;'+
       ' thus checking all runners individually');
@@ -863,7 +869,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
             Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
           return AppendPositionsForResult(runnerFullName,resultRange,index,true); // caching
         } else {
-          gv.allRunnersSheet.getRange(importIndexCELL).setValue(index);
+          gv.allRunnersSheet.getRange(gc.importIndexCELL).setValue(index);
           if (gc.debug)
             Logger.log('Positions already appended for runner, '+runnerNameId);
           return true;
@@ -937,7 +943,7 @@ function ImportResultForEachRunner(
                   Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
                 if (remainingTimeSecs < gc.importTimeSECS) {
                   Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to import more results.');
-                  gv.allRunnersSheet.getRange(importIndexCELL).setValue(index + 1); // store next index
+                  gv.allRunnersSheet.getRange(gc.importIndexCELL).setValue(index + 1); // store next index
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
                   return Promise.reject('Avoid timeout');
                 }
@@ -1524,7 +1530,8 @@ async function InstantiateGroupSpreadSheet(
     let hyperlink = gc.summaryPrefixURL+'"&D$1&"/groups/'+
       parkrunGroupId;   // instead of softlink
     let groupFormula = '=HYPERLINK("'+hyperlink+'",'+parkrunGroupId+')';
-    gv.allRunnersSheet.getRange(gc.clubIdCELL)
+    gv.allRunnersSheet
+      .getRange(gc.clubIdCELL)
       .setFormula(groupFormula);  // in J1
     groupName = await RenameGroupSpreadsheet(groupName,parkrunGroupId);  // scrape into A1
   }
