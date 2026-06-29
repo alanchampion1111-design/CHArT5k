@@ -55,7 +55,7 @@
 /         OpenChromeBrowser ->
 /         >GetActiveMember ->
 /           >AccessPage
-//        Recursively iterate for each active member...
+//        For each active member...
 /           >ImportRunnerResult
 /           >CopyResultForRunner (dated)->
 /             >GetRunnerResultsPage
@@ -73,6 +73,8 @@
 /               ExtendRange
 /               >AssessPositions (for one runner, potentially same page)
 /               IncludePositions
+//          If insufficient time to import next member#s results,
+//            Trigger recursive task, ImportResultForEachRunner from next index...
 /         >CloseChromeBrowser
 /
 /   2.  CatchUpAllPositions
