@@ -585,6 +585,7 @@ function onSelectionChange(e) {
     For maintenance needs, here is the hierarchy of functions for the comparative charts:
 
       GenerateChartsFromGroups (four Group sheets)
+        ColourLegendsInGroups
         PrepassBlocksOfGroups
         For each block of groups...
           For each group required, related to same target sheet...
@@ -599,20 +600,20 @@ function onSelectionChange(e) {
               If max time would be exceeded for next chart
                 trigger -> GenerateChartsFromGroups (to continue same block)
 
-      GenerateAgeGroupCharts    
+      GenerateAgeGroupsBlockCharts    
         GenerateChartsFromGroups (Age-Groups)
-      GenerateLeagueGroupCharts    
-        GenerateChartsFromGroups (Leagues)
-      GenerateFamiliesGroupCharts    
+      GenerateLeaguesBlockGroupCharts    
         GenerateChartsFromGroups (Families)
-      GenerateGenderGroupCharts    
+      GenerateGenderBlockCharts    
         GenerateChartsFromGroups (Gender)
+      GenerateFamiliesBlockCharts    
+        GenerateChartsFromGroups (Families)
 
       GenBatchChartsFromGroups (in 4 batches)
-        triggers -> GenerateAgeGroupCharts
-        triggers -> GenerateGenderGroupCharts (in parallel)
-        triggers -> GenerateLeagueGroupCharts (after 10 minutes)
-        triggers -> GenerateFamiliesGroupCharts (in parallel)
+        triggers -> GenerateAgeGroupsBlockCharts
+        triggers -> GenerateGenderBlockCharts (in parallel)
+        triggers -> GenerateLeaguesBlockGroupCharts (after 10 minutes?)
+        triggers -> GenerateFamiliesBlockCharts (in parallel)
 
       When any change of hex colour codes in the top Legends table...
         ColourLegendsInGroups
@@ -1082,13 +1083,6 @@ function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
   return grpBlocks;
 }
 
-function getCaller() {
-  let stack = new Error().stack.split('\n');
-  return stack.length > 3
-    ? stack[3].match(/at (\w+)/)[1]
-    : undefined;
-}
-
 /**
  * Cleans up triggers after any for generating charts
  *  @param {string} [classScript='Generate'] - starts like this?
@@ -1134,7 +1128,6 @@ function GenerateChartsFromGroups(
       Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
-    let continueGenerate = getCaller();   // re-invoke if generation gets close to max time limit
     var index = parseInt(PropertiesService
       .getScriptProperties()
       .getProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName))
@@ -1177,7 +1170,10 @@ function GenerateChartsFromGroups(
         Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
       if (remainingTimeSecs < lc.chartTimeSECS) {
         Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to generate any more charts.');
-        if (continueGenerate) {
+        let continueGenerate = 'Generate'+perfSheetName.replace(/\s+/g, '')+'BlockCharts';
+        if (typeof globalThis[continueGenerate] === "function"  // directed to sandbox (i.e. CHAMPION Parkrunners)
+          || typeof CHArT5kPlanet?.[continueGenerate] === "function") // directed via Router.gs (other Planet Group SSs)
+        {  
           Logger.log('Exiting loop and continuing chart generation beyond index, '+index+
             ' by re-triggering '+continueGenerate);
           PropertiesService
@@ -1189,7 +1185,7 @@ function GenerateChartsFromGroups(
             .create();
         } else  // need to use split functions for a large club/family
           Logger.log('ERROR: Exiting since unable to continue chart generation beyond index, '+index+
-           ' without using the predefined split functions (such as GenerateAgeGroupCharts)');
+           ' in the absence of expected function, '+continueGenerate);
         return;
       }
     }   // Generated all charts for this perfSheetName 
@@ -1198,39 +1194,17 @@ function GenerateChartsFromGroups(
   }
 }
                
-function GenerateAgeGroupCharts() {
-  GenerateChartsFromGroups('Groups',['Age Groups']);
+function GenerateAgeGroupsBlockCharts() {
+  GenerateChartsFromGroups('Groups', ['Age Groups']);
 }
-function GenerateLeagueGroupCharts() {
-  GenerateChartsFromGroups('Groups',['Leagues']);
+function GenerateLeaguesBlockCharts() {
+  GenerateChartsFromGroups('Groups', ['Leagues']);
 }
-function GenerateGenderGroupCharts() {
-  GenerateChartsFromGroups('Groups',['Gender']);
+function GenerateFamiliesBlockCharts() {
+  GenerateChartsFromGroups('Groups', ['Families']);
 }
-function GenerateFamiliesGroupCharts() {
-  GenerateChartsFromGroups('Groups',['Families']);
-}
-
-function GenBatchChartsFromGroups() {
-  const batchGapMINS = 20;
-  const parallelGapMINS = 9;
-  CleanupCoreBatch("Generate"); // clear to go; avoid max triggers
-  ScriptApp.newTrigger('GenerateAgeGroupCharts')
-    .timeBased()
-    .after(5000)
-    .create();
-  ScriptApp.newTrigger('GenerateGenderGroupCharts')
-    .timeBased()
-    .after(parallelGapMINS*60000)  // 9 minutes later in parallel
-    .create();
-  ScriptApp.newTrigger('GenerateLeagueGroupCharts')
-    .timeBased()
-    .after(batchGapMINS*60000)  // after 20 mins delay (after 3 consecutive Age-group runs)
-    .create();
-  ScriptApp.newTrigger('GenerateFamiliesGroupCharts')
-    .timeBased()
-    .after((batchGapMINS+parallelGapMINS)*60000)  // 9 minutes later in parallel
-    .create();
+function GenerateGenderBlockCharts() {
+  GenerateChartsFromGroups('Groups', ['Gender']);
 }
 
 function ColourLegendsInGroups(
@@ -1252,6 +1226,29 @@ function ColourLegendsInGroups(
       }
     }
   }
+}
+
+function GenBatchChartsFromGroups() {
+  const batchGapMINS = 20;
+  const parallelGapMINS = 9;
+  ColourLegendsInGroups();  // in case user has never done so nor rerun explicitly
+  CleanupCoreBatch("Generate"); // clear to go; avoid max triggers (leave GenBatch... in tact)
+  ScriptApp.newTrigger('GenerateAgeGroupsBlockCharts')
+    .timeBased()
+    .after(5000)
+    .create();
+  ScriptApp.newTrigger('GenerateGenderBlockCharts')
+    .timeBased()
+    .after(parallelGapMINS*60000)  // 9 minutes later in parallel
+    .create();
+  ScriptApp.newTrigger('GenerateLeaguesBlockCharts')
+    .timeBased()
+    .after(batchGapMINS*60000)  // after 20 mins delay (after 3 consecutive Age-group runs)
+    .create();
+  ScriptApp.newTrigger('GenerateFamiliesBlockCharts')
+    .timeBased()
+    .after((batchGapMINS+parallelGapMINS)*60000)  // 9 minutes later in parallel
+    .create();
 }
 
 function GetRelatedTabColor(
