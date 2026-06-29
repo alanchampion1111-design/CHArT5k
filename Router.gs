@@ -61,8 +61,8 @@ function AcceptCookies() {                // If required (under stealth), perhap
 }
 
 // 1d. UI Callback entry points
-function onOpen() {                      // built-in Google default here and in the Hub 
-  CHArT5kPlanet.onOpen();                // Assumes that contains:  var ui = SpreadsheetApp.getUi();
+function onOpen(event) {                      // built-in Google default here and in the Hub 
+  CHArT5kPlanet.onOpen(event);                // Assumes that contains:  var ui = SpreadsheetApp.getUi();
 }
 function onEditDetectNeedToReprotect(event) {        // callback from 1a. AppendNonParkrunResult
   CHArT5kPlanet.onEditDetectNeedToReprotect(event);
