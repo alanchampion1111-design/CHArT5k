@@ -1104,7 +1104,7 @@ function CreateRunnerResultsSheet(
   // Create runner's results sheet if it doesn't exist
   let [runnerName,runnerSurname] = runnerNames;
   let runnerNameId = runnerName+'_'+runnerIndex;
-  let templateResults = gv.activeSpreadsheet.getSheetByName(templateNAME);
+  let templateResults = gv.activeSpreadsheet.getSheetByName(gc.templateNAME);
   let newResultsSheet = templateResults.copyTo(gv.activeSpreadsheet).setName(runnerNameId);
   // ensure the content of the new sheet is unique
     let runnerFullName = runnerNames.join(" ");
@@ -1375,7 +1375,8 @@ async function DoAddNewMember(
         .then(resultsPage => {   // after load page in browser
           if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
           let [runnerNames,gender] = GetRunnerDetails(resultsPage);
-          if (gc.debug) Logger.log('3b. Details: '+runnerNames+' '+gender+' '+email+' '+dob+' '+' '+parkrunnerId);
+          if (gc.debug)
+            Logger.log('3b. Details: '+runnerNames+' '+gender+' ('+email+' email) '+dob);
           let runnerNameId = CreateRunnerResultsSheet(
             runnerNames,gender,  // to go into cols A & B, C
             email,dob,           // into cols.D & E (hidden for security, as also F..H)
@@ -1385,14 +1386,14 @@ async function DoAddNewMember(
             .then(() => {
               let [runnerName,runnerIndex] = runnerNameId.split('_');
               if (dob != gc.defaultDATE) {  // if dob missing, then skip adding (age-based) positions
-                Logger.log('Adding family member with their results: '+runnerName+'\t['+runnerIndex+']');
+                Logger.log('Adding new member with their results: '+runnerName+'\t['+runnerIndex+']');
                 LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
               }
             });
         })
     })
     .catch(err => {
-      Logger.log('ERROR: Add Family Member, '+parkrunnerId+'\n'+err);
+      Logger.log('ERROR: Add New Member, '+parkrunnerId+'\n'+err);
       return CloseChromeBrowser();
     })
     .finally(() =>
@@ -1401,7 +1402,7 @@ async function DoAddNewMember(
 }
 
 /**
- * Adds the first Runner to the new family with basic details
+ * Adds the first Runner to the new club or family Group with basic details
  *  1. Creates new Results Sheet for first runner 
  *  2. Imports all the results for the new Runner (without Positions)
  *  3. Triggers the Batch process to append positions
@@ -1498,7 +1499,7 @@ async function InstantiateGroupSpreadSheet(
   } else if (groupId && groupId.trim() !== "") {  // custom name
     groupName = groupId+' '+gc.clubTYPE;
     if (gc.debug) Logger.log('Club Group sheet: '+groupName);
-  } else {  // default to Family
+  } else {  // default to Family surname
     let familyName = runnerNames[1];
     groupName = familyName+' '+gc.familyTYPE;
     if (gc.debug) Logger.log('Family Group sheet: '+groupName);
@@ -1544,13 +1545,13 @@ const spawnCASE = {
   title: 'Spawn New Club / Family Group',
   desc: 'This spawns a new club or family Spreadsheet that captures all results for its first member. '+
     ' For the Group, provide an official parkrun Group No.(best for efficiency), a custom Club Name, '+
-    'or leave blank for a Family.',
+    'or leave blank for a family.',
   action: 'Spawn',
   handler: 'DoSpawnNewGroup'
 };
 
 /**
- * Spawns a new Family after prompting for details of the first runner
+ * Spawns a new club or family group after prompting for details of the first runner
  *  1. Prompts for a new parkrunner id, etc.
  *  2. Opens the browser session
  *  3. Gets the Runner's Details on their Results Page
