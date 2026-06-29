@@ -38,8 +38,10 @@ const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on
  *        - Select event type: On open
  *        - Save
  */
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
+function onOpen(event) {
+  var ui = (event && event.source)
+    ? event.source.getUi()
+    : SpreadsheetApp.getUi();
   var parkrunsMenu = ui.createMenu('parkrun')
     .addItem("Import result for each runner"+
       "\u00A0".repeat(16)+"Ctrl+Alt+Shift+0",
