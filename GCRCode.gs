@@ -1840,15 +1840,15 @@ function CatchUpAllPositions() {
   runnersStatus = gv.allRunnersSheet
     .getRange(gc.hasPosnsCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
     .getValues().map(x => x[0]);
+  runnersDoBs = gv.allRunnersSheet
+    .getRange(gc.runnerDoBCOLUMN+gc.runnersStartROW+":"+gc.runnerDoBCOLUMN)
+    .getDisplayValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
 
   for (var [runnerIndex,runnerName] of runners.entries()) {
     if (runnersResults[runnerIndex]) {    // if runner has at least one result
       if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
-        let runnerDoB = gv.allRunnersSheet
-          .getRange(gc.runnerDoBCOLUMN+
-            String(gc.runnersStartROW+runnerIndex))
-          .getDisplayValue();
+        let runnerDoB = runnersDoBs[runnerIndex];
         if (runnerDoB == unknownDOB) continue;   // pass if DoB unknown
         let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
         Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
