@@ -82,7 +82,7 @@
 //        Loop for each member runner...
 /           LockCallerForwardsTo-> (triggers)
 //            Trigger task, BatchPositionsForRunner...
-//        If more catch up for member runner...
+//        If more catch up for other member runner...
 //           Trigger recursive task, CatchUpAllPositions...
 /         >CloseChromeBrowser
 /
@@ -112,7 +112,7 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
-  debug: true,               // WARNING: may slow down performance if true
+  debug: false,               // WARNING: may slow down performance if true
   templateFILENAME: 'Family / Club Template',
   templateFOLDER: 'Spawned',
   familyTYPE: 'Parkrunners',  //
@@ -120,9 +120,10 @@ const gc = {
   defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   runnerNameCOLUMN: "A",      // Runners name in column A 
   runnerSurnameCOLUMN: "B",   // Runners surname in column B
-  dobINDEX: 4,                // Runners sheet in column E (for arrays or range offsets)
-  parkrunnerIdINDEX: 9,       // Runners sheet in column J (for arrays or range offsets)   
-  parkrunnerIdCOLUMN: "J",    // Runners parkrunner ID in column J
+  runnerDoBCOLUMN: "E",       // Runners DoB in column E
+  dobINDEX: 4,                // Runners DoBs in column E (for arrays or range offsets)
+  parkrunnerIdINDEX: 9,       // Runners parkrun barcodes in column J (for arrays or range offsets)   
+  parkrunnerIdCOLUMN: "J",    // Runners parkrun barcode in column J
   hasResultsCOLUMN: "K",      // ...results exist (D3:D), with Parkrunner Id in col J
   hasPosnsCOLUMN: "L",        // ...has Positions up-to-date (I3:I) based on genderPosnCOL
   resultsStartROW: 3,
@@ -1220,10 +1221,10 @@ function GetRunnerDetails(thisPage) {
 
 const addCASE = {
   title: 'Add New Member',
-  desc:  'This adds a new member parkrunner into the current Spreadsheet and captures their results. '
-        +'The runner is identified by a new row in the Runners sheet plus a separate sheet for the '
-        +'results of that new parkrun member (based on their first name and a unique member index), '
-        +'where detailed positions are also added (in the background) provided their DoB is entered.',
+  desc:  'This adds a new member parkrunner into the current Spreadsheet after capturing their results. '
+        +'Detailed positions are also added (in the background) provided their DoB is entered. '
+        +'Therefore, for a fast-ramp-up of members, omit the DoB initially here, and then do "Catch up all positions" '
+        +'after updating each of the DoBs on the main Runners sheet.',
   action: 'Add',
   handler: 'DoAddNewMember'
 };
@@ -1827,6 +1828,7 @@ function BatchPositionsForRunner() {
  * Triggers batch processing for runners needing position catch-up, always  in series
  */
 function CatchUpAllPositions() {
+  const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
   let runnersStatus = [];
   let runners = gv.allRunnersSheet
     .getRange(runnerNameCOLUMN+runnersStartROW+":"+runnerNameCOLUMN)
@@ -1839,9 +1841,15 @@ function CatchUpAllPositions() {
     .getRange(gc.hasPosnsCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
     .getValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
+
   for (var [runnerIndex,runnerName] of runners.entries()) {
     if (runnersResults[runnerIndex]) {    // if runner has at least one result
       if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
+        let runnerDoB = gv.allRunnersSheet
+          .getRange(gc.runnerDoBCOLUMN+
+            String(gc.runnersStartROW+runnerIndex))
+          .getDisplayValue();
+        if (runnerDoB == unknownDOB) continue;   // pass if DoB unknown
         let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
         Logger.log('Threading batch for a single runner: '+runnerName+' ['+runnerIndex+']');
         LockCallerForwardsTo(threadBatchFN,'threaded',runnerNameId);
