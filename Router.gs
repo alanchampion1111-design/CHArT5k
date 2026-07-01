@@ -59,7 +59,10 @@ function PrepareAppSheets() {                // Scheduled trigger to export extr
 function MeritDetailedTrendsChart() {        // Executed whenever a runner exceeds 100/150 runs
   CHArT5kPlanet.MeritDetailedTrendsChart();
 }
-function AcceptCookies() {                  // If required (under stealth), perhaps once per six months?
+function EstimateDoBs() {                    // Complement to default (unknown) DoBs on fast ramp-up of new Group 
+  CHArT5kPlanet.EstimateDoBs();
+}
+function AcceptCookies() {                   // If required (under stealth), perhaps once per six months?
   CHArT5kPlanet.AcceptCookies();
 }
 
