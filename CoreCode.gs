@@ -49,6 +49,10 @@ const lc = {
   ageGradePosnCOL: 11,    // column K on each Results sheet
   ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
   pasteCOL: 1,            // Paste Event result starting in 1st column (A)
+  runnersNameCOLUMN: "A",     // Runners name in column A 
+  runnersSurnameCOLUMN: "B",  // Runners surname in column B
+  runnersNumRunsCOLUMN: "M",  // Runners number of runs in column M
+  resultsDateCOLUMN: "B",     // results Dates on each runner's result sheet
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
@@ -60,7 +64,8 @@ const lc = {
   runnersStartCOL: 3,     // Performance Output sheet start column
   runnersStartROW: 3,
   runnersSheetNAME: 'Runners',
-  runnersNameCOLUMN: "A",
+  sinceYearCELL: "G1",    // Runners cell identifies the start year for 2nd detailed chart
+  meritNumRunsCell: "H1", // threshhold of runners who merit a 2nd detailed trend chart
   resultTABLE: 'Event',   // First Header title in Results sheet
   eventHeaderCELL: "A2",  // Header row is below the Runner name title
   firstResultCELL: "A3",  //  ...and at least one Result has been cleanly entered
@@ -193,7 +198,7 @@ function GetResultsEditorsForRunner(runnerNameId) {
     Logger.log('ERROR: '+runnerNameId+' is not a valid results sheet');
     return null;
   } else {
-    var editorsCell = lv.allRunnersSheet.getRange(runnersStartROW+parseInt(index),editorsCOL);
+    var editorsCell = lv.allRunnersSheet.getRange(lc.runnersStartROW+parseInt(index),editorsCOL);
     if (lc.debug)
       Logger.log(editorsCell.getA1Notation());    // e.g. "D16" for runner_index, Alan_13
     var editorEmails = editorsCell.getValue().split(",");
@@ -290,7 +295,7 @@ function ReprotectResultsSheet(
  * to add/change latest results.
  */
 function ReprotectResultsSheetPerRunner() {   // entry-point usage
-  const runnersRANGE = runnerNameCOLUMN+lc.resultsStartROW+":"+runnerSurnameCOLUMN;
+  const runnersRANGE = lc.runnersNameCOLUMN+lc.resultsStartROW+":"+lc.runnersSurnameCOLUMN;
   let runnerFullNames = lv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
     .filter(name => name[0] != "")
@@ -448,7 +453,7 @@ function onSelectionChange(e) {
       Seniors (over past year)
       Veterans (under 50, over past year)
       Supervets (50+,over past year)
-      By FAMILY surname (overpast year)
+      By FAMILY surname (over past year)
       Females (by Gender position, over past year)
     Note that these are formulae to filter the selection but can be manually set also  
     By example, here is a sample Group runner selection formula for Veterans under 50
@@ -1482,7 +1487,6 @@ function getRole(
   runnerNameId='Alan_13')
 {
   const emailCOL = 4;  // column D of Runners sheet
-  const numRunsCOL = 4;  // column M of Runners sheet
   let runnerIdx = Number(runnerNameId
     .split("_")[1]);
   let email = lv.allRunnersSheet      //  assume current SS
@@ -1589,6 +1593,79 @@ function GetMyTrendsCharts(
     // let titleRange = trendsSheet.getRange(1,1,1,5);    // table header (below title) has 5 columns
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
       .setValues(trendsTable);
+  }
+}
+
+function MeritDetailedTrendsChart() {
+  let runnersNames = gv.allRunnersSheet
+    .getRange(lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN)
+    .getValues().map(x => x[0]).filter(String);
+  let numRunsRange = lc.runnersNumRunsCOLUMN+lc.runnersStartROW+":"
+    +lc.runnersNumRunsCOLUMN;
+  let runnersNumRuns = lv.allRunnersSheet
+    .getRange(numRunsRange)
+    .getValues().map(x => x[0]);
+  const meritNumRUNS = lv.allRunnersSheet
+    .getRange(lc.meritNumRunsCell)
+    .getValue();
+  const sinceYEAR = lv.allRunnersSheet
+    .getRange(lc.sinceYearCELL)
+    .getValue();
+  const yearYY = String(sinceYEAR).slice(-2);   // dates held as strings
+  for (var [runnerIndex,runnerName] of runnersNames.entries()) {
+    let numRuns = runnersNumRuns[runnerIndex];
+    if ( numRuns < meritNumRUNS) continue;   // not reached threshhold (150)
+    let runnerNameId = runnerName+'_'+runnerIndex;
+    let runnerResultsSheet = lv.activeSpreadsheet
+      .getSheetByName(runnerNameId);
+    let trendCharts = runnerResultsSheet.getCharts();
+    if (trendCharts.length >= 2) {
+      Logger.log("INFO: Additional detailed trends chart already exists on runner's results sheet, "+runnerNameId+
+        " ("+numRuns+")");
+      continue;
+    } else if (trendCharts.length == 0) {
+      Logger.log("ERROR: Missing trend chart on runner's results sheet, "+runnerNameId+
+        " ("+numRuns+")");
+      continue; 
+    }
+    let resultsDates = runnerResultsSheet
+      .getRange(lc.resultsDateCOLUMN+lc.resultsStartROW+":"+
+        lc.resultsDateCOLUMN+runnerResultsSheet.getLastRow())
+      .getValues();
+    let pivotRow = 0;
+    for (let i=0; i<resultsDates.length; i++) {
+      let dateString = resultsDates[i][0];
+      if (dateString.endsWith("-" + yearYY)) {
+        pivotRow = i + lc.resultsStartROW;
+        break;
+      }
+    }
+    if (pivotRow === 0) {
+      Logger.log("WARNING: No "+sinceYEAR+" results rows found on runner's results sheet, "+runnerNameId+
+        " ("+numRuns+")");
+      continue;
+    }
+    let existingChart = trendCharts[0];  // new chart is a clone of existing trend chart
+    let oldRanges = existingChart.getRanges();
+    let newChartBuilder = existingChart.modify();
+    newChartBuilder.clearRanges();
+    oldRanges.forEach(range => {
+      const a1 = range.getA1Notation();
+      const columnPart = a1.replace(/[0-9]/g, ''); 
+      const cols = columnPart.split(':');
+      let targetA1 = cols[0] + pivotRow;
+      if (cols[1]) {
+        targetA1 += ":" + cols[1] + range.getLastRow(); 
+      }
+      newChartBuilder.addRange(runnerResultsSheet.getRange(targetA1));
+    });
+    let finalChart = newChartBuilder  // render new detailed trend chart
+      .setOption('title', 'Run times and age-grades (since '+sinceYEAR+')')
+      .setPosition(22, 14, 0, 0) // Row 22, Col N (14)
+      .build();
+    runnerResultsSheet.insertChart(finalChart);
+    Logger.log("INFO: Successfully merited trends chart on runner's results sheet, "+runnerNameId+
+      " ("+numRuns+") for detail since "+sinceYEAR);
   }
 }
 
