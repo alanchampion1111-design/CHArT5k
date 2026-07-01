@@ -120,13 +120,14 @@ const gc = {
   defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   runnersNameCOLUMN: "A",     // Runners name in column A 
   runnersSurnameCOLUMN: "B",  // Runners surname in column B
-  runnersDoBCOLUMN: "E",       // Runners DoB in column E
+  runnersDoBCOLUMN: "E",      // Runners DoB in column E
   dobINDEX: 4,                // Runners DoBs in column E (for arrays or range offsets)
   parkrunnerIdINDEX: 9,       // Runners parkrun barcodes in column J (for arrays or range offsets)   
   parkrunnerIdCOLUMN: "J",    // Runners parkrun barcode in column J
   hasResultsCOLUMN: "K",      // ...results exist (D3:D), with Parkrunner Id in col J
   hasPosnsCOLUMN: "L",        // ...has Positions up-to-date (I3:I) based on genderPosnCOL
   resultsStartROW: 3,
+    resultsStartROW: 3,
   runnerNameCELL: 'A1',       // full name with soft link in EACH runner's Results sheet
   runnersStartROW: 3,
   parkrunnerIdCOL: 10,        // in column J on Runners sheet
@@ -147,6 +148,7 @@ const gc = {
   ageCatPosnCOL: 10,      // column J on each Results sheet
   ageGradePosnCOL: 11,    // column K on each Results sheet
   ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
+  resultsDateCOLUMN: "B",     // results Dates on each runner's result sheet
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
@@ -1216,7 +1218,8 @@ function GetRunnerDetails(thisPage) {
       : category.includes('W') ? 'Female'
       : 'Male')   // earliest parkrunners (<7777) may not have had a known age category!!
     : null;
-  return [runnerNames,gender]; 
+
+  return [runnerNames,gender,category]; 
 }
 
 const addCASE = {
@@ -1830,22 +1833,25 @@ function BatchPositionsForRunner() {
 function CatchUpAllPositions() {
   const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
   let runnersStatus = [];
-  let runners = gv.allRunnersSheet
+  let runnersNames = gv.allRunnersSheet
     .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersNameCOLUMN)
-    .getValues().map(x => x[0]).filter(String);
+    .getValues()
+    .map(x => x[0]).filter(String);
   var runnersResults = gv.allRunnersSheet
     .getRange(gc.hasResultsCOLUMN+gc.runnersStartROW+":"+gc.hasResultsCOLUMN)
-    .getValues().map(x => x[0]);
+    .getValues()
+    .map(x => x[0]);
   // Ensure ALL threads use the same status so that closure is when done for ALL runners
   runnersStatus = gv.allRunnersSheet
     .getRange(gc.hasPosnsCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
-    .getValues().map(x => x[0]);
+    .getValues()
+    .map(x => x[0]);
   runnersDoBs = gv.allRunnersSheet
     .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
     .getDisplayValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
 
-  for (var [runnerIndex,runnerName] of runners.entries()) {
+  for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     if (runnersResults[runnerIndex]) {    // if runner has at least one result
       if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
         let runnerDoB = runnersDoBs[runnerIndex];
@@ -1866,6 +1872,99 @@ function CatchUpAllPositions() {
     CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
     return;
   }
+}
+
+/**
+ * Core DoB Estimation Engine
+ * @param {string} eventDateStr - The raw date of the event row
+ * @param {string} categoryStr - The age category from that same row (e.g., 'SM20-24')
+ * @returns {Date} - Calculated Date object set to the 1st of the estimated birth month
+ */
+function EstimateDoB(eventDateStr, categoryStr) {
+  const eventDate = new Date(eventDateStr);
+  eventDate.setDate(1);   // event date as if on 1st of month
+  const rangeMatch = categoryStr.match(/\d+-\d+|\d+/);  // strip the gender/group text 
+  if (!rangeMatch) {
+    throw new Error('Unable to parse age range from category: '+categoryStr);
+  }
+  const ageRange = rangeMatch[0];
+  let ageOffset = 0;
+  if (ageRange.includes('-')) {
+    const ageParts = ageRange.split('-').map(Number);
+    const ageSpan = ageParts[1]-ageParts[0]+1;
+    ageOffset = ageParts[0] + ageSpan/2; //  e.g. SW20-24 => +2.5, JM11-14 => +2
+  } else {  
+    const singleAge = Number(ageRange);
+    if (singleAge == 10)    // e.g. JM10 => under 11?
+      ageOffset = singleAge-1; // ...under 11 => 9?
+    else
+      ageOffset = singleAge+2; // e.g., 80+, 85+)
+  }
+  const estimatedDoB = new Date(eventDate.getTime());
+  estimatedDoB.setMonth(eventDate.getMonth() - Math.round(ageOffset * 12));
+  estimatedDoB.setDate(1);   // assume estimated DoB is 1st of month
+  return estimatedDoB;
+}
+
+function GetRunnerCategory(thisPage) {
+  if (!thisPage)
+    throw new Error('ERROR: Delayed or unable to access Runner results');
+  const paraREGEXP = /<p>(.*?)<\/p>/s;
+  let paraContent = (thisPage.match(paraREGEXP) || [])[1];
+  let category = paraContent.trim().split(' ').pop();
+  return category; 
+}
+
+/**
+ * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
+ */
+async function EstimateDoBs() {
+  const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
+  let runnersStatus = [];
+  let runnersNames = gv.allRunnersSheet
+    .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersNameCOLUMN)
+    .getValues()
+    .map(x => x[0])
+    .filter(String);
+  runnersStatus = gv.allRunnersSheet    // column J..K
+    .getRange(gc.parkrunnerIdCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
+    .getValues();
+  runnersDoBs = gv.allRunnersSheet
+    .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
+    .getDisplayValues()
+    .map(x => x[0]);
+  let alreadyOpen = false;
+  for (var [runnerIndex,runnerName] of runnersNames.entries()) {
+    if (!runnersStatus[runnerIndex][2]) {  // // column L has Positions
+      let runnerDoB = runnersDoBs[runnerIndex];
+      let parkrunnerId = runnersStatus[runnerIndex][0]; // column J
+      if (runnerDoB == unknownDOB) {
+        if (gc.debug) Logger.log('Checking age category of parkrunner (unknown DoB): '+parkrunnerId);
+        let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
+        if (!alreadyOpen) {
+          alreadyOpen = await OpenChromeBrowser();
+        }
+        try {
+          let resultsPage = await GetRunnerResultsPage(parkrunnerId);
+          let lastAgeCategory = GetRunnerCategory(resultsPage);
+          let runnerResultsSheet = gv.activeSpreadsheet
+            .getSheetByName(runnerNameId);
+          let lastResultDate = runnerResultsSheet
+            .getRange(gc.resultsDateCOLUMN+runnerResultsSheet.getLastRow())
+            .getValue();
+          runnerDoB = EstimateDoB(lastResultDate,lastAgeCategory);
+          Logger.log('Update DoB for runner, '+runnerName+' (index: '+runnerIndex+'): '+runnerDoB);
+          gv.allRunnersSheet
+           .getRange(gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex))
+           .setValue(runnerDoB);
+        } catch (err) {
+          Logger.log('ERROR processing runner ' + runnerName + ': ' + err.toString());
+        }
+      }
+    }
+  }
+  if (alreadyOpen)
+    await CloseChromeBrowser();
 }
 
 /**
