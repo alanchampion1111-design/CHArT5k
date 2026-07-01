@@ -118,9 +118,9 @@ const gc = {
   familyTYPE: 'Parkrunners',  //
   clubTYPE: "Clubrunners",
   defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
-  runnerNameCOLUMN: "A",      // Runners name in column A 
-  runnerSurnameCOLUMN: "B",   // Runners surname in column B
-  runnerDoBCOLUMN: "E",       // Runners DoB in column E
+  runnersNameCOLUMN: "A",     // Runners name in column A 
+  runnersSurnameCOLUMN: "B",  // Runners surname in column B
+  runnersDoBCOLUMN: "E",       // Runners DoB in column E
   dobINDEX: 4,                // Runners DoBs in column E (for arrays or range offsets)
   parkrunnerIdINDEX: 9,       // Runners parkrun barcodes in column J (for arrays or range offsets)   
   parkrunnerIdCOLUMN: "J",    // Runners parkrun barcode in column J
@@ -929,7 +929,7 @@ function ImportResultForEachRunner(
   return OpenChromeBrowser()
   .then(() => {   // Browser always launched beforehand...
     let runners = gv.allRunnersSheet.getRange(
-      gc.runnerNameCOLUMN+gc.runnersStartROW+":"+gc.runnerSurnameCOLUMN
+      gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersSurnameCOLUMN
     ).getValues().filter(String);
     return GetEventsResults(eventDate)
       .then(eventsResults => { 
@@ -1325,7 +1325,7 @@ function DoDeleteExistingMember(
   let [parkrunnerId,dob] = form;
   parkrunnerId = +parkrunnerId; // number expected for matching
   let runnersRange = gv.allRunnersSheet.getRange(
-    gc.runnerNameCOLUMN+gc.runnersStartROW+":"+gc.parkrunnerIdCOLUMN
+    gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.parkrunnerIdCOLUMN
   );
   // Verify runner matches row (with runner index)
   let runnerIndex = FindRunnerIndex(runnersRange,parkrunnerId,dob);
@@ -1831,7 +1831,7 @@ function CatchUpAllPositions() {
   const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
   let runnersStatus = [];
   let runners = gv.allRunnersSheet
-    .getRange(runnerNameCOLUMN+runnersStartROW+":"+runnerNameCOLUMN)
+    .getRange(gc.runnersNameCOLUMN+runnersStartROW+":"+gc.runnersNameCOLUMN)
     .getValues().map(x => x[0]).filter(String);
   var runnersResults = gv.allRunnersSheet
     .getRange(gc.hasResultsCOLUMN+gc.runnersStartROW+":"+gc.hasResultsCOLUMN)
@@ -1841,7 +1841,7 @@ function CatchUpAllPositions() {
     .getRange(gc.hasPosnsCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
     .getValues().map(x => x[0]);
   runnersDoBs = gv.allRunnersSheet
-    .getRange(gc.runnerDoBCOLUMN+gc.runnersStartROW+":"+gc.runnerDoBCOLUMN)
+    .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
     .getDisplayValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
 
