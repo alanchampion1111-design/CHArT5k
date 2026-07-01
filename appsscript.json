@@ -104,6 +104,10 @@
       {
         "menuName": "Merit detailed trends charts?",
         "functionName": "MeritDetailedTrendsChart"
+      },
+      {
+        "menuName": "Estimate DoBs for unknowns",
+        "functionName": "EstimateDoBs"
       }
     ]
   }
