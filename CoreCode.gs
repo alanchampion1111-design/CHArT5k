@@ -1597,7 +1597,7 @@ function GetMyTrendsCharts(
 }
 
 function MeritDetailedTrendsChart() {
-  let runnersNames = gv.allRunnersSheet
+  let runnersNames = lv.allRunnersSheet
     .getRange(lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN)
     .getValues().map(x => x[0]).filter(String);
   let numRunsRange = lc.runnersNumRunsCOLUMN+lc.runnersStartROW+":"
