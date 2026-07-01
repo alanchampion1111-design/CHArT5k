@@ -1880,7 +1880,7 @@ function CatchUpAllPositions() {
  * @param {string} categoryStr - The age category from that same row (e.g., 'SM20-24')
  * @returns {Date} - Calculated Date object set to the 1st of the estimated birth month
  */
-function EstimateDoB(eventDateStr, categoryStr) {
+function EstimateDoBs(eventDateStr, categoryStr) {
   const eventDate = new Date(eventDateStr);
   eventDate.setDate(1);   // event date as if on 1st of month
   const rangeMatch = categoryStr.match(/\d+-\d+|\d+/);  // strip the gender/group text 
