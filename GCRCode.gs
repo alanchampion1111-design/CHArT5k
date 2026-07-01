@@ -1831,7 +1831,7 @@ function CatchUpAllPositions() {
   const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
   let runnersStatus = [];
   let runners = gv.allRunnersSheet
-    .getRange(gc.runnersNameCOLUMN+runnersStartROW+":"+gc.runnersNameCOLUMN)
+    .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersNameCOLUMN)
     .getValues().map(x => x[0]).filter(String);
   var runnersResults = gv.allRunnersSheet
     .getRange(gc.hasResultsCOLUMN+gc.runnersStartROW+":"+gc.hasResultsCOLUMN)
