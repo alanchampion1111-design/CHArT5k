@@ -4,7 +4,6 @@
 // from current to a new context after creating a new family instance
 
 // used for import,etc,
-const runnersStartROW = 3;        // start after title & header rows (2)
 const dobINDEX = 4;               // in column E on Runners sheet (for arrays or range offsets)
 const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
 const parkrunnerIdCOL = 10;       // in column J on Runners sheet
@@ -21,8 +20,6 @@ const trendColOFFSET = 12;        // column N from B on runner's own trend chart
 const dateFORMAT = 'd-MMM-yy';    // consistent for backwards compatibility
 const batchSizeMAX = 13;          // 1/4 year - estimate batch to catch up on within 5-6 minutes
 
-const runnerNameCOLUMN = "A";     // Runners name in column A 
-const runnerSurnameCOLUMN = "B";  // Runners surname in column B 
 const parkrunnerIdCOLUMN = "J";   // Runners parkrunner ID in column J
 const hasResultsCOLUMN = "K";     // ...results exist (D3:D), with Parkrunner Id in col J
 const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on genderPosnCOL
