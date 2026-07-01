@@ -20,10 +20,6 @@ const trendColOFFSET = 12;        // column N from B on runner's own trend chart
 const dateFORMAT = 'd-MMM-yy';    // consistent for backwards compatibility
 const batchSizeMAX = 13;          // 1/4 year - estimate batch to catch up on within 5-6 minutes
 
-const parkrunnerIdCOLUMN = "J";   // Runners parkrunner ID in column J
-const hasResultsCOLUMN = "K";     // ...results exist (D3:D), with Parkrunner Id in col J
-const hasPosnsCOLUMN = "L";       // ...has Positions up-to-date (I3:I) based on genderPosnCOL
-
 /**
  * Sets up the Parkruns menu on opening the spreadsheet.
  *  Original instructions to set up (and execute?) the trigger:
