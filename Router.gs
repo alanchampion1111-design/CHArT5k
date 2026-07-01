@@ -56,7 +56,10 @@ function PrepareAppSheets() {                // Scheduled trigger to export extr
 }
 
 // 1c. Extra Macro entry points
-function AcceptCookies() {                // If required (under stealth), perhaps once per six moths?
+function MeritDetailedTrendsChart() {        // Executed whenever a runner exceeds 100/150 runs
+  CHArT5kPlanet.MeritDetailedTrendsChart();
+}
+function AcceptCookies() {                  // If required (under stealth), perhaps once per six months?
   CHArT5kPlanet.AcceptCookies();
 }
 
