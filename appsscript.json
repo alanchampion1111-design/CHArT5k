@@ -1,16 +1,17 @@
 {
   "timeZone": "Europe/Paris",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
   "dependencies": {
     "libraries": [
       {
         "userSymbol": "CHArT5kPlanet",
-        "version": "0",
         "libraryId": "1UlnM8Z8GVEv8cesRpA_LMsagVwHKgBOd36eBjjaP0aVP2yUgOji9aY1H",
+        "version": "0",
         "developmentMode": true
       }
     ]
   },
-  "exceptionLogging": "STACKDRIVER",
   "oauthScopes": [
     "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/script.scriptapp",
@@ -20,7 +21,6 @@
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/userinfo.email"
   ],
-  "runtimeVersion": "V8",
   "sheets": {
     "macros": [
       {
@@ -100,6 +100,10 @@
       {
         "menuName": "Prepare App",
         "functionName": "PrepareAppSheets"
+      },
+      {
+        "menuName": "Merit detailed trends charts?",
+        "functionName": "MeritDetailedTrendsChart"
       }
     ]
   }
