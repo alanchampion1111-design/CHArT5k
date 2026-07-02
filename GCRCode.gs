@@ -112,7 +112,7 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const gc = {
-  debug: false,               // WARNING: may slow down performance if true
+  debug: true,               // WARNING: may slow down performance if true
   templateFILENAME: 'Family / Club Template',
   templateFOLDER: 'Spawned',
   familyTYPE: 'Parkrunners',  //
@@ -127,7 +127,6 @@ const gc = {
   hasResultsCOLUMN: "K",      // ...results exist (D3:D), with Parkrunner Id in col J
   hasPosnsCOLUMN: "L",        // ...has Positions up-to-date (I3:I) based on genderPosnCOL
   resultsStartROW: 3,
-    resultsStartROW: 3,
   runnerNameCELL: 'A1',       // full name with soft link in EACH runner's Results sheet
   runnersStartROW: 3,
   parkrunnerIdCOL: 10,        // in column J on Runners sheet
@@ -1898,21 +1897,20 @@ function BatchPositionsForRunner() {
  */
 function CatchUpAllPositions() {
   const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
-  let runnersStatus = [];
   let runnersNames = gv.allRunnersSheet
     .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersNameCOLUMN)
     .getValues()
     .map(x => x[0]).filter(String);
-  var runnersResults = gv.allRunnersSheet
+  let runnersResults = gv.allRunnersSheet
     .getRange(gc.hasResultsCOLUMN+gc.runnersStartROW+":"+gc.hasResultsCOLUMN)
     .getValues()
     .map(x => x[0]);
   // Ensure ALL threads use the same status so that closure is when done for ALL runners
-  runnersStatus = gv.allRunnersSheet
+  let runnersStatus = gv.allRunnersSheet
     .getRange(gc.hasPosnsCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
     .getValues()
     .map(x => x[0]);
-  runnersDoBs = gv.allRunnersSheet
+  let runnersDoBs = gv.allRunnersSheet
     .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
     .getDisplayValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
@@ -1983,6 +1981,7 @@ function GetRunnerCategory(thisPage) {
 
 function SetRunnerDoB(runnerNameId,runnerDoB) {
   let [runnerName,runnerIndex] = runnerNameId.split('_');
+  runnerIndex = 0+runnerIndex;
   gv.allRunnersSheet
     .getRange(
       gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
@@ -2033,7 +2032,7 @@ async function EstimateDoBs() {
         }
         let lastResultDate = GetLastResultDate(runnerNameId);
         runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
-        SetRunnerDoB(runnerNameId,runnerDoB);
+        SetRunnerDoB(runnerNameId,runnerDoB)
         Logger.log('Update DoB for runner, '+runnerName+
           ' (index: '+runnerIndex+'): '+runnerDoB);
       }
