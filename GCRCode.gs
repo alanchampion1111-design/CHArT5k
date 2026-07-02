@@ -1685,6 +1685,79 @@ function DoSpawnNewGroup(
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
+/*
+ * Calibrates the DoB by vaulting completely over the last known failure row.
+ * Uses the first failure row to detect direction, but anchors the mathematical 
+ * leap to the furthest known failure to drop all row baggage instantly.
+ */
+function CalibrateByEventSpan(resultsSheet, currentDoB, firstFailureRow, lastFailureRow) {
+  // 1. Target the furthest failure row date to drive our distance (Row 38 / 11-Jan)
+  let lastFailureDate = new Date(resultsSheet.getRange(lastFailureRow, 2).getValue());
+  // 2. Identify our current faulty milestone anchor (e.g., 1st Dec)
+  let currentMilestoneDate = new Date(currentDoB);
+  currentMilestoneDate.setFullYear(currentMilestoneDate.getFullYear() + 45); 
+  // 3. Distance from our bad estimate out to the furthest failure point
+  let baseSpanMs = lastFailureDate.getTime() - currentMilestoneDate.getTime();
+  // 4. Tack on the +6 days step to safely clear the zone without over-engineering
+  const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
+  let totalShiftMs = baseSpanMs + SIX_DAYS_MS;
+  // 5. Use the FIRST failure row (Row 34) strictly as the channel to read Column 17 direction
+  let lastSuccessRow = firstFailureRow - 1; // Row 33
+  let successGroup = resultsSheet.getRange(lastSuccessRow, 17).getValue();
+  let failureGroup = resultsSheet.getRange(firstFailureRow, 17).getValue();
+  let adjustedDoB = new Date(currentDoB);
+  if (successGroup !== failureGroup) {
+    // 🟩 Boundary text flip: Runner is younger. Shift DoB forward in time.
+    adjustedDoB.setTime(adjustedDoB.getTime() + totalShiftMs);
+    Logger.log(`🚀 Top Gear: Vaulted to furthest failure + 6 days. Shifting younger by ${Math.round(totalShiftMs / 86400000)} days.`);
+  } else {
+    // 🟥 Static text row: Runner is older. Shift DoB backward in time.
+    adjustedDoB.setTime(adjustedDoB.getTime() - totalShiftMs);
+    Logger.log(`🚀 Top Gear: Vaulted to furthest failure + 6 days. Shifting older by ${Math.round(totalShiftMs / 86400000)} days.`);
+  }
+  return adjustedDoB;
+}
+
+/**
+ * Calibrates the DoB by shifting it straight into top gear.
+ * Measures the span from the current premature milestone calculation to the failure row,
+ * then adds a safe 6-day step to clear the immediate roadblock without over-engineering.
+ */
+function CalibrateByEventSpan(resultsSheet, currentDoB, lastSuccessRow, currentFailureRow) {
+  // 1. Fetch the exact date of the row where the mismatch was detected
+  let currentFailureDate = new Date(resultsSheet.getRange(currentFailureRow, 2).getValue());
+  
+  // 2. Determine where the current algorithm THINKS the 45-year milestone is.
+  // (e.g., If currentDoB is 1st Dec 1968, the milestone date is 1st Dec 2013)
+  let currentMilestoneDate = new Date(currentDoB);
+  currentMilestoneDate.setFullYear(currentMilestoneDate.getFullYear() + 45); // Adjust '45' dynamically if tracking multiple brackets
+  
+  // 3. Calculate the span between our premature milestone estimate and the actual failure row
+  let baseSpanMs = currentFailureDate.getTime() - currentMilestoneDate.getTime();
+  
+  // 4. Add the 6-day safe step (6 days * 24h * 60m * 60s * 1000ms) to maximize the jump
+  const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
+  let totalShiftMs = baseSpanMs + SIX_DAYS_MS;
+  
+  // 5. Inspect Column 17 to confirm direction
+  let successGroup = resultsSheet.getRange(lastSuccessRow, 17).getValue();
+  let failureGroup = resultsSheet.getRange(currentFailureRow, 17).getValue();
+  
+  let adjustedDoB = new Date(currentDoB);
+  
+  if (successGroup !== failureGroup) {
+    // 🟩 Boundary text flip: Runner is younger. Shift DoB forward in time.
+    adjustedDoB.setTime(adjustedDoB.getTime() + totalShiftMs);
+    Logger.log(`🚀 Top Gear Shift: Shifting DoB younger by ${Math.round(totalShiftMs / 86400000)} days to clear the block.`);
+  } else {
+    // 🟥 Static text row: Runner is older. Shift DoB backward in time.
+    adjustedDoB.setTime(adjustedDoB.getTime() - totalShiftMs);
+    Logger.log(`🚀 Top Gear Shift: Shifting DoB older by ${Math.round(totalShiftMs / 86400000)} days to clear the block.`);
+  }
+  
+  return adjustedDoB;
+}
+
 /**
  *  Returns the first result range with matching positions (typically unknown gender position)
  *    @param {Sheet} resultsSheet - A runner's sheet containing the results (+ header & title)
@@ -1748,6 +1821,27 @@ async function SyncPositionsPerRunner(
         +' (out of '+totalEvents+' in this batch)'+morePositions);
       if (updatesApplied === 0)
         throw new Error('ERROR: Batching aborted to avoid infinite looping because no updates');
+
+/*
+// At the top of your execution loop tracking state:
+let consecutiveSystemFailures = 0;
+// Inside your loop/recursive block evaluation:
+if (updatesApplied <= 2) {
+  consecutiveSystemFailures++;
+  if (consecutiveSystemFailures >= 2) {
+    // 🚨 External Network or Target Server Drop Out Detected
+    throw new Error(`CRITICAL STOP: Network or server drop suspected. Multiple 0-match blocks on consecutive passes.`);
+  }
+  // Otherwise, if it's the first 0, treat it as a standard boundary alignment alert...
+  let adjustedDoB = CalibrateByEventSpan(runnerNameId, runnerDoB);
+  SetRunnerDoB(runnerNameId, adjustedDoB);
+  // Recurse cleanly
+} else {
+  // Reset the network panic counter the moment we get valid rows matching
+  consecutiveSystemFailures = 0; 
+}
+*/
+
       return moreBatches;
     });
   } else {
@@ -2031,6 +2125,7 @@ async function EstimateDoBs() {
           } catch (err) {
             Logger.log('ERROR: Unable to retrieve age category for runner '+
               runnerNameId+': '+err.toString());
+            continue;
           }
         }
         Logger.log('INFO: Estimating DoB for runner, '+runnerName+
