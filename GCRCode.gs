@@ -2011,14 +2011,17 @@ async function EstimateDoBs() {
     .map(x => x[0]);
   let alreadyOpen = false;
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
-    if (!runnersStatus[runnerIndex][2]) {  // // column L has Positions
+    if (runnersStatus[runnerIndex][2])   // // column L has Positions
+      Logger.log('INFO: Runner, '+runnerName+
+          ' (index: '+runnerIndex+') assumed DoB okay since all positions uppdated');
+    else {
       let runnerDoB = runnersDoBs[runnerIndex];
       if (runnerDoB == unknownDOB) {
-        if (gc.debug) Logger.log('Checking age category of parkrunner (unknown DoB): '+parkrunnerId);
         let runnerNameId = runnerName+'_'+runnerIndex;
         let ageCategory = SnatchAgeCategoryIfHeld(runnerNameId); // reads & clears
         if (!ageCategory) {
           let parkrunnerId = runnersStatus[runnerIndex][0]; // column J
+          Logger.log('WARNING: Researching age category of parkrunner ('+parkrunnerId+')...');
           try {
             if (!alreadyOpen) {
               alreadyOpen = await OpenChromeBrowser();
@@ -2030,12 +2033,16 @@ async function EstimateDoBs() {
               runnerNameId+': '+err.toString());
           }
         }
+        Logger.log('INFO: Estimating DoB for runner, '+runnerName+
+          ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
         let lastResultDate = GetLastResultDate(runnerNameId);
         runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
         SetRunnerDoB(runnerNameId,runnerDoB)
-        Logger.log('Update DoB for runner, '+runnerName+
-          ' (index: '+runnerIndex+'): '+runnerDoB);
-      }
+        Logger.log('INFO: Estimated DoB for runner, '+runnerName+
+          ' (index: '+runnerIndex+'): '+runnerDoB+' (based on last run date, '+lastResultDate+')');
+      } else
+        Logger.log('INFO: Runner, '+runnerName+
+          ' (index: '+runnerIndex+') already has a known/estimated DoB: '+runnerDoB);
     }
   }
   if (alreadyOpen)
