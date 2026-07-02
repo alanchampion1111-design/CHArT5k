@@ -1981,7 +1981,7 @@ function GetRunnerCategory(thisPage) {
 
 function SetRunnerDoB(runnerNameId,runnerDoB) {
   let [runnerName,runnerIndex] = runnerNameId.split('_');
-  runnerIndex = 0+runnerIndex;
+  runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
   gv.allRunnersSheet
     .getRange(
       gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
