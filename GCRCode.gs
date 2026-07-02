@@ -148,7 +148,8 @@ const gc = {
   ageCatPosnCOL: 10,      // column J on each Results sheet
   ageGradePosnCOL: 11,    // column K on each Results sheet
   ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
-  resultsDateCOLUMN: "B",     // results Dates on each runner's result sheet
+  resultsDateCOLUMN: "B",       // results Dates on each runner's result sheet
+  resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
@@ -1151,7 +1152,7 @@ function CreateRunnerResultsSheet(
 /         OpenChromeBrowser->   
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
-/         GetRunnerDetails
+/         GetRunnerDetails (incl. age category)
 /         CreateRunnerResultsSheet (in current spreadsheet)
 /         ImportAllResultsForRunner (...b/fwd page)
 /           CopyResultForRunner (ALL results from page)
@@ -1160,8 +1161,11 @@ function CreateRunnerResultsSheet(
 /             FormatDate (TODO: potentially redundant)
 /             PrepareResultRow
 /             AppendAllResults
-/         LockCallerForwardsTo-> (triggers)
-//          Trigger task, BatchPositionsForRunner...
+//        If DoB unknown
+/           HoldAgeCategoryInAbsenceofDoB (in G1)
+//        else
+/           LockCallerForwardsTo-> (triggers)
+//            Trigger task, BatchPositionsForRunner...
 /
 /   2.  SpawnNewGroup (to be owned by first member)
 /         PromptForRunner(spawnCASE)-> to get Group id/name parkrun id, Dob,..
@@ -1170,7 +1174,7 @@ function CreateRunnerResultsSheet(
 /         OpenChromeBrowser->
 /         >GetRunnerResults (to get Name from the Results Page)
 /           AccessPage (c/fwd...)
-/         GetRunnerDetails
+/         GetRunnerDetails (incl. age category)
 /         >InstantiateGroupSpreadSheet (new spreadsheet, fs)
 /           CreateNewSpreadsheet
 /         >AddFirstMember (as a member of new family/club)
@@ -1182,8 +1186,11 @@ function CreateRunnerResultsSheet(
 /             FormatDate (potentially redundant)
 /             PrepareResultRow
 /             AppendAllResults
-/         LockCallerForwardsTo-> (triggers)
-//          Trigger task, BatchPositionsForRunner...
+//        If DoB unknown
+/           HoldAgeCategoryInAbsenceofDoB (in G1)
+//        else
+/           LockCallerForwardsTo-> (triggers)
+//            Trigger task, BatchPositionsForRunner...
 /
 /   3.  DeleteExistingMember (as a member of your family/club)
 /         PromptForRunner(deleteCASE)-> to get parkrun id, Dob,..
@@ -1195,6 +1202,16 @@ function CreateRunnerResultsSheet(
 /           ...delete ruuner's (indexed) row in Runners table
 /           ...rename runners (indexed) sheets below that
 /
+/   4.  EstimateDoBs (macro)
+//        For each runner with unknown DoB...
+/           SnatchAgeCategoryIfHeld (use & clear)
+//          If age category not found...
+/             >OpenChromeBrowser (interim, if not already open)
+/             GetRunnerResultsPage (interim from web page)
+/             GetRunnerCategory (legacy solution)
+/           GetLastResultDate
+/           GetEstimatedDoB (based on age category on date of last result)
+/           >CloseChromeBrowser (interim, if opened)
 */
 
 function GetRunnerDetails(thisPage) {
@@ -1362,6 +1379,49 @@ function DoDeleteExistingMember(
   }
 }
 
+function HoldAgeCategoryInAbsenceofDoB(runnerNameId,ageCategory) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  if (resultsSheet && ageCategory)
+    resultsSheet.getRange(gc.resultsTempAgeCatCELL)
+      .setValue(ageCategory);
+}
+
+function SnatchAgeCategoryIfHeld(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  if (resultsSheet) {
+    let ageCategory = resultsSheet
+      .getRange(gc.resultsTempAgeCatCELL)
+      .getValue();
+    resultsSheet    // and clear temporary holding
+      .getRange(gc.resultsTempAgeCatCELL)
+      .clearContent();
+    return ageCategory;
+  }
+  return null;
+} 
+
+function GetLastResultDate(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  return resultsSheet
+    ? resultsSheet.getRange(
+        gc.resultsDateCOLUMN + resultsSheet.getLastRow()
+      ).getDisplayValue()
+    : null;
+}
+
+function GetFirstResultDate(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  return resultsSheet
+    ? resultsSheet.getRange(
+        gc.resultsDateCOLUMN + gc.resultsStartROW
+      ).getDisplayValue()
+    : null;
+}
+
 /**
  * Adds a new Runner to the existing family after prompting for details:
  *  1. Prompts for a new parkrunner id, etc.
@@ -1388,7 +1448,7 @@ async function DoAddNewMember(
       return GetRunnerResultsPage(parkrunnerId)
         .then(resultsPage => {   // after load page in browser
           if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
-          let [runnerNames,gender] = GetRunnerDetails(resultsPage);
+          let [runnerNames,gender,ageCategory] = GetRunnerDetails(resultsPage);
           if (gc.debug)
             Logger.log('3c. Details: '+runnerNames+' '+gender+' (email: '+email+') '+dob);
           let runnerNameId = CreateRunnerResultsSheet(
@@ -1399,8 +1459,11 @@ async function DoAddNewMember(
           return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
             .then(() => {
               let [runnerName,runnerIndex] = runnerNameId.split('_');
-              if (dob != gc.defaultDATE) {  // if dob missing, then skip adding (age-based) positions
-                Logger.log('Adding new member with their results: '+runnerName+'\t['+runnerIndex+']');
+              if (dob == gc.defaultDATE)   // if dob missing, support EstimateDoBs later
+                HoldAgeCategoryInAbsenceofDoB(runnerNameId,ageCategory);
+              else {
+                Logger.log('Adding new member with their positions in background: '+
+                  runnerName+'\t['+runnerIndex+']');
                 LockCallerForwardsTo(threadBatchFN,'added',runnerNameId);
               }
             });
@@ -1411,6 +1474,7 @@ async function DoAddNewMember(
       return CloseChromeBrowser();
     })
     .finally(() =>
+
       // return CloseChromeBrowser() // NOT yet until forked process is done!
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
@@ -1422,7 +1486,7 @@ async function DoAddNewMember(
  *  3. Triggers the Batch process to append positions
  */
 function AddFirstMember(
-  parkrunnerId,runnerNames,dob,resultsPage)
+  parkrunnerId,runnerNames,dob,ageCategory,resultsPage)
 {   // assumes famSpreadsheetId now set and active Spreadsheet switched
   if (gc.debug) Logger.log('New spreadsheet Id: '+gv.activeSpreadsheetId);
   if (gc.debug) Logger.log('First parkrunner: '+parkrunnerId);
@@ -1435,7 +1499,9 @@ function AddFirstMember(
   return ImportAllResultsForRunner(parkrunnerId,runnerNameId,resultsPage)
     .then(() => {
       let [runnerName,runnerIndex] = runnerNameId.split('_');
-      if (dob != gc.defaultDATE) {  // if DoB omitted, then skip adding (age-based) positions
+      if (dob == gc.defaultDATE) // if dob missing, support EstimateDoBs later
+        HoldAgeCategoryInAbsenceofDoB(runnerNameId,ageCategory);
+      else {
         Logger.log('Forking new: '+runnerName+'\t['+runnerIndex+']');
         LockCallerForwardsTo(threadBatchFN,'forked',runnerNameId);
       }
@@ -1592,7 +1658,7 @@ function DoSpawnNewGroup(
     })
     .then(resultsPage => {   // after load page in browser
       if (gc.debug) Logger.log('3a. Runner: '+parkrunnerId);
-      let [runnerNames,gender] = GetRunnerDetails(resultsPage);
+      let [runnerNames,gender,ageCategory] = GetRunnerDetails(resultsPage);
       if (gc.debug)
         Logger.log('3c. Details: '+runnerNames+' '+gender+' (email: '+email+') '+dob);
       return InstantiateGroupSpreadSheet(
@@ -1601,15 +1667,15 @@ function DoSpawnNewGroup(
         runnerNames,gender, // into cols A & B, C of 1st row of Runners instance
         email,dob           // into cols D & E + F..H (hidden for security)  
         )            
-        .then(groupNameFile => [groupNameFile,runnerNames,resultsPage])
+        .then(groupNameFile => [groupNameFile,runnerNames,ageCategory,resultsPage])
     })
-    .then(([groupNameFile,runnerNames,resultsPage]) => {
+    .then(([groupNameFile,runnerNames,ageCategory,resultsPage]) => {
       if (gc.debug) Logger.log('Group Spreadsheet name: '+groupNameFile);
       let [groupName,clubType] = groupNameFile.split(' ');
       if (gc.debug) {
         Logger.log('4. Instantiate 1st runner in: '+groupName+' ['+clubType+']');
       }
-      AddFirstMember(parkrunnerId,runnerNames,dob,resultsPage);
+      AddFirstMember(parkrunnerId,runnerNames,dob,ageCategory,resultsPage);
     })
     .catch(err => {
       Logger.log('ERROR: Spawn New Family for parkrunner, '+parkrunnerId+'\n'+err);
@@ -1880,7 +1946,7 @@ function CatchUpAllPositions() {
  * @param {string} categoryStr - The age category from that same row (e.g., 'SM20-24')
  * @returns {Date} - Calculated Date object set to the 1st of the estimated birth month
  */
-function EstimateDoBs(eventDateStr, categoryStr) {
+function GetEstimatedDoB(eventDateStr, categoryStr) {
   const eventDate = new Date(eventDateStr);
   eventDate.setDate(1);   // event date as if on 1st of month
   const rangeMatch = categoryStr.match(/\d+-\d+|\d+/);  // strip the gender/group text 
@@ -1900,10 +1966,10 @@ function EstimateDoBs(eventDateStr, categoryStr) {
     else
       ageOffset = singleAge+2; // e.g., 80+, 85+)
   }
-  const estimatedDoB = new Date(eventDate.getTime());
+  let estimatedDoB = new Date(eventDate.getTime());   // wind back the clock
   estimatedDoB.setMonth(eventDate.getMonth() - Math.round(ageOffset * 12));
   estimatedDoB.setDate(1);   // assume estimated DoB is 1st of month
-  return estimatedDoB;
+  return estimatedDoB.toDateString();   // date string like human entry, dd-Mmm-yyy
 }
 
 function GetRunnerCategory(thisPage) {
@@ -1915,51 +1981,61 @@ function GetRunnerCategory(thisPage) {
   return category; 
 }
 
+function SetRunnerDoB(runnerNameId,runnerDoB) {
+  let [runnerName,runnerIndex] = runnerNameId.split('_');
+  gv.allRunnersSheet
+    .getRange(
+      gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
+    )
+    .setValue(runnerDoB);
+}
+
 /**
  * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
  */
 async function EstimateDoBs() {
   const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
-  let runnersStatus = [];
   let runnersNames = gv.allRunnersSheet
-    .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"+gc.runnersNameCOLUMN)
+    .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"
+      +gc.runnersNameCOLUMN)
     .getValues()
     .map(x => x[0])
     .filter(String);
-  runnersStatus = gv.allRunnersSheet    // column J..K
-    .getRange(gc.parkrunnerIdCOLUMN+gc.runnersStartROW+":"+gc.hasPosnsCOLUMN)
+  let runnersStatus = gv.allRunnersSheet    // column J..K
+    .getRange(gc.parkrunnerIdCOLUMN+gc.runnersStartROW+":"
+      +gc.hasPosnsCOLUMN)
     .getValues();
-  runnersDoBs = gv.allRunnersSheet
-    .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
+  let runnersDoBs = gv.allRunnersSheet
+    .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"
+      +gc.runnersDoBCOLUMN)
     .getDisplayValues()
     .map(x => x[0]);
   let alreadyOpen = false;
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     if (!runnersStatus[runnerIndex][2]) {  // // column L has Positions
       let runnerDoB = runnersDoBs[runnerIndex];
-      let parkrunnerId = runnersStatus[runnerIndex][0]; // column J
       if (runnerDoB == unknownDOB) {
         if (gc.debug) Logger.log('Checking age category of parkrunner (unknown DoB): '+parkrunnerId);
-        let runnerNameId = runnerName+'_'+runnerIndex;  // consistently unique for index and status
-        if (!alreadyOpen) {
-          alreadyOpen = await OpenChromeBrowser();
+        let runnerNameId = runnerName+'_'+runnerIndex;
+        let ageCategory = SnatchAgeCategoryIfHeld(runnerNameId); // reads & clears
+        if (!ageCategory) {
+          let parkrunnerId = runnersStatus[runnerIndex][0]; // column J
+          try {
+            if (!alreadyOpen) {
+              alreadyOpen = await OpenChromeBrowser();
+            }
+            let resultsPage = await GetRunnerResultsPage(parkrunnerId);
+            ageCategory = GetRunnerCategory(resultsPage);
+          } catch (err) {
+            Logger.log('ERROR: Unable to retrieve age category for runner '+
+              runnerNameId+': '+err.toString());
+          }
         }
-        try {
-          let resultsPage = await GetRunnerResultsPage(parkrunnerId);
-          let lastAgeCategory = GetRunnerCategory(resultsPage);
-          let runnerResultsSheet = gv.activeSpreadsheet
-            .getSheetByName(runnerNameId);
-          let lastResultDate = runnerResultsSheet
-            .getRange(gc.resultsDateCOLUMN+runnerResultsSheet.getLastRow())
-            .getValue();
-          runnerDoB = EstimateDoB(lastResultDate,lastAgeCategory);
-          Logger.log('Update DoB for runner, '+runnerName+' (index: '+runnerIndex+'): '+runnerDoB);
-          gv.allRunnersSheet
-           .getRange(gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex))
-           .setValue(runnerDoB);
-        } catch (err) {
-          Logger.log('ERROR processing runner ' + runnerName + ': ' + err.toString());
-        }
+        let lastResultDate = GetLastResultDate(runnerNameId);
+        runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
+        SetRunnerDoB(runnerNameId,runnerDoB);
+        Logger.log('Update DoB for runner, '+runnerName+
+          ' (index: '+runnerIndex+'): '+runnerDoB);
       }
     }
   }
