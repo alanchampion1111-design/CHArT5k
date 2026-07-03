@@ -148,6 +148,7 @@ const gc = {
   ageGradePosnCOL: 11,    // column K on each Results sheet
   ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
   resultsDateCOLUMN: "B",       // results Dates on each runner's result sheet
+  resultsAgeCatCOLUMN: "L",      // perceived age group at time of event
   resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
@@ -158,9 +159,10 @@ const gc = {
   runnersSheetNAME: 'Runners',
   browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',    // shared GCR service
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
-  batchSizeMAX: 7,
+  batchSizeMAX: 9,
   importTimeSECS: 30,
-  maxTimeSECS: 6*60
+  maxTimeSECS: 6*60,
+  oneDAY: 24*60*60*1000  // milleseconds in a day.
 };
 var gv = {
   activeSpreadsheet: SpreadsheetApp
@@ -492,8 +494,8 @@ function AppendResultRow(
         ' for unique runner, '+runnerNameId);
     let partialResult = previousResultsRange.offset(matchIndex,0,1);
     // Check whether existing result has had positions
-    let genderPositionKnown = previousResults[matchIndex][genderPosnCOL-1];  // 0-indexed
-    // let genderPositionKnown = partialResult.getCell(1,genderPosnCOL).getValue();
+    let genderPositionKnown = previousResults[matchIndex][gc.genderPosnCOL-1];  // 0-indexed
+    // let genderPositionKnown = partialResult.getCell(1,gc.genderPosnCOL).getValue();
     if (gc.debug)
       Logger.log('genderPositionKnown [row]: '+genderPositionKnown
         +' ['+matchIndex+' from '+firstPrevRow+']');
@@ -568,7 +570,7 @@ async function AssessPositions(matchRunner,thisUrl,ageCat,genderCat,cacheUrl=fal
  */                                                 
 function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
   // WARNING: resultRange normally a sheetrange to update cell values
-  resultRange.offset(0,genderPosnCOL-1,1,3).setValues([[gcPosn,acPosn,agPosn]]);
+  resultRange.offset(0,gc.genderPosnCOL-1,1,3).setValues([[gcPosn,acPosn,agPosn]]);
 }
 
 /**
@@ -580,11 +582,11 @@ function IncludePositions(resultRange,acPosn,agPosn,gcPosn) {
 function ExtendRange(resultRange,numRows,numCols) {
   // Two derived values are generated from a MAP function set for the first result in the table 
   resultRange = resultRange.offset(0,0,resultRange.getNumRows()+numRows,resultRange.getNumColumns()+numCols);
-  // resultRange.getCell(resultRange.getNumRows(),ageCatCOL)
+  // resultRange.getCell(resultRange.getNumRows(),gc.ageCatCOL)
   //  .setValue(null);  // no conflict in derivation from event date in col B and runner's DoB
   if (gc.debug) Logger.log('Extended range of results by '+numRows+' rows and '+numCols+' columns');
   // resultRange implicitly includes  derived Age-Category in col L (assumes MAP function in 1st result)
-  let ageCatCell = resultRange.getCell(1,ageCatCOL);
+  let ageCatCell = resultRange.getCell(1,gc.ageCatCOL);
   let ageCatCellRef = ageCatCell.getA1Notation();
   let ageCat = ageCatCell.getValue();
   if (gc.debug) Logger.log('Age-Category is '+ageCat+' in new runner row at cell, '+ageCatCellRef);
@@ -737,6 +739,9 @@ function GetCategories(
   return [genderWord,newAgeCat];
 }
 
+let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise estimated DoB
+let consecutiveFails = 0;   // avoid endless recusion if two consecutive
+
 /**
  * Appends detailed positions to an individual runner's sheet beyond the current range.
  * Used initially where region needs extended OR later on catch up when already so.
@@ -759,14 +764,14 @@ async function AppendPositionsForResult(runnerFullName,resultRange,
     let extResultRange = (resultRange.getNumColumns() < gc.ageCatCOL) 
       ? ExtendRange(resultRange,0,gc.PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
       : resultRange;             // Result row range previously extended (for Catch-up use-case)
-    let genderPositionKnown = extResultRange.getCell(1,genderPosnCOL).getValue();  
+    let genderPositionKnown = extResultRange.getCell(1,gc.genderPosnCOL).getValue();  
     if (genderPositionKnown) {
       if (runnerIndex >= 0)
         gv.allRunnersSheet.getRange(gc.importIndexCELL).setValue(runnerIndex+1);
       return false;  // Skipping since extra position(s) already on the sheet
     } else {
       try {
-        let ageCategory = extResultRange.getCell(1,ageCatCOL).getValue();  // derived from Date - DoB
+        let ageCategory = extResultRange.getCell(1,gc.ageCatCOL).getValue();  // derived from Date - DoB
         let genderCategory;  // = runnersSHEET.getCell(runnerIndex,genderCatCOL).getValue();  // out of Range!!
         var resultsLink = GetResultsUrl(eventDateCell,eventLocation,runNumber); // TODO: since workaround not needed
         // var resultsLink = GetResultsUrl(eventDateCell); // TODO: behind Date (in col B)
@@ -782,6 +787,7 @@ async function AppendPositionsForResult(runnerFullName,resultRange,
           return true;
         } else {
           Logger.log('CAUTION: Consider revising DoB of '+runnerFullName+' to ensure matching category ('+ageCategory+') at '+eventLocation+' ('+resultsLink+')?');
+          failedCatch.push(resultRange);
           return false;
         }
       } catch (err) {
@@ -1685,77 +1691,29 @@ function DoSpawnNewGroup(
       Logger.log('Ordinarily, preserve browser session until completed'));
 }
 
-/*
- * Calibrates the DoB by vaulting completely over the last known failure row.
- * Uses the first failure row to detect direction, but anchors the mathematical 
- * leap to the furthest known failure to drop all row baggage instantly.
- */
-function CalibrateByEventSpan(resultsSheet, currentDoB, firstFailureRow, lastFailureRow) {
-  // 1. Target the furthest failure row date to drive our distance (Row 38 / 11-Jan)
-  let lastFailureDate = new Date(resultsSheet.getRange(lastFailureRow, 2).getValue());
-  // 2. Identify our current faulty milestone anchor (e.g., 1st Dec)
-  let currentMilestoneDate = new Date(currentDoB);
-  currentMilestoneDate.setFullYear(currentMilestoneDate.getFullYear() + 45); 
-  // 3. Distance from our bad estimate out to the furthest failure point
-  let baseSpanMs = lastFailureDate.getTime() - currentMilestoneDate.getTime();
-  // 4. Tack on the +6 days step to safely clear the zone without over-engineering
-  const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
-  let totalShiftMs = baseSpanMs + SIX_DAYS_MS;
-  // 5. Use the FIRST failure row (Row 34) strictly as the channel to read Column 17 direction
-  let lastSuccessRow = firstFailureRow - 1; // Row 33
-  let successGroup = resultsSheet.getRange(lastSuccessRow, 17).getValue();
-  let failureGroup = resultsSheet.getRange(firstFailureRow, 17).getValue();
-  let adjustedDoB = new Date(currentDoB);
-  if (successGroup !== failureGroup) {
-    // 🟩 Boundary text flip: Runner is younger. Shift DoB forward in time.
-    adjustedDoB.setTime(adjustedDoB.getTime() + totalShiftMs);
-    Logger.log(`🚀 Top Gear: Vaulted to furthest failure + 6 days. Shifting younger by ${Math.round(totalShiftMs / 86400000)} days.`);
-  } else {
-    // 🟥 Static text row: Runner is older. Shift DoB backward in time.
-    adjustedDoB.setTime(adjustedDoB.getTime() - totalShiftMs);
-    Logger.log(`🚀 Top Gear: Vaulted to furthest failure + 6 days. Shifting older by ${Math.round(totalShiftMs / 86400000)} days.`);
-  }
-  return adjustedDoB;
-}
-
 /**
- * Calibrates the DoB by shifting it straight into top gear.
- * Measures the span from the current premature milestone calculation to the failure row,
- * then adds a safe 6-day step to clear the immediate roadblock without over-engineering.
+ * Recalibrates the runner's DoB by translating the event date directly into a birth date
+ * based on the age category active on that first failed date (independent of current DoB).
+ *  @param {string} runnerNameId - e.g. Alan_!3
+ * @returns {string} revised DoB, used as is on SS
  */
-function CalibrateByEventSpan(resultsSheet, currentDoB, lastSuccessRow, currentFailureRow) {
-  // 1. Fetch the exact date of the row where the mismatch was detected
-  let currentFailureDate = new Date(resultsSheet.getRange(currentFailureRow, 2).getValue());
-  
-  // 2. Determine where the current algorithm THINKS the 45-year milestone is.
-  // (e.g., If currentDoB is 1st Dec 1968, the milestone date is 1st Dec 2013)
-  let currentMilestoneDate = new Date(currentDoB);
-  currentMilestoneDate.setFullYear(currentMilestoneDate.getFullYear() + 45); // Adjust '45' dynamically if tracking multiple brackets
-  
-  // 3. Calculate the span between our premature milestone estimate and the actual failure row
-  let baseSpanMs = currentFailureDate.getTime() - currentMilestoneDate.getTime();
-  
-  // 4. Add the 6-day safe step (6 days * 24h * 60m * 60s * 1000ms) to maximize the jump
-  const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
-  let totalShiftMs = baseSpanMs + SIX_DAYS_MS;
-  
-  // 5. Inspect Column 17 to confirm direction
-  let successGroup = resultsSheet.getRange(lastSuccessRow, 17).getValue();
-  let failureGroup = resultsSheet.getRange(currentFailureRow, 17).getValue();
-  
-  let adjustedDoB = new Date(currentDoB);
-  
-  if (successGroup !== failureGroup) {
-    // 🟩 Boundary text flip: Runner is younger. Shift DoB forward in time.
-    adjustedDoB.setTime(adjustedDoB.getTime() + totalShiftMs);
-    Logger.log(`🚀 Top Gear Shift: Shifting DoB younger by ${Math.round(totalShiftMs / 86400000)} days to clear the block.`);
-  } else {
-    // 🟥 Static text row: Runner is older. Shift DoB backward in time.
-    adjustedDoB.setTime(adjustedDoB.getTime() - totalShiftMs);
-    Logger.log(`🚀 Top Gear Shift: Shifting DoB older by ${Math.round(totalShiftMs / 86400000)} days to clear the block.`);
-  }
-  
-  return adjustedDoB;
+function RecalibrateDoB(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet.getSheetByName(runnerNameId);
+  failedCatch.sort((a, b) => a.getRow() - b.getRow());  // Promises returned out of sequence!?
+  let firstFailRange = failedCatch[0];
+  let firstFailRow = firstFailRange.getRow();
+  let failedDateValue = resultsSheet
+    .getRange(gc.resultsDateCOLUMN + firstFailRow)    // e.g. B99 - actual row in sheet
+    .getValue(); 
+  let firstFailDate = new Date(failedDateValue);
+  var adjustedDoB = new Date();
+  adjustedDoB.setTime(firstFailDate.getTime()
+    - (3*gc.oneDAY)); // assume 3 days BEFORE first fail
+  let revisedDoB = adjustedDoB.toDateString();  // for trace readability and for SS update
+  Logger.log('CAUTION: Setting DoB as '+revisedDoB
+    +' since that was 3 days prior to first failed match (from a series) on '
+    +firstFailDdate.toDateString());
+  return revisedDoB;
 }
 
 /**
@@ -1798,17 +1756,17 @@ async function SyncPositionsPerRunner(
     let lastResultRow = resultsSheet.getLastRow();
     let promises = [];
     let batchMore = gc.batchSizeMAX;
+    failedCatch = [];   // clear failed status for this new batch 
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,gc.genderPosnCOL).getValue();
       if (!genderPositionKnown) {
         promises.push(AppendPositionsForResult(runnerFullName,resultRange));
         batchMore--;
       }
-      if (batchMore) {  // Take care NOT to flow past the last row!!
-        if (resultRange.getLastRow() < lastResultRow)
-          resultRange = resultRange.offset(1,0);  // continue adding to the batch
-        else break; // otherwise, there are no more results beyond the last row!
-      }
+      if (resultRange.getLastRow() < lastResultRow)
+        resultRange = resultRange.offset(1,0);  // continue adding to the batch
+      else
+        break; // otherwise, there are no more results beyond the last row!
     }
     if (gc.debug) Logger.log('RunnerId: '+runnerNameId+'\t# of results is '+lastResultRow+' and reached result, '+resultRange.getLastRow());
     let remainToDo = lastResultRow-resultRange.getLastRow();
@@ -1819,29 +1777,18 @@ async function SyncPositionsPerRunner(
       let morePositions = (moreBatches) ? ' with '+remainToDo+' more positions needed to catch up' : '';
       Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
         +' (out of '+totalEvents+' in this batch)'+morePositions);
-      if (updatesApplied === 0)
-        throw new Error('ERROR: Batching aborted to avoid infinite looping because no updates');
-
-/*
-// At the top of your execution loop tracking state:
-let consecutiveSystemFailures = 0;
-// Inside your loop/recursive block evaluation:
-if (updatesApplied <= 2) {
-  consecutiveSystemFailures++;
-  if (consecutiveSystemFailures >= 2) {
-    // 🚨 External Network or Target Server Drop Out Detected
-    throw new Error(`CRITICAL STOP: Network or server drop suspected. Multiple 0-match blocks on consecutive passes.`);
-  }
-  // Otherwise, if it's the first 0, treat it as a standard boundary alignment alert...
-  let adjustedDoB = CalibrateByEventSpan(runnerNameId, runnerDoB);
-  SetRunnerDoB(runnerNameId, adjustedDoB);
-  // Recurse cleanly
-} else {
-  // Reset the network panic counter the moment we get valid rows matching
-  consecutiveSystemFailures = 0; 
-}
-*/
-
+      if (updatesApplied === 0) {
+        consecutiveFails++;
+        if (consecutiveFails >= 2)  // 🚨 External Network or parkrun site failed
+          throw new Error('FATAL: Batching aborted to avoid infinite looping because no updates');
+      } else  // at least one success in batch, reset the panic counter
+        consecutiveFails = 0;
+      let failures = gc.batchSizeMAX - updatesApplied;
+      if (failures > 4) {    // e.g. 9-4 => 5 fails 
+        Logger.log('CAUTION: Due to successive failure to match age group, assuming DoB was an estimate and needs recalibrated...');
+        let revisedDoB = RecalibrateDoB(runnerNameId);
+        SetRunnerDoB(runnerNameId, revisedDoB);
+      }
       return moreBatches;
     });
   } else {
@@ -1971,7 +1918,7 @@ function BatchPositionsForRunner() {
         CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
         return;
       } else  // loop back for next "unfinished" runner
-        ScriptApp.newTrigger('CatchUpAllPositions')
+        ScriptApp.newTrigger(anotherCatchupFN)
           .timeBased()
           .after(1500)
           .create();
@@ -2008,7 +1955,6 @@ function CatchUpAllPositions() {
     .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"+gc.runnersDoBCOLUMN)
     .getDisplayValues().map(x => x[0]);
   // ONLY thread process for ONE valid runner initially, and let batching follow-on thereafter
-
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     if (runnersResults[runnerIndex]) {    // if runner has at least one result
       if (!runnersStatus[runnerIndex]) {  // ...and positions not already caught-up
