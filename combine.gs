@@ -1,20 +1,7 @@
-// Common global settings available to local funtions and GCR functions in separate files
-
-// used to track the main spreadsheet operation which may flip
-// from current to a new context after creating a new family instance
-
-// used for import,etc,
-const dobINDEX = 4;               // in column E on Runners sheet (for arrays or range offsets)
-const parkrunnerIdINDEX = 9;      // in column J on Runners sheet (for arrays or range offsets)
-const parkrunnerIdCOL = 10;       // in column J on Runners sheet
-const PBtickBoxCOL = 8;           // column H tick-box on Results sheets, ticked if value in G is PB
-const PBtoAgeCatNumCOLS = 5;      // cols H..L for I..K positions between derived cols, H & L
-const maxChangeROWS = 3;          // restrict changes to recent results
-const groupPerfsCOL = 4;          // column D on each Performances chart sheet (e.g. Leagues)
-const chartColOFFSET = -2;        // column B from D on any Performances chart sheet
-const trendColOFFSET = 12;        // column N from B on runner's own trend chart sheet
-const dateFORMAT = 'd-MMM-yy';    // consistent for backwards compatibility
-const batchSizeMAX = 13;          // 1/4 year - estimate batch to catch up on within 5-6 minutes
+// Combined menu settings for:
+//    local functions (Ctrl+Alt+Shift+2) and (Ctrl+Alt+Shift+4..6)
+//    GCR functions (Ctrl+Alt+Shift+0..1), (Ctrl+Alt+Shift+0..3) and (Ctrl+Alt+Shift+7..9)
+// ...although DeleteExistingMember does not require exported GCR functions
 
 /**
  * Sets up the Parkruns menu on opening the spreadsheet.
