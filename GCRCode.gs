@@ -148,8 +148,9 @@ const gc = {
   ageGradePosnCOL: 11,    // column K on each Results sheet
   ageCatCOL: 12,          // column L is the Age Category on event date (derived from DoB)
   resultsDateCOLUMN: "B",       // results Dates on each runner's result sheet
-  resultsAgeCatCOLUMN: "L",      // perceived age group at time of event
+  resultsAgeCatCOLUMN: "L",     // perceived age group at time of event
   resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
+  resultsConsecFailsCELL: "G1", // during Catch-up, prevents recursion on consecutive fails to match Age Cat
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
@@ -1032,7 +1033,7 @@ function AppendAllResults(
     .setFormulas(allFormulae);
   resultsSheet.getRange(gc.resultsStartROW,linksCount+1,numResults,valuesCount)
     .setValues(allValues);
-  resultsSheet.getRange(gc.resultsStartROW+1,PBtickBoxCOL,numResults-1,1)   // column beyond paste
+  resultsSheet.getRange(gc.resultsStartROW+1,gc.PBtickBoxCOL,numResults-1,1)   // column beyond paste
     .clear({contentsOnly: true})  // complement to MAP prevents FALSE 
     .insertCheckboxes();          // c/fwd tickbox restored
 }
@@ -1407,6 +1408,30 @@ function SnatchAgeCategoryIfHeld(runnerNameId) {
   return null;
 } 
 
+function CheckConsecFails(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  if (resultsSheet) {
+    let cellRange = resultsSheet
+      .getRange(gc.resultsConsecFailsCELL);
+    let consecFails = cellRange.getValue() || 0; 
+    if (consecFails >= 1) 
+      return true;
+    else {
+      cellRange.setValue(1);
+      return false;
+    }
+  }
+}
+
+function ResetConsecFails(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  if (resultsSheet) resultsSheet
+    .getRange(gc.resultsConsecFailsCELL)
+    .setValue(0);
+}
+
 function GetLastResultDate(runnerNameId) {
   let resultsSheet = gv.activeSpreadsheet
     .getSheetByName(runnerNameId);
@@ -1694,26 +1719,67 @@ function DoSpawnNewGroup(
 /**
  * Recalibrates the runner's DoB by translating the event date directly into a birth date
  * based on the age category active on that first failed date (independent of current DoB).
- *  @param {string} runnerNameId - e.g. Alan_!3
+ * If the latest result has succeeded, although no change of Age Category, then ignore!
+ *  @param {string} runnerNameId - e.g. Alan_13
  * @returns {string} revised DoB, used as is on SS
  */
-function RecalibrateDoB(runnerNameId) {
+function RecalibrateDoB(runnerNameId,currentResultRange) {
   let resultsSheet = gv.activeSpreadsheet.getSheetByName(runnerNameId);
   failedCatch.sort((a, b) => a.getRow() - b.getRow());  // Promises returned out of sequence!?
   let firstFailRange = failedCatch[0];
+  let lastFailRange = failedCatch[failedCatch.length-1];
   let firstFailRow = firstFailRange.getRow();
+  let lastFailRow = lastFailRange.getRow();
+  let prevSuccessRow = firstFailRow-1;
+  let prevSuccessRange = firstFailRange.offset(-1,0);
+  prevSuccessRow = prevSuccessRange.getRow();   //  = firstFailRow-1;
   let failedDateValue = resultsSheet
-    .getRange(gc.resultsDateCOLUMN + firstFailRow)    // e.g. B99 - actual row in sheet
+    .getRange(gc.resultsDateCOLUMN + firstFailRow)
     .getValue(); 
-  let firstFailDate = new Date(failedDateValue);
-  var adjustedDoB = new Date();
-  adjustedDoB.setTime(firstFailDate.getTime()
-    - (3*gc.oneDAY)); // assume 3 days BEFORE first fail
-  let revisedDoB = adjustedDoB.toDateString();  // for trace readability and for SS update
-  Logger.log('CAUTION: Setting DoB as '+revisedDoB
-    +' since that was 3 days prior to first failed match (from a series) on '
-    +firstFailDdate.toDateString());
-  return revisedDoB;
+  let failedAgeCategory = resultsSheet
+    .getRange(gc.resultsAgeCatCOLUMN + firstFailRow)
+    .getValue();
+  let prevAgeCategory = resultsSheet
+    .getRange(gc.resultsAgeCatCOLUMN + prevSuccessRow)
+    .getValue();
+  let currentRow = currentResultRange.getRow();   // = 
+  let currentAgeCategory = resultsSheet
+    .getRange(gc.resultsAgeCatCOLUMN + currentRow)
+    .getValue();
+  if (currentRow > lastFailRow    //  unless succeeded subsequently
+    && failedAgeCategory == prevAgeCategory // and if no evidence of any Age Category
+    && prevAgeCategory == currentAgeCategory // ....change throughout                   
+  ) { 
+    // ignore recalibrating DoB
+    Logger.log('CAUTION: Ignoring recalirating DoB as '+revisedDoB
+      +' because now succeeding and no evidence of change of age category, '
+      + failedAgeCategory);
+    return null;
+  } else {
+    let ageFailed = failedAgeCategory.match(/\d+/);
+    let baseAgeYear = Number(ageFailed);
+    let firstFailDate = new Date(failedDateValue);
+    var adjustedDoB = new Date(firstFailDate);
+    adjustedDoB.setFullYear(adjustedDoB.getFullYear() - baseAgeYear);
+    adjustedDoB.setTime(adjustedDoB.getTime()
+      - (3 * gc.oneDAY)); // assume 3 days BEFORE first fail
+    let revisedDoB = adjustedDoB.toDateString();  // for trace readability and for SS update
+    Logger.log('CAUTION: Setting DoB as '+revisedDoB
+      +' since that was 3 days prior to first failed match (from a series) on '
+      +firstFailDate.toDateString());
+    return revisedDoB;
+  }
+}
+
+// WARNING: An equivalent function (different globals) exists in CoreCode.gs (for EstimateDoBs)
+function SetGCRRunnerDoB(runnerNameId,revisedDoB) {
+  let [runnerName,runnerIndex] = runnerNameId.split('_');
+  runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
+  gv.allRunnersSheet
+    .getRange(
+      gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
+    )
+    .setValue(revisedDoB);
 }
 
 /**
@@ -1741,53 +1807,61 @@ function FirstMatchRange(resultsSheet,positionCol,positionValue) {
 async function SyncPositionsPerRunner(
   runnerNameId = 'Alan_2')    // default unit test (assumes precedent 
 {
-  const runnerIndex = parseInt(runnerNameId.split('_')[1]);
-  const ageCatCELL = 'L3';  //runner may be older since 1st run but gender fixed
   let resultsSheet = gv.activeSpreadsheet.getSheetByName(runnerNameId);
   if (!resultsSheet) {
     Logger.log('ERROR: Unable to find results sheet, '+runnerNameId
       +' in current spreadsheet ('+gv.activeSpreadsheet+')');
     return false;
   }
-  let runnerFullName = resultsSheet.getRange(gc.runnerNameCELL).getValue();
+  let runnerFullName = resultsSheet
+    .getRange(gc.runnerNameCELL)
+    .getValue();
   var resultRange = FirstMatchRange(resultsSheet,gc.genderPosnCOL,"");  // 1st with unknown Gender posn
   if (resultRange) {   //skip this runner if all positions known
     // WARNING: Limit batch of results to catch up (recursively) because 6 mins max per App script!
     let lastResultRow = resultsSheet.getLastRow();
     let promises = [];
-    let batchMore = gc.batchSizeMAX;
     failedCatch = [];   // clear failed status for this new batch 
+    let batchMore = gc.batchSizeMAX; 
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,gc.genderPosnCOL).getValue();
       if (!genderPositionKnown) {
         promises.push(AppendPositionsForResult(runnerFullName,resultRange));
         batchMore--;
       }
-      if (resultRange.getLastRow() < lastResultRow)
-        resultRange = resultRange.offset(1,0);  // continue adding to the batch
-      else
-        break; // otherwise, there are no more results beyond the last row!
+      if (batchMore)
+        if (resultRange.getLastRow() < lastResultRow)
+          resultRange = resultRange.offset(1,0);  // continue adding to the batch
+        else
+          break; // otherwise, there are no more results beyond the last row!
     }
-    if (gc.debug) Logger.log('RunnerId: '+runnerNameId+'\t# of results is '+lastResultRow+' and reached result, '+resultRange.getLastRow());
+    let batchSize = gc.batchSizeMAX-batchMore  // actual batchSize expected fewer at the end
+    if (gc.debug)
+      Logger.log('RunnerId: '+runnerNameId+'\t# of results is '+lastResultRow
+        +' and reached result, '+resultRange.getLastRow());
     let remainToDo = lastResultRow-resultRange.getLastRow();
     var moreBatches = (remainToDo > 0);
     return Promise.all(promises).then(results => {
       let updatesApplied = results.filter(Boolean).length;
-      let totalEvents = results.length;
-      let morePositions = (moreBatches) ? ' with '+remainToDo+' more positions needed to catch up' : '';
+      batchSize = results.length; // = gc.batchSizeMAX-batchMore?
+      let numFailures = batchSize - updatesApplied;
+      remainToDo = remainToDo + numFailures;
+      moreBatches = (remainToDo > 0);
+      let morePositions = (moreBatches)
+        ? ' with '+remainToDo+' more positions needed to catch up' : '';
       Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
-        +' (out of '+totalEvents+' in this batch)'+morePositions);
+        +' (out of '+batchSize+' in this batch)'+morePositions);
       if (updatesApplied === 0) {
-        consecutiveFails++;
-        if (consecutiveFails >= 2)  // 🚨 External Network or parkrun site failed
+        if (CheckConsecFails(runnerNameId))   // 🚨 External Network or parkrun site failed
           throw new Error('FATAL: Batching aborted to avoid infinite looping because no updates');
       } else  // at least one success in batch, reset the panic counter
-        consecutiveFails = 0;
-      let failures = gc.batchSizeMAX - updatesApplied;
-      if (failures > 4) {    // e.g. 9-4 => 5 fails 
-        Logger.log('CAUTION: Due to successive failure to match age group, assuming DoB was an estimate and needs recalibrated...');
-        let revisedDoB = RecalibrateDoB(runnerNameId);
-        SetRunnerDoB(runnerNameId, revisedDoB);
+        ResetConsecFails(runnerNameId); 
+      if (numFailures > 4) {    // e.g. 9-4 => 5 fails 
+        Logger.log('CAUTION: Due to successive failure to match age group, '
+            +'assuming DoB was an estimate and may need recalibrated...');
+        let revisedDoB = RecalibrateDoB(runnerNameId,resultRange);
+        if (revisedDoB)
+          SetGCRRunnerDoB(runnerNameId, revisedDoB);
       }
       return moreBatches;
     });
@@ -1978,38 +2052,6 @@ function CatchUpAllPositions() {
   }
 }
 
-/**
- * Core DoB Estimation Engine
- * @param {string} eventDateStr - The raw date of the event row
- * @param {string} categoryStr - The age category from that same row (e.g., 'SM20-24')
- * @returns {Date} - Calculated Date object set to the 1st of the estimated birth month
- */
-function GetEstimatedDoB(eventDateStr, categoryStr) {
-  const eventDate = new Date(eventDateStr);
-  eventDate.setDate(1);   // event date as if on 1st of month
-  const rangeMatch = categoryStr.match(/\d+-\d+|\d+/);  // strip the gender/group text 
-  if (!rangeMatch) {
-    throw new Error('Unable to parse age range from category: '+categoryStr);
-  }
-  const ageRange = rangeMatch[0];
-  let ageOffset = 0;
-  if (ageRange.includes('-')) {
-    const ageParts = ageRange.split('-').map(Number);
-    const ageSpan = ageParts[1]-ageParts[0]+1;
-    ageOffset = ageParts[0] + ageSpan/2; //  e.g. SW20-24 => +2.5, JM11-14 => +2
-  } else {  
-    const singleAge = Number(ageRange);
-    if (singleAge == 10)    // e.g. JM10 => under 11?
-      ageOffset = singleAge-1; // ...under 11 => 9?
-    else
-      ageOffset = singleAge+2; // e.g., 80+, 85+)
-  }
-  let estimatedDoB = new Date(eventDate.getTime());   // wind back the clock
-  estimatedDoB.setMonth(eventDate.getMonth() - Math.round(ageOffset * 12));
-  estimatedDoB.setDate(1);   // assume estimated DoB is 1st of month
-  return estimatedDoB.toDateString();   // date string like human entry, dd-Mmm-yyy
-}
-
 function GetRunnerCategory(thisPage) {
   if (!thisPage)
     throw new Error('ERROR: Delayed or unable to access Runner results');
@@ -2017,128 +2059,6 @@ function GetRunnerCategory(thisPage) {
   let paraContent = (thisPage.match(paraREGEXP) || [])[1];
   let category = paraContent.trim().split(' ').pop();
   return category; 
-}
-
-function SetRunnerDoB(runnerNameId,runnerDoB) {
-  let [runnerName,runnerIndex] = runnerNameId.split('_');
-  runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
-  gv.allRunnersSheet
-    .getRange(
-      gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
-    )
-    .setValue(runnerDoB);
-}
-
-/**
- * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
- */
-async function EstimateDoBs() {
-  const unknownDOB = FormatDate(gc.defaultDATE,gc.dateFORMAT);
-  let runnersNames = gv.allRunnersSheet
-    .getRange(gc.runnersNameCOLUMN+gc.runnersStartROW+":"
-      +gc.runnersNameCOLUMN)
-    .getValues()
-    .map(x => x[0])
-    .filter(String);
-  let runnersStatus = gv.allRunnersSheet    // column J..K
-    .getRange(gc.parkrunnerIdCOLUMN+gc.runnersStartROW+":"
-      +gc.hasPosnsCOLUMN)
-    .getValues();
-  let runnersDoBs = gv.allRunnersSheet
-    .getRange(gc.runnersDoBCOLUMN+gc.runnersStartROW+":"
-      +gc.runnersDoBCOLUMN)
-    .getDisplayValues()
-    .map(x => x[0]);
-  let alreadyOpen = false;
-  for (var [runnerIndex,runnerName] of runnersNames.entries()) {
-    if (runnersStatus[runnerIndex][2])   // // column L has Positions
-      Logger.log('INFO: Runner, '+runnerName+
-          ' (index: '+runnerIndex+') assumed DoB okay since all positions uppdated');
-    else {
-      let runnerDoB = runnersDoBs[runnerIndex];
-      if (runnerDoB == unknownDOB) {
-        let runnerNameId = runnerName+'_'+runnerIndex;
-        let ageCategory = SnatchAgeCategoryIfHeld(runnerNameId); // reads & clears
-        if (!ageCategory) {
-          let parkrunnerId = runnersStatus[runnerIndex][0]; // column J
-          Logger.log('WARNING: Researching age category of parkrunner ('+parkrunnerId+')...');
-          try {
-            if (!alreadyOpen) {
-              alreadyOpen = await OpenChromeBrowser();
-            }
-            let resultsPage = await GetRunnerResultsPage(parkrunnerId);
-            ageCategory = GetRunnerCategory(resultsPage);
-          } catch (err) {
-            Logger.log('ERROR: Unable to retrieve age category for runner '+
-              runnerNameId+': '+err.toString());
-            continue;
-          }
-        }
-        Logger.log('INFO: Estimating DoB for runner, '+runnerName+
-          ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
-        let lastResultDate = GetLastResultDate(runnerNameId);
-        runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
-        SetRunnerDoB(runnerNameId,runnerDoB)
-        Logger.log('INFO: Estimated DoB for runner, '+runnerName+
-          ' (index: '+runnerIndex+'): '+runnerDoB+' (based on last run date, '+lastResultDate+')');
-      } else
-        Logger.log('INFO: Runner, '+runnerName+
-          ' (index: '+runnerIndex+') already has a known/estimated DoB: '+runnerDoB);
-    }
-  }
-  if (alreadyOpen)
-    await CloseChromeBrowser();
-}
-
-/**
- * AUTOMATED TRIGGER INITIALIZATION (Runs in the Central Hub)
- * Called during the 'InstantiateGroupSpreadSheet' phase.
- */
-function SetupPlanetTriggers(targetSpreadsheetId) {
-  // 1. Open the specific Planet script context to deploy triggers directly into it
-  // Note: Triggers must be created within the execution scope of the target sheet.
-  
-  // 2. Calculate the staggered hour and minute based on the unique Spreadsheet ID
-  // This guarantees an even, deterministic distribution (Max 20 per hour)
-  var score = targetSpreadsheetId.split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  var slotIndex = score % 20; // 20 structural slots
-  var minutesBase = slotIndex * 15; // 0, 15, 30, 45 minute marks
-  var hourOffset = Math.floor(minutesBase / 60);
-  var staggeredHour = 11 + hourOffset; // Automatically distributes between 11 AM and 4 PM
-  var staggeredMinute = minutesBase % 60;
-
-  // 3. Programmatically clear any accidental pre-existing triggers to prevent duplicates
-  var currentTriggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < currentTriggers.length; i++) {
-    ScriptApp.deleteTrigger(currentTriggers[i]);
-  }
-
-  // 4. DEPLOY TRIGGER 1: Weekly Import Loop (Staggered to prevent clashes)
-  ScriptApp.newTrigger('ImportResultForEachRunner')
-           .timeBased()
-           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
-           .atHour(staggeredHour)
-           .nearMinute(staggeredMinute)
-           .create();
-
-  // 5. DEPLOY TRIGGER 2: Weekly Generate Divisional Charts (e.g., 2 hours after main import?)
-  ScriptApp.newTrigger('GenBatchChartsFromGroups')
-           .timeBased()
-           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
-           .atHour(staggeredHour + 2)
-           .nearMinute(staggeredMinute)
-           .create();
-
-  // 6. DEPLOY TRIGGER 3: Push to Prepare App Sheets, aligned to Pull on the Moon
-  ScriptApp.newTrigger('PrepareAppSheets')
-           .timeBased()
-           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
-           .atHour(staggeredHour + 4)
-           .nearMinute(0)
-           .create();
-           
-  Logger.log('Successfully deployed automated triggers for Planet. Scheduled hour: ' + staggeredHour + ':' + staggeredMinute);
 }
 
 /**
