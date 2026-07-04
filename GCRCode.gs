@@ -741,7 +741,6 @@ function GetCategories(
 }
 
 let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise estimated DoB
-let consecutiveFails = 0;   // avoid endless recusion if two consecutive
 
 /**
  * Appends detailed positions to an individual runner's sheet beyond the current range.
@@ -1757,7 +1756,14 @@ function RecalibrateDoB(runnerNameId,currentResultRange) {
     return null;
   } else {
     let ageFailed = failedAgeCategory.match(/\d+/);
-    let baseAgeYear = Number(ageFailed);
+    let baseAgeYear = Number(ageFailed[0]);
+    let agePrev = prevAgeCategory.match(/\d+/);
+    let prevAgeYear = Number(agePrev[0]);
+    let diffinAgeCat = baseAgeYear-prevAgeYear; // CHECK: what if JM10 or JW10?
+    if (prevAgeCategory == failedAgeCategory)   // up the boundary - older than expected
+      baseAgeYear = baseAgeYear+diffinAgeCat;   // ...as if on next age group, 
+    else                                        // cancel boundary - younger than expected
+      baseAgeYear = baseAgeYear-diffinAgeCat;   // ...as if reverted to prev age group
     let firstFailDate = new Date(failedDateValue);
     var adjustedDoB = new Date(firstFailDate);
     adjustedDoB.setFullYear(adjustedDoB.getFullYear() - baseAgeYear);
