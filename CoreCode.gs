@@ -1761,6 +1761,57 @@ function MeritDetailedTrendsChart() {
   }
 }
 
+/**
+ * AUTOMATED TRIGGER INITIALIZATION (Runs in the Central Hub)
+ * Called during the 'InstantiateGroupSpreadSheet' phase.
+ */
+function SetupPlanetTriggers(targetSpreadsheetId) {
+  // 1. Open the specific Planet script context to deploy triggers directly into it
+  // Note: Triggers must be created within the execution scope of the target sheet.
+  
+  // 2. Calculate the staggered hour and minute based on the unique Spreadsheet ID
+  // This guarantees an even, deterministic distribution (Max 20 per hour)
+  var score = targetSpreadsheetId.split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  var slotIndex = score % 20; // 20 structural slots
+  var minutesBase = slotIndex * 15; // 0, 15, 30, 45 minute marks
+  var hourOffset = Math.floor(minutesBase / 60);
+  var staggeredHour = 11 + hourOffset; // Automatically distributes between 11 AM and 4 PM
+  var staggeredMinute = minutesBase % 60;
+
+  // 3. Programmatically clear any accidental pre-existing triggers to prevent duplicates
+  var currentTriggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < currentTriggers.length; i++) {
+    ScriptApp.deleteTrigger(currentTriggers[i]);
+  }
+
+  // 4. DEPLOY TRIGGER 1: Weekly Import Loop (Staggered to prevent clashes)
+  ScriptApp.newTrigger('ImportResultForEachRunner')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour)
+           .nearMinute(staggeredMinute)
+           .create();
+
+  // 5. DEPLOY TRIGGER 2: Weekly Generate Divisional Charts (e.g., 2 hours after main import?)
+  ScriptApp.newTrigger('GenBatchChartsFromGroups')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour + 2)
+           .nearMinute(staggeredMinute)
+           .create();
+
+  // 6. DEPLOY TRIGGER 3: Push to Prepare App Sheets, aligned to Pull on the Moon
+  ScriptApp.newTrigger('PrepareAppSheets')
+           .timeBased()
+           .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+           .atHour(staggeredHour + 4)
+           .nearMinute(0)
+           .create();
+           
+  Logger.log('Successfully deployed automated triggers for Planet. Scheduled hour: ' + staggeredHour + ':' + staggeredMinute);
+}
+
 // Surplus extras may be useful
 
 function PasteAboveRangeFormula() {
