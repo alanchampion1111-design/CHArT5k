@@ -53,6 +53,7 @@ const lc = {
   runnersSurnameCOLUMN: "B",  // Runners surname in column B
   runnersNumRunsCOLUMN: "M",  // Runners number of runs in column M
   resultsDateCOLUMN: "B",     // results Dates on each runner's result sheet
+  maxChangeROWS: 3,           // restrict updates by Editors to recent results
   dateFORMAT: 'd-MMM-yy',
   parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
   universalDateFORMAT: 'yyyy-MM-dd',
@@ -127,7 +128,7 @@ const scrollCOL = 13;         // Scroll down when selecting column M beyond the 
  *  @return {Array of strings} - two distinct ranges to protect: e.g. A1:W,X1:Z  
  */
 function GetProtectResultsRanges(
-  numRowsChange = maxChangeROWS)
+  numRowsChange = lc.maxChangeROWS)
 {
   const resultsSheet = SpreadsheetApp.getActiveSheet();
   const runnerNameId = resultsSheet.getName();
@@ -283,7 +284,7 @@ function ReprotectResultsSheet(
   if (resultsSheet) {
     resultsSheet.activate();
     UnprotectResultsSheet(resultsSheet);  // whether legacy/temporary
-    let [rangeFreeze,rangeChange] = GetProtectResultsRanges(maxChangeROWS);
+    let [rangeFreeze,rangeChange] = GetProtectResultsRanges(lc.maxChangeROWS);
     ReprotectResultsRanges(rangeFreeze,rangeChange);
     if (lc.debug)
       Logger.log("Reprotections applied on results sheet, "+runnerNameId);
@@ -1593,6 +1594,97 @@ function GetMyTrendsCharts(
     // let titleRange = trendsSheet.getRange(1,1,1,5);    // table header (below title) has 5 columns
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
       .setValues(trendsTable);
+  }
+}
+
+/**
+ * Core DoB Estimation Engine
+ * @param {string} eventDateStr - The raw date of the event row
+ * @param {string} categoryStr - The age category from that same row (e.g., 'SM20-24')
+ * @returns {Date} - Calculated Date object set to the 1st of the estimated birth month
+ */
+function GetEstimatedDoB(eventDateStr, categoryStr) {
+  const eventDate = new Date(eventDateStr);
+  eventDate.setDate(1);   // event date as if on 1st of month
+  const rangeMatch = categoryStr.match(/\d+-\d+|\d+/);  // strip the gender/group text 
+  if (!rangeMatch) {
+    throw new Error('Unable to parse age range from category: '+categoryStr);
+  }
+  const ageRange = rangeMatch[0];
+  let ageOffset = 0;
+  if (ageRange.includes('-')) {
+    const ageParts = ageRange.split('-').map(Number);
+    const ageSpan = ageParts[1]-ageParts[0]+1;
+    ageOffset = ageParts[0] + ageSpan/2; //  e.g. SW20-24 => +2.5, JM11-14 => +2
+  } else {  
+    const singleAge = Number(ageRange);
+    if (singleAge == 10)    // e.g. JM10 => under 11?
+      ageOffset = singleAge-1; // ...under 11 => 9?
+    else
+      ageOffset = singleAge+2; // e.g., 80+, 85+)
+  }
+  let estimatedDoB = new Date(eventDate.getTime());   // wind back the clock
+  estimatedDoB.setMonth(eventDate.getMonth() - Math.round(ageOffset * 12));
+  estimatedDoB.setDate(1);   // assume estimated DoB is 1st of month
+  return estimatedDoB.toDateString();   // date string like human entry, dd-Mmm-yyy
+}
+
+// WARNING: An equivalent function (different globals) exists in GCRCode.gs (for RecalibrateRunnerDoB)
+function SetRunnerDoB(runnerNameId,runnerDoB) {
+  let [runnerName,runnerIndex] = runnerNameId.split('_');
+  runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
+  lv.allRunnersSheet
+    .getRange(
+      lc.runnersDoBCOLUMN+(lc.resultsStartROW+runnerIndex)
+    )
+    .setValue(runnerDoB);
+}
+
+/**
+ * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
+ */
+async function EstimateDoBs() {
+  const unknownDOB = FormatDate(lc.defaultDATE,lc.dateFORMAT);
+  let runnersNames = lv.allRunnersSheet
+    .getRange(lc.runnersNameCOLUMN+lc.runnersStartROW+":"
+      +lc.runnersNameCOLUMN)
+    .getValues()
+    .map(x => x[0])
+    .filter(String);
+  let runnersStatus = lv.allRunnersSheet    // column J..K
+    .getRange(lc.parkrunnerIdCOLUMN+lc.runnersStartROW+":"
+      +lc.hasPosnsCOLUMN)
+    .getValues();
+  let runnersDoBs = lv.allRunnersSheet
+    .getRange(lc.runnersDoBCOLUMN+lc.runnersStartROW+":"
+      +lc.runnersDoBCOLUMN)
+    .getDisplayValues()
+    .map(x => x[0]);
+  for (var [runnerIndex,runnerName] of runnersNames.entries()) {
+    if (runnersStatus[runnerIndex][2])   // // column L has Positions
+      Logger.log('INFO: Runner, '+runnerName+
+        ' (index: '+runnerIndex+') assumed DoB okay since all positions uppdated');
+    else {
+      let runnerDoB = runnersDoBs[runnerIndex];
+      if (runnerDoB == unknownDOB) {
+        let runnerNameId = runnerName+'_'+runnerIndex;
+        let ageCategory = SnatchAgeCategoryIfHeld(runnerNameId); // reads & clears
+        if (!ageCategory) {
+          Logger.log('ERROR: Unable to retrieve age category (expected in G1) for runner '
+            +runnerNameId);
+          continue;
+        }
+        Logger.log('INFO: Estimating DoB for runner, '+runnerName+
+          ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
+        let lastResultDate = GetLastResultDate(runnerNameId);
+        runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
+        SetRunnerDoB(runnerNameId,runnerDoB)
+        Logger.log('INFO: Estimated DoB for runner, '+runnerName+
+          ' (index: '+runnerIndex+'): '+runnerDoB+' (based on last run date, '+lastResultDate+')');
+      } else
+        Logger.log('INFO: Runner, '+runnerName+
+          ' (index: '+runnerIndex+') already has a known/estimated DoB: '+runnerDoB);
+    }
   }
 }
 
