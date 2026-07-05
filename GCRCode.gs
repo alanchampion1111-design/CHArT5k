@@ -1206,17 +1206,6 @@ function CreateRunnerResultsSheet(
 /           ...delete runner's results page
 /           ...delete ruuner's (indexed) row in Runners table
 /           ...rename runners (indexed) sheets below that
-/
-/   4.  EstimateDoBs (macro)
-//        For each runner with unknown DoB...
-/           SnatchAgeCategoryIfHeld (use & clear)
-//          If age category not found...
-/             >OpenChromeBrowser (interim, if not already open)
-/             GetRunnerResultsPage (interim from web page)
-/             GetRunnerCategory (legacy solution)
-/           GetLastResultDate
-/           GetEstimatedDoB (based on age category on date of last result)
-/           >CloseChromeBrowser (interim, if opened)
 */
 
 function GetRunnerDetails(thisPage) {
@@ -1392,21 +1381,6 @@ function HoldAgeCategoryInAbsenceofDoB(runnerNameId,ageCategory) {
       .setValue(ageCategory);
 }
 
-function SnatchAgeCategoryIfHeld(runnerNameId) {
-  let resultsSheet = gv.activeSpreadsheet
-    .getSheetByName(runnerNameId);
-  if (resultsSheet) {
-    let ageCategory = resultsSheet
-      .getRange(gc.resultsTempAgeCatCELL)
-      .getValue();
-    resultsSheet    // and clear temporary holding
-      .getRange(gc.resultsTempAgeCatCELL)
-      .clearContent();
-    return ageCategory;
-  }
-  return null;
-} 
-
 function CheckConsecFails(runnerNameId) {
   let resultsSheet = gv.activeSpreadsheet
     .getSheetByName(runnerNameId);
@@ -1429,16 +1403,6 @@ function ResetConsecFails(runnerNameId) {
   if (resultsSheet) resultsSheet
     .getRange(gc.resultsConsecFailsCELL)
     .setValue(0);
-}
-
-function GetLastResultDate(runnerNameId) {
-  let resultsSheet = gv.activeSpreadsheet
-    .getSheetByName(runnerNameId);
-  return resultsSheet
-    ? resultsSheet.getRange(
-        gc.resultsDateCOLUMN + resultsSheet.getLastRow()
-      ).getDisplayValue()
-    : null;
 }
 
 function GetFirstResultDate(runnerNameId) {
