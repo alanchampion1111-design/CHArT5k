@@ -32,7 +32,8 @@
 // Global constants and varaibles must be defined within a this file IF potentially a triggered
 // TODO: Sync gcrFunctions.gs with localFunctions.gs
 const lc = {
-  debug: false,            // WARNING: may slow down performance
+  debug: true,            // WARNING: may slow down performance
+  defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   resultsStartROW: 3,
   locationINDEX: 0,       // column A on each Results sheet
   dateINDEX: 1,           // column B on each Results sheet
@@ -51,6 +52,8 @@ const lc = {
   pasteCOL: 1,            // Paste Event result starting in 1st column (A)
   runnersNameCOLUMN: "A",     // Runners name in column A 
   runnersSurnameCOLUMN: "B",  // Runners surname in column B
+  runnersDoBCOLUMN: "E",      // Runners DoB in column E
+  hasPosnsCOLUMN: "L",        // ...has Positions up-to-date (I3:I) based on genderPosnCOL
   runnersNumRunsCOLUMN: "M",  // Runners number of runs in column M
   resultsDateCOLUMN: "B",     // results Dates on each runner's result sheet
   maxChangeROWS: 3,           // restrict updates by Editors to recent results
@@ -65,6 +68,7 @@ const lc = {
   runnersStartCOL: 3,     // Performance Output sheet start column
   runnersStartROW: 3,
   runnersSheetNAME: 'Runners',
+  resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
   sinceYearCELL: "G1",    // Runners cell identifies the start year for 2nd detailed chart
   meritNumRunsCELL: "H1", // threshhold of runners who merit a 2nd detailed trend chart
   resultTABLE: 'Event',   // First Header title in Results sheet
@@ -1617,14 +1621,14 @@ function GetMyTrendsCharts(
 */
 
 function SnatchAgeCategoryIfHeld(runnerNameId) {
-  let resultsSheet = gv.activeSpreadsheet
+  let resultsSheet = lv.activeSpreadsheet
     .getSheetByName(runnerNameId);
   if (resultsSheet) {
     let ageCategory = resultsSheet
-      .getRange(gc.resultsTempAgeCatCELL)
+      .getRange(lc.resultsTempAgeCatCELL)
       .getValue();
     resultsSheet    // and clear temporary holding
-      .getRange(gc.resultsTempAgeCatCELL)
+      .getRange(lc.resultsTempAgeCatCELL)
       .clearContent();
     return ageCategory;
   }
@@ -1632,11 +1636,11 @@ function SnatchAgeCategoryIfHeld(runnerNameId) {
 }
 
 function GetLastResultDate(runnerNameId) {
-  let resultsSheet = gv.activeSpreadsheet
+  let resultsSheet = lv.activeSpreadsheet
     .getSheetByName(runnerNameId);
   return resultsSheet
     ? resultsSheet.getRange(
-        gc.resultsDateCOLUMN + resultsSheet.getLastRow()
+        lc.resultsDateCOLUMN + resultsSheet.getLastRow()
       ).getDisplayValue()
     : null;
 }
@@ -1684,6 +1688,14 @@ function SetRunnerDoB(runnerNameId,runnerDoB) {
     .setValue(runnerDoB);
 }
 
+function FormatDate(dateSource,dateFormat) {
+  return Utilities.formatDate(  // ensure ISO dates beforehand
+    new Date(dateSource.replace(/(\d+)\/(\d+)\/(\d+)/,'$3-$2-$1')),
+    Session.getScriptTimeZone(),
+    dateFormat  // more readable & universal, PLUS consistent with current formatting on sheet
+  );
+}
+
 /**
  * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
  */
@@ -1695,19 +1707,21 @@ async function EstimateDoBs() {
     .getValues()
     .map(x => x[0])
     .filter(String);
-  let runnersStatus = lv.allRunnersSheet    // column J..K
-    .getRange(lc.parkrunnerIdCOLUMN+lc.runnersStartROW+":"
+  let runnersHasPosns = lv.allRunnersSheet    // column J..K
+    .getRange(lc.hasPosnsCOLUMN+lc.runnersStartROW+":"
       +lc.hasPosnsCOLUMN)
-    .getValues();
+    .getValues()
+    .map(x => x[0]);
   let runnersDoBs = lv.allRunnersSheet
     .getRange(lc.runnersDoBCOLUMN+lc.runnersStartROW+":"
       +lc.runnersDoBCOLUMN)
     .getDisplayValues()
     .map(x => x[0]);
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
-    if (runnersStatus[runnerIndex][2])   // // column L has Positions
-      Logger.log('INFO: Runner, '+runnerName+
-        ' (index: '+runnerIndex+') assumed DoB okay since all positions uppdated');
+    if (runnersHasPosns[runnerIndex])   // // column L has Positions
+      if (lc.debug)
+        Logger.log('INFO: Runner, '+runnerName+
+          ' (index: '+runnerIndex+') assumed DoB okay since all positions updated');
     else {
       let runnerDoB = runnersDoBs[runnerIndex];
       if (runnerDoB == unknownDOB) {
@@ -1718,8 +1732,9 @@ async function EstimateDoBs() {
             +runnerNameId);
           continue;
         }
-        Logger.log('INFO: Estimating DoB for runner, '+runnerName+
-          ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
+        if (lc.debug)
+          Logger.log('INFO: Estimating DoB for runner, '+runnerName+
+            ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
         let lastResultDate = GetLastResultDate(runnerNameId);
         runnerDoB = GetEstimatedDoB(lastResultDate,ageCategory);  // age at last event
         SetRunnerDoB(runnerNameId,runnerDoB)
