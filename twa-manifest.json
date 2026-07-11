@@ -1,6 +1,6 @@
 {
   "packageId": "com.champion.chart5k",
-  "host": "alanchampion1111-design.github.io",
+  "host": "script.google.com",
   "name": "CHArT5k",
   "launcherName": "CHArT5k",
   "display": "standalone",
@@ -11,7 +11,7 @@
   "navigationDividerColor": "#000000",
   "navigationDividerColorDark": "#000000",
   "backgroundColor": "#FFFFFF",
-  "startUrl": "https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec",
+  "startUrl": "macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec",
   "iconUrl": "https://alanchampion1111-design.github.io/CHArT5k/CHArT5k.png",
   "maskableIconUrl": "https://alanchampion1111-design.github.io/CHArT5k/CHArT5k.png",
   "splashScreenFadeOutDuration": 300,
@@ -29,10 +29,11 @@
   "alphaDependencies": {
     "enabled": false
   },
+  "enableNotifications": false,
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://alanchampion1111-design.github.io/CHArT5k/",
+  "fullScopeUrl": "https://script.google.com/",
   "minSdkVersion": 21,
   "orientation": "portrait",
   "fingerprints": [],
