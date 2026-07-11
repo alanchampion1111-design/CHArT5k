@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.champion.chart5k",
+      "sha256_cert_fingerprints": [
+        "04:DD:87:56:FA:82:C4:92:75:46:62:47:A9:10:B6:FA:52:C5:27:29:82:2C:C0:3F:25:A5:FC:41:11:59:71:10"
+      ]
+    }
+  }
+]
