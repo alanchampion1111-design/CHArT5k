@@ -622,6 +622,10 @@ function renderDivisionalGroupsCharts(charts) {
           if (btnBest)
             btnBest.onclick = () => window
               .open(routing.rankings.bestEverUrl,fastTAB);
+          const btnSummary = document.getElementById('btn-rankings-summary');
+          if (btnSummary)
+            btnSummary.onclick = () => window
+              .open(routing.rankings.summaryUrl,fastTAB);
           const btnChallenge = document.getElementById('btn-rankings-challenge');
           if (btnChallenge)
             btnChallenge.onclick = () => window
