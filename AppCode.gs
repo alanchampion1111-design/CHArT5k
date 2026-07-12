@@ -90,14 +90,16 @@ const VIEWPORTS = {
  * Web App Entry Point - Serves the HTML frontend shell
  */
 function doGet() {
-  const fileId = "CHAr-T5k.jpg";
+  const fileId = "CHArT5k.jpg";
   const iconUrl = "https://i.postimg.cc/5tvyx15d/"+fileId+"?fakeext=.ico";
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('CHArT5k')
     .setFaviconUrl(iconUrl)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0,user-scalable=no')
+    .addMetaTag('apple-mobile-web-app-capable', 'yes') // <-- MISSING: Forces iOS to treat it like a native app
+    .addMetaTag('mobile-web-app-capable', 'yes');
 }
 
 /**
@@ -439,6 +441,7 @@ function getRankingsRouting(ssActive,ssIdKey) {
     var mHeaders = mData[0];
     var idxMasterSsId = mHeaders.indexOf(COL_MASTER.SS_ID);
     var idxMasterGroup = mHeaders.indexOf(COL_MASTER.GROUP_NAME);
+    var idxRunnersGid = mHeaders.indexOf(COL_MASTER.RUNNERS_GID);
     var idxLatestGid = mHeaders.indexOf(COL_MASTER.LATEST_GID);
     var idxRankingsGid = mHeaders.indexOf(COL_MASTER.RANKINGS_GID);
     var idxChallengesGid = mHeaders.indexOf(COL_MASTER.CHALLENGES_GID);
@@ -448,11 +451,12 @@ function getRankingsRouting(ssActive,ssIdKey) {
       if (mData[i][idxMasterSsId] === ssIdKey) {
         groupTableName = mData[i][idxMasterGroup];  // TODO: may need to strip & AC and perhaps Club/Parkrunner
         rankingsList = {
-          latestUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
           currentUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_CURRENT + "&viewport=focussed",
           bestEverUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRankingsGid] + "&range=" + VIEWPORTS.RANKINGS_BEST + "&viewport=focussed",
+          summaryUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxRunnersGid],          
           challengeUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxChallengesGid],
-          parkrunClubUrl:parkrunGroupReportURL+mData[i][idxParkrunClub]
+          latestUrl: workSHEET + ssIdKey + "/view?gid=" + mData[i][idxLatestGid],
+          parkrunClubUrl:parkrunGroupReportURL+mData[i][idxParkrunClub]   // external to spreadsheet
         };
         break;
       }
