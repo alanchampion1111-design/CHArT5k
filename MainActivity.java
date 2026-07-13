@@ -53,7 +53,6 @@ public class MainActivity extends Activity {
             webSettings.setUserAgentString(MOBILE_UA);
             myWebView.setWebViewClient(new WebViewClient() {
                 @Override
-                // onPageStarted superseded...
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
                     if (url.startsWith("mailto:")) {
                         try {
@@ -62,13 +61,25 @@ public class MainActivity extends Activity {
                         } catch (Exception e) {}
                         return true;
                     }
+                    
                     if (url.contains("docs.google.com/spreadsheets")) {
-                        view.getSettings().setUserAgentString(DESKTOP_UA);
+                        // Fix 3: Try to open in the native Google Sheets App if installed
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.setPackage("com.google.android.apps.docs.editors.sheets");
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            view.getContext().startActivity(intent);
+                            return true; // Successfully handed off to native app
+                        } catch (Exception e) {
+                            // Fallback if Google Sheets App is not installed: load in WebView as Desktop
+                            view.stopLoading(); // Fix 1: Stop any active loading to prevent random page refresh
+                            view.getSettings().setUserAgentString(DESKTOP_UA);
+                        }
                     } else {
                         view.getSettings().setUserAgentString(MOBILE_UA);
                     }
 
-                    return false; // Load inside the container seamlessly
+                    return false; 
                 }
             });
             // native link to Goohgle Web App
