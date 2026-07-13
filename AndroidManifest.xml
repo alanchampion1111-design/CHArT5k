@@ -1,14 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:comment="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="true"
-        comment:note="Raw PNG image avoids being wrapped in HTML"
         android:icon="@raw/chart5k"
         android:roundIcon="@raw/chart5k"
         android:label="CHArT5k"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
+        <meta-data 
+            android:name="note" 
+            android:value="Raw PNG image avoids being wrapped in HTML" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
