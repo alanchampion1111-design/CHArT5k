@@ -48,7 +48,6 @@ public class MainActivity extends Activity {
             webSettings.setSupportZoom(true);           
             webSettings.setBuiltInZoomControls(true);   
             webSettings.setDisplayZoomControls(false);
-            
             myWebView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_YES);
             webSettings.setUserAgentString(MOBILE_UA);
             myWebView.setWebViewClient(new WebViewClient() {
@@ -61,33 +60,20 @@ public class MainActivity extends Activity {
                         } catch (Exception e) {}
                         return true;
                     }
-                    
                     if (url.contains("docs.google.com/spreadsheets")) {
-                        // Fix 3: Try to open in the native Google Sheets App if installed
-                        try {
-                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                            intent.setPackage("com.google.android.apps.docs.editors.sheets");
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            view.getContext().startActivity(intent);
-                            return true; // Successfully handed off to native app
-                        } catch (Exception e) {
-                            // Fallback if Google Sheets App is not installed: load in WebView as Desktop
-                            view.stopLoading(); // Fix 1: Stop any active loading to prevent random page refresh
-                            view.getSettings().setUserAgentString(DESKTOP_UA);
-                        }
+                        view.stopLoading(); // Stop any pending tasks to prevent the layout/refresh glitch
+                        view.getSettings().setUserAgentString(DESKTOP_UA);
                     } else {
                         view.getSettings().setUserAgentString(MOBILE_UA);
                     }
-
-                    return false; 
+                    return false; // Force WebView to load the link internally and preserve history
                 }
             });
-            // native link to Goohgle Web App
+            // native link to Google Web App
             myWebView.loadUrl("https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec");
         }
         setContentView(myWebView);
     }
-
     @Override
     public void onBackPressed() {
         if (myWebView != null && myWebView.canGoBack()) {
