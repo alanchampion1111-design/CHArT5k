@@ -60,6 +60,8 @@ public class MainActivity extends Activity {
                     : Intent.ACTION_VIEW;// assume  (url.startsWith("mailto:") || url.contains("docs.google.com"))
                 try {       // handle externally via user's preferred emailer or browser
                     Intent intent = new Intent(actionIntent, Uri.parse(url));
+                    if (url.contains("spreadsheets"))                     // because URL-based spreadsheet refer to gid, range, etc.
+                        intent.addCategory(Intent.CATEGORY_BROWSABLE);    // ...avoid using any installed GSheets that would lose such
                     startActivity(intent);
                 } catch (Exception e) {}
                 return true;
