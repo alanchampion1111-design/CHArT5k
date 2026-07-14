@@ -27,12 +27,10 @@ import android.view.View;
 public class MainActivity extends Activity {
     private WebView myWebView;
     private final String MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
-    private final String DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         // Keep alive when rotating mobile 
         if (myWebView == null) {
             myWebView = new WebView(this);
@@ -46,7 +44,7 @@ public class MainActivity extends Activity {
             webSettings.setUseWideViewPort(true);       
             webSettings.setLoadWithOverviewMode(true);  
             webSettings.setSupportZoom(true);           
-            webSettings.setBuiltInZoomControls(true);   
+            webSettings.setBuiltInZoomControls(true);
             webSettings.setDisplayZoomControls(false);
             myWebView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_YES);
             webSettings.setUserAgentString(MOBILE_UA);
@@ -60,11 +58,6 @@ public class MainActivity extends Activity {
                             startActivity(intent);
                         } catch (Exception e) {}
                         return true;
-                    }
-                    if (url.contains("docs.google.com/spreadsheets")) {
-                        view.getSettings().setUserAgentString(DESKTOP_UA);
-                    } else {
-                        view.getSettings().setUserAgentString(MOBILE_UA);
                     }
                     return false; // Force WebView to load the link internally and preserve history
                 }
