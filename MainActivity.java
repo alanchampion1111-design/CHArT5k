@@ -26,7 +26,9 @@ import android.view.View;
 
 public class MainActivity extends Activity {
     private WebView myWebView;
-    private final String MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+    // potentially for external parkrun links only
+    // private final String MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+    private final String DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,21 +49,32 @@ public class MainActivity extends Activity {
             webSettings.setBuiltInZoomControls(true);
             webSettings.setDisplayZoomControls(false);
             myWebView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_YES);
-            webSettings.setUserAgentString(MOBILE_UA);
+            webSettings.setUserAgentString(DESKTOP_UA);    // essential for gid & viewports
             
             myWebView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
                     if (url.startsWith("mailto:")) {
-                        try {
+                        try {       // handle mail extrrnally via user's preferred emailer
                             Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse(url));
                             startActivity(intent);
                         } catch (Exception e) {}
                         return true;
+                    } else {        // retain same UA if internal to App or link to Group SS
+                        if (url.contains("script.google.com") || url.contains("docs.google.com"))
+                            return false;   
+                        else {      // otherwise assume external parkrun link (via browser
+                            try {
+                                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                                startActivity(intent);
+                            } catch (Exception e) {}
+                                return true;    // handle link externally; (like with mailto:)
+                            }
+                        }
                     }
-                    return false; // Force WebView to load the link internally and preserve history
                 }
             });
+            
             if (savedInstanceState != null) {
                 myWebView.restoreState(savedInstanceState);
             } else {
