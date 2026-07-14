@@ -26,9 +26,6 @@ import android.view.View;
 
 public class MainActivity extends Activity {
     private WebView myWebView;
-    // potentially for external parkrun links only
-    // private final String MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
-    private final String DESKTOP_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +36,6 @@ public class MainActivity extends Activity {
             WebSettings webSettings = myWebView.getSettings();
             webSettings.setJavaScriptEnabled(true);
             webSettings.setDomStorageEnabled(true);
-            webSettings.setDatabaseEnabled(true);           // Remembers viewport states
             // Force local cache to remember your active tab/screen changes
             webSettings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
             // Core layout mapping options
@@ -49,54 +45,28 @@ public class MainActivity extends Activity {
             webSettings.setBuiltInZoomControls(true);
             webSettings.setDisplayZoomControls(false);
             myWebView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_YES);
-            webSettings.setUserAgentString(DESKTOP_UA);    // essential for gid & viewports
+            // webSettings.setUserAgentString(DESKTOP_UA); 
             
             myWebView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                    if (url.startsWith("mailto:")) {
-                        try {       // handle mail externally via user's preferred emailer
-                            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse(url));
-                            startActivity(intent);
-                        } catch (Exception e) {}
-                        return true;
-                    } else {        // retain same UA if internal to App or link to Group SS
-                        if (url.contains("script.google.com") || url.contains("docs.google.com")) {
-                            return false;   
-                        } else {      // otherwise assume external parkrun link (via browser
-                            try {
-                                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                                startActivity(intent);
-                            } catch (Exception e) {}
-                            return true;    // handle link externally; (like with mailto:)
-                        }
-                    }
+                    if (url.contains("script.google.com")) {
+                        return false;    // action internal to App
+                    }    // otherwise for mail requests, for links to Group SS, or external links to parkrun 
+                    String actionIntent = url.startsWith("mailto:")
+                        ? Intent.ACTION_SENDTO
+                        : Intent.ACTION_VIEW;// assume  (url.startsWith("mailto:") || url.contains("docs.google.com"))
+                    try {       // handle externally via user's preferred emailer or browser
+                        Intent intent = new Intent(actionIntent, Uri.parse(url));
+                        startActivity(intent);
+                    } catch (Exception e) {}
+                    return true;
                 }
             });
             
-            if (savedInstanceState != null) {
-                myWebView.restoreState(savedInstanceState);
-            } else {
-                myWebView.loadUrl("https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec");
-            }
+            myWebView.loadUrl("https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec");
         }
         setContentView(myWebView);
-    }
-    
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        if (myWebView != null) {
-            myWebView.saveState(outState);
-        }
-    }
-
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        if (myWebView != null) {
-            myWebView.restoreState(savedInstanceState);
-        }
     }
     
     @Override
