@@ -33,14 +33,14 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Keep a single instance on orientation change
+        // Keep alive when rotating mobile 
         if (myWebView == null) {
             myWebView = new WebView(this);
             WebSettings webSettings = myWebView.getSettings();
             webSettings.setJavaScriptEnabled(true);
             webSettings.setDomStorageEnabled(true);
             webSettings.setDatabaseEnabled(true);           // Remembers viewport states
-            // Tells WebView to pull from local cache on Back navigation to keep your exact tab screen
+            // Force local cache to remember your active tab/screen changes
             webSettings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
             // Core layout mapping options
             webSettings.setUseWideViewPort(true);       
@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
             webSettings.setDisplayZoomControls(false);
             myWebView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_YES);
             webSettings.setUserAgentString(MOBILE_UA);
+            
             myWebView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -61,7 +62,6 @@ public class MainActivity extends Activity {
                         return true;
                     }
                     if (url.contains("docs.google.com/spreadsheets")) {
-                        view.stopLoading(); // Stop any pending tasks to prevent the layout/refresh glitch
                         view.getSettings().setUserAgentString(DESKTOP_UA);
                     } else {
                         view.getSettings().setUserAgentString(MOBILE_UA);
@@ -69,17 +69,37 @@ public class MainActivity extends Activity {
                     return false; // Force WebView to load the link internally and preserve history
                 }
             });
-            // native link to Google Web App
-            myWebView.loadUrl("https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec");
+            if (savedInstanceState != null) {
+                myWebView.restoreState(savedInstanceState);
+            } else {
+                myWebView.loadUrl("https://script.google.com/macros/s/AKfycbzGA2ARs2d8ON4xfIOKTMY5WFqE5oyNz5XLhEB_LeIzqj3mKNJdj2P84upsypi6hf96/exec");
+            }
         }
         setContentView(myWebView);
     }
+    
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (myWebView != null) {
+            myWebView.saveState(outState);
+        }
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        if (myWebView != null) {
+            myWebView.restoreState(savedInstanceState);
+        }
+    }
+    
     @Override
     public void onBackPressed() {
         if (myWebView != null && myWebView.canGoBack()) {
             myWebView.goBack(); // Navigates backward historically step-by-step
         } else {
-            super.onBackPressed(); 
+            moveTaskToBack(true);
         }
     }
 }
