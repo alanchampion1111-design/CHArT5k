@@ -7,10 +7,15 @@
 //          C:\CHArT5k-WebView\gradle-8.5\bin\gradle assembleRelease bundleRelease
 //      b.  C:\Android-CLI\build-tools\34.0.0\apksigner.bat sign \
 //              --ks C:\CHArT5k-WebView\android.keystore --ks-key-alias chart5k \
-//              C:\CHArT5k-WebView\app\build\outputs\apk\release\app-release-unsigned.apk
 //      c.  del C:\CHArT5k-WebView\app\build\outputs\apk\release\app-release-signed.apk
 //          ren C:\CHArT5k-WebView\app\build\outputs\apk\release\app-release-unsigned.apk app-release-signed.apk
-// Upload apk file for access from mobile to G Drive:
+//      d.  C:\CHArT5k-WebView\app\build\outputs\apk\release\app-release-unsigned.apk \
+//              jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 -keystore \
+//              C:\CHArT5k-WebView\android.keystore \
+//              C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-unsigned.aab chart5k
+//      e.  del C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-signed.aab
+//          ren C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-unsigned.aab app-release-signed.aab
+// Upload .apk and .aab file for access from mobile to G Drive:
 //      IT Business / Parkrun / CHArt5k-Webview
 
 package com.chart5k.app;
