@@ -11,8 +11,6 @@
 //          ren C:\CHArT5k-WebView\app\build\outputs\apk\release\app-release-unsigned.apk app-release-signed.apk
 //      d.  jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 -keystore C:\CHArT5k-WebView\android.keystore \
 //              C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-unsigned.aab chart5k
-jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 -keystore C:\CHArT5k-WebView\android.keystore
-C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release.aab chart5k
 //      e.  del C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-signed.aab
 //          ren C:\CHArT5k-WebView\app\build\outputs\bundle\release\app-release-unsigned.aab app-release-signed.aab
 // Upload .apk and .aab file for access from mobile to G Drive:
