@@ -55,21 +55,20 @@ public class MainActivity extends Activity {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
                     if (url.startsWith("mailto:")) {
-                        try {       // handle mail extrrnally via user's preferred emailer
+                        try {       // handle mail externally via user's preferred emailer
                             Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse(url));
                             startActivity(intent);
                         } catch (Exception e) {}
                         return true;
                     } else {        // retain same UA if internal to App or link to Group SS
-                        if (url.contains("script.google.com") || url.contains("docs.google.com"))
+                        if (url.contains("script.google.com") || url.contains("docs.google.com")) {
                             return false;   
-                        else {      // otherwise assume external parkrun link (via browser
+                        } else {      // otherwise assume external parkrun link (via browser
                             try {
                                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                                 startActivity(intent);
                             } catch (Exception e) {}
-                                return true;    // handle link externally; (like with mailto:)
-                            }
+                            return true;    // handle link externally; (like with mailto:)
                         }
                     }
                 }
