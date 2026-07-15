@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
                     try {     // Launch the spreadsheet as an overlay (Bubblewrap style); assume no header, toolbar etc. (rm=minimal) and NOT GSheets!
                         CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
                         CustomTabsIntent customTabsIntent = builder.build();
+                        customTabsIntent.intent.setPackage("com.android.chrome");    // -Force Browser instead of blind GSheets
                         Bundle headers = new Bundle();    // Force the custom tab to use the Desktop User-Agent for this session
                         // Standard Mobile User Agent for your core Web App (so it looks like an App)
                         String DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
@@ -67,7 +68,6 @@ public class MainActivity extends Activity {
                         java.util.ArrayList<Bundle> headersList = new java.util.ArrayList<>();
                         headersList.add(headers);
                         customTabsIntent.intent.putParcelableArrayListExtra(android.provider.Browser.EXTRA_HEADERS, headersList);
-                        customTabsIntent.intent.putExtra(android.provider.Browser.EXTRA_HEADERS, headers);
                         customTabsIntent.launchUrl(MainActivity.this, Uri.parse(url));
                     } catch (Exception e) {
                         Log.d("CHArT5k", "Fallback: " + url);
