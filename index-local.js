@@ -10,7 +10,6 @@
 //    8. Verify stealth access to individual parkrunner results table (tbd - although disallowed)
 
 // const functions = require('@google-cloud/functions-framework');
-// const puppeteer = require('puppeteer');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
@@ -18,7 +17,10 @@ puppeteer.use(StealthPlugin());
 const url = require('url');
 let thisBrowserWSEp;  // re-use same browser session on server   
 let thisPageId;       // re-use same page per session
-const browserURL = 'http://localhost:36007';
+const http = require('http');
+const HOST = '127.0.0.1';    // equivalent to localhost
+const PORT = 36007;
+const browserURL = 'http://'+HOST+':'+PORT;
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
 // Assumes each Parkrun domain certificates have been exported (from normal use) and held in GitHub directly
@@ -116,7 +118,7 @@ let killBrowser = async () => {
   try {
     if (thisBrowserWSEp) {
       var thisBrowser = await puppeteer
-        await thisPage.connect({ browserWSEndpoint: thisBrowserWSEp });
+        .connect({ browserWSEndpoint: thisBrowserWSEp });
       if (thisPageId) {
         var thisPage = (await thisBrowser.pages())
           .find(page => page.target()._targetId === thisPageId);
@@ -269,7 +271,7 @@ async function loadUrl(thisUrl,
       if (!thisPage) {
         console.warn('WARNING: Persistent page missing from warm browser. Spawning fresh target context...');
         thisPage = await thisBrowser.newPage();
-        thisPageId = .target()._targetId;
+        thisPageId = await thisPage.target()._targetId;
         // await thisPage.setUserAgent(userAgent);
       }
     }
@@ -875,3 +877,45 @@ exports.browser = async (req,res) => {
     res.status(404).send('ERROR: Invalid Cloud Run function path, '+path);
   } 
 }
+
+// Added for local execution...
+
+const server = http.createServer((req, res) => {
+  // 1. Enable CORS so Google Sheets can talk to your local machine
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pinggy-No-Screen');
+  // Handle preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  // 2. Add express-like res.status().send() helper methods because original  uses res.status(404).send(...)
+  res.status = function(statusCode) {
+    this.statusCode = statusCode;
+    return this;
+  };
+  res.send = function(message) {
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'text/plain');
+      res.writeHead(this.statusCode || 200);
+      res.end(message);
+    }
+  };
+  // 3. Hand the request off directly to your main routing function!
+  exports.browser(req, res)
+    .catch(err => {
+      console.error("Error handling request:", err);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end("Internal Server Error: " + err.message);
+      }
+    });
+});
+// Start listening on port 36007
+server.listen(PORT, HOST, () => {
+  console.log('===================================================');
+  console.log('🚀 Local Server is active on '+browserURL);
+  console.log(`===================================================`);
+});
