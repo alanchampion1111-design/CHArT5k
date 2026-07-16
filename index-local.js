@@ -94,7 +94,7 @@ let cloudBrowser = async (
   try {
     var thisPage = await thisBrowser.newPage();
     if (thisPage) {
-      thisPageId = .target()._targetId;
+      thisPageId = await thisPage.target()._targetId;
       console.log('Retained page ID,',thisPageId);
       thisPage.setDefaultTimeout(loadSECS*1000);  // Set the timeout for loading the page
       await thisPage.goto('about:blank',{waitUntil: 'domcontentloaded'});    // Verify the browser is ready
@@ -119,7 +119,7 @@ let killBrowser = async () => {
         await thisPage.connect({ browserWSEndpoint: thisBrowserWSEp });
       if (thisPageId) {
         var thisPage = (await thisBrowser.pages())
-          await thisPage.find(page => page.target()._targetId === thisPageId);
+          .find(page => page.target()._targetId === thisPageId);
         if (thisPage) {
           await thisPage.close();
           console.log('Page closed successfully - Page Id:',thisPageId);
@@ -262,7 +262,7 @@ async function loadUrl(thisUrl,
     var thisPage;
     if (caching) {  // CAUTION: Caching common event is slower with new page overheads (rely on parkrun caching instead?)
       thisPage = await thisBrowser.newPage();
-      .setDefaultTimeout(timeMax);    // for individual queries?
+      await thisPage.setDefaultTimeout(timeMax);    // for individual queries?
     } else {  // re-use
       thisPage = (await thisBrowser.pages())
         .find(page => page.target()._targetId === thisPageId);
