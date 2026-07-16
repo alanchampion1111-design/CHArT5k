@@ -869,12 +869,15 @@ exports.browser = async (req,res) => {
     exports.acceptCookies(req,res);
   else if (path === '/deleteCookies')
     exports.deleteCookies(req,res);
-  else if (path.includes('wp-content'))
-    // ignore internal relative dependencies
+  else if (path.includes('wp-content'))// ignore internal relative dependencies
     console.log('INFO: Ignoring local dependencies: '+path);
-  else {
-    console.log('ERROR: Invalid Cloud Run function path,',path);
-    res.status(404).send('ERROR: Invalid Cloud Run function path, '+path);
+  else if (path === '/favicon.ico') {
+    res.writeHead(204, { 'Content-Type': 'image/x-icon' });
+    res.end();
+  } else {
+    console.log('ERROR: Invalid Puppet function path,',path);
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('ERROR: Invalid Puppet function path, '+path);
   } 
 }
 
