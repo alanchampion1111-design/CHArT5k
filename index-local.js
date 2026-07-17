@@ -21,6 +21,9 @@ const http = require('http');
 const HOST = '127.0.0.1';    // equivalent to localhost
 const PORT = 36007;
 const browserURL = 'http://'+HOST+':'+PORT;
+const fs = require('fs');
+const path = require('path');
+const { exec } = require('');
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
 const chromePATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -111,6 +114,25 @@ let cloudBrowser = async (
   }
 }
 
+function forceKillBrowser() {
+  try {
+    const cmd = `wmic process where "commandline like '%C:\\\\CHArT5k-Puppet\\\\userDataDir%'" get ProcessId`;
+    const output = execSync(cmd).toString();
+    const pids = output.split('\n').slice(1).filter(line => line.trim() !== '');
+    pids.forEach(pid => {
+      console.log(`Killing process tree for PID: ${pid}`);
+      exec(`taskkill /F /T /PID ${pid.trim()}`);    // /F = Force, /T = Tree (kills children), /PID = Target
+    });
+    let lockFile = path.join(myUserDataDir,'SingletonLock');
+    if (fs.existsSync(lockFile)) {
+      fs.unlinkSync(lockFile);
+      console.log('Successfully removed orphaned SingletonLock.');
+    }
+  } catch (e) {
+    console.log("Cleanup complete or no processes found.");
+  }
+}
+
 /**
  * Kills the current browser instance and resets globals in case still active.
  *  @returns {Promise<boolean>} true if browser terminated, otherwise already terminated (perhaps error logged)
@@ -141,20 +163,7 @@ let killBrowser = async () => {
           return true;
         } else {    // force kill any process to unlock
           console.warn('WARNING: Browser unreachable, attempting force-cleanup...');
-          let lockFilePath = path.join(myUserDataDir, 'SingletonLock');
-          try {
-            if (fs.existsSync(lockFilePath)) {
-              fs.unlinkSync(lockFilePath);
-              console.log('Successfully removed orphaned SingletonLock.');
-            }
-          } catch (fsErr) {
-            console.error('Could not remove lock file (it might be in use):', fsErr);
-          }
-          const { exec } = require('child_process');
-          exec('taskkill /F /IM chrome.exe /T', (err) => {
-            if (err) console.log('No orphaned Chrome processes found to kill.');
-            else console.log('Orphaned Chrome processes killed.');
-          });
+          forceKillBrowser();
           return true; // Return success since forced the environment to clear
         }
       } catch (err) {
