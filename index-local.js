@@ -23,9 +23,10 @@ const PORT = 36007;
 const browserURL = 'http://'+HOST+':'+PORT;
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
+const chromePATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const myUserDataDir = 'C:\\CHArT5k-Puppet\\userDataDir';
 // Assumes each Parkrun domain certificates have been exported (from normal use) and held in GitHub directly
 // TODO: better to place in a certs subfolder (and limit access?)
-const myUserDataDir = 'C:\\CHArT5k-Puppet\\userDataDir';
 const allParkrunCERTS =
   './www.parkrun.org.uk.pem,'+
   './www.parkrun.com.pem,'+
@@ -47,7 +48,6 @@ const minRunnerTableCOUNT = 3;  // 3 for a 5k runner
 const loadSECS = 30;            // max time to load each runner's results page
 const minClubTableCOUNT = 1;    // 1..10+ tables for event locations for a family/club? 
 const loadDetailSECS = 40;      // max time to load any event results page or global site consolidated club results page
-let initPromise;      // browser "finished" after initialised (although still active)
 let isLaunching = false; // PREVENT concurrent re-launch spikes inside loadUrl
 
 /**
@@ -62,7 +62,7 @@ let cloudBrowser = async (
   browserTimeout = sessionMins*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
     headless: true,
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    executablePath: chromePATH,
     userDataDir: myUserDataDir, // recall cookies and certs
     args: [
       '--no-sandbox',
@@ -84,7 +84,6 @@ let cloudBrowser = async (
     } catch (err) {
       console.error('ERROR: Terminating browser on timeout:',err);
     } finally {
-      initPromise = undefined;
       thisBrowserWSEp = null;
       thisPageId = null;
       prevPage = undefined;
@@ -140,28 +139,41 @@ let killBrowser = async () => {
           await thisBrowser.close();
           console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
           return true;
-        } else {
-          console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
-          return false;
+        } else {    // force kill any process to unlock
+          console.warn('WARNING: Browser unreachable, attempting force-cleanup...');
+          let lockFilePath = path.join(myUserDataDir, 'SingletonLock');
+          try {
+            if (fs.existsSync(lockFilePath)) {
+              fs.unlinkSync(lockFilePath);
+              console.log('Successfully removed orphaned SingletonLock.');
+            }
+          } catch (fsErr) {
+            console.error('Could not remove lock file (it might be in use):', fsErr);
+          }
+          const { exec } = require('child_process');
+          exec('taskkill /F /IM chrome.exe /T', (err) => {
+            if (err) console.log('No orphaned Chrome processes found to kill.');
+            else console.log('Orphaned Chrome processes killed.');
+          });
+          return true; // Return success since forced the environment to clear
         }
       } catch (err) {
         console.warn('WARNING: Browser connection lost, already closed');
-        return false;
+        return true;  // as if closed
       }  
     } else {
       console.warn('WARNING: Browser previously terminated - WS endpoint:',thisBrowserWSEp);
-      return false;
+      return true;  // as if closed
     }
   } catch (err) {
-    console.error('ERROR: Failed to close page and/or terminate browser:',err);
-    return false;
+    console.error('FATAL: Failed to close page and/or terminate browser:',err);
+    return false;  // unsafe to continue if unknown reason
   } finally {  // executed in all cases, even before the returns
-    initPromise = undefined;
     thisBrowserWSEp = null;
     thisPageId = null;
     prevPage = undefined;
     prevFilterUrl = undefined;
-    console.log('INFO: Expected browser page with promise (',initPromise,') also closed :',thisPageId);
+    console.log('INFO: Expected browser page also closed :',thisPageId);
     clearTimeout(browserTimer);
   }
 }
@@ -173,32 +185,27 @@ let killBrowser = async () => {
  *  @sideeffect - preserve the browser WS endpoint and reusable page ID for re-use
  */
 exports.initBrowser = async (_,res) => {
-  await killBrowser();    // fresh start whenever re-open...
-  if (!initPromise) {     // ...after all resources released
-    initPromise = (async () => {
-      try {
-        await cloudBrowser(60);  // Launched ok, with browser active in background
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end(thisBrowserWSEp);
-        // res.status(200).send(thisBrowserWSEp);
-      } catch (err) {
-        console.error('ERROR: Failed to initialise browser:',err);
-        // consider a relaunch with args, --pull from Docker if image is not properly cached!
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('ERROR: Failed to initialise browser, ' + err);
-        // res.status(500).send('ERROR: Failed to initialise browser, '+err);
-      } finally {
-        // NEVER disconnect because this loses the puppeteer Stealth (plugin) setting!
-        // await thisBrowser.disconnect();
-        console.log('Returning immediately after (attempt at) launching browser');
-      }
-    })();
-  } else {  // REDUNDANT - do nothing because browser would normally have been previously launched
+  let isEnvironmentReady = await killBrowser();  // fresh start whenever re-open...
+  if (!isEnvironmentReady) {
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('FATAL: Browser environment blocked. Manual intervention required.');
+    return; 
+  }
+  try {
+    await cloudBrowser(60);  // Launched ok, with browser active in background
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(thisBrowserWSEp);
-    // res.status(200).send(thisBrowserWSEp);
+  } catch (err) {
+    console.error('ERROR: Failed to initialise browser:',err);
+    // consider a relaunch with args, --pull from Docker if image is not properly cached!
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('ERROR: Failed to initialise browser, ' + err);
+  } finally {
+    // NEVER disconnect because this loses the puppeteer Stealth (plugin) setting!
+    // await thisBrowser.disconnect();
+    console.log('Completed (attempt at) launching browser');
   }
-}
+};
 
 /**
  * Entry point: stops the browser. Returns 200 if terminated, 204 if already terminated.
@@ -276,7 +283,6 @@ async function loadUrl(thisUrl,
       // Catch hidden socket timeouts or closed browser instances cleanly
       console.error('ERROR: Connection to WS Endpoint failed. Re-building browser session:', connectErr);
       clearTimeout(browserTimer);
-      initPromise = undefined;
       isLaunching = true;
       await cloudBrowser(60);
       isLaunching = false;
@@ -779,7 +785,7 @@ exports.deleteCookies = async (_,res) => {
   try {
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
-      executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      executablePath: chromePATH,
       userDataDir: myUserDataDir, // clear cookies and certs?
       args: [
         '--no-sandbox',
@@ -819,7 +825,7 @@ exports.acceptCookies = async (_,res) => {
   try {
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
-      executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      executablePath: chromePATH,
       userDataDir: myUserDataDir, // store cookies and certs
       args: [
         '--no-sandbox',
@@ -930,7 +936,7 @@ exports.browser = async (req,res) => {
 const nodeServer = http.createServer((req, res) => {
     // Direct handoff to your existing logic
     exports.browser(req, res).catch(err => {
-        console.error("Error:", err);
+        console.error("ERROR: ", err);
     });
 });
 
