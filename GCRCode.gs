@@ -120,6 +120,7 @@ const gc = {
   defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   runnersNameCOLUMN: "A",     // Runners name in column A 
   runnersSurnameCOLUMN: "B",  // Runners surname in column B
+  runnersFreezeDoBCOLUMN: "D",// Runners DoB in column E - not an estimate!
   runnersDoBCOLUMN: "E",      // Runners DoB in column E
   dobINDEX: 4,                // Runners DoBs in column E (for arrays or range offsets)
   parkrunnerIdINDEX: 9,       // Runners parkrun barcodes in column J (for arrays or range offsets)   
@@ -1206,6 +1207,7 @@ function CreateRunnerResultsSheet(
 /           ...delete runner's results page
 /           ...delete ruuner's (indexed) row in Runners table
 /           ...rename runners (indexed) sheets below that
+/
 */
 
 function GetRunnerDetails(thisPage) {
@@ -1381,6 +1383,21 @@ function HoldAgeCategoryInAbsenceofDoB(runnerNameId,ageCategory) {
       .setValue(ageCategory);
 }
 
+function SnatchAgeCategoryIfHeld(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  if (resultsSheet) {
+    let ageCategory = resultsSheet
+      .getRange(gc.resultsTempAgeCatCELL)
+      .getValue();
+    resultsSheet    // and clear temporary holding
+      .getRange(gc.resultsTempAgeCatCELL)
+      .clearContent();
+    return ageCategory;
+  }
+  return null;
+} 
+
 function CheckConsecFails(runnerNameId) {
   let resultsSheet = gv.activeSpreadsheet
     .getSheetByName(runnerNameId);
@@ -1403,6 +1420,16 @@ function ResetConsecFails(runnerNameId) {
   if (resultsSheet) resultsSheet
     .getRange(gc.resultsConsecFailsCELL)
     .setValue(0);
+}
+
+function GetLastResultDate(runnerNameId) {
+  let resultsSheet = gv.activeSpreadsheet
+    .getSheetByName(runnerNameId);
+  return resultsSheet
+    ? resultsSheet.getRange(
+        gc.resultsDateCOLUMN + resultsSheet.getLastRow()
+      ).getDisplayValue()
+    : null;
 }
 
 function GetFirstResultDate(runnerNameId) {
@@ -1693,15 +1720,13 @@ function RecalibrateDoB(runnerNameId,currentResultRange) {
   let lastFailRange = failedCatch[failedCatch.length-1];
   let firstFailRow = firstFailRange.getRow();
   let lastFailRow = lastFailRange.getRow();
-  let prevSuccessRow = firstFailRow-1;
-  let prevSuccessRange = firstFailRange.offset(-1,0);
-  prevSuccessRow = prevSuccessRange.getRow();   //  = firstFailRow-1;
-  let failedDateValue = resultsSheet
-    .getRange(gc.resultsDateCOLUMN + firstFailRow)
-    .getValue(); 
   let failedAgeCategory = resultsSheet
     .getRange(gc.resultsAgeCatCOLUMN + firstFailRow)
     .getValue();
+  // TODO: What is prev?  Perhaps intervening not in batch that have positions already!!
+  let prevSuccessRow = firstFailRow-1;
+  let prevSuccessRange = firstFailRange.offset(-1,0);
+  prevSuccessRow = prevSuccessRange.getRow();   //  = firstFailRow-1;
   let prevAgeCategory = resultsSheet
     .getRange(gc.resultsAgeCatCOLUMN + prevSuccessRow)
     .getValue();
@@ -1714,29 +1739,48 @@ function RecalibrateDoB(runnerNameId,currentResultRange) {
     && prevAgeCategory == currentAgeCategory // ....change throughout                   
   ) { 
     // ignore recalibrating DoB
-    Logger.log('CAUTION: Ignoring recalirating DoB as '+revisedDoB
-      +' because now succeeding and no evidence of change of age category, '
+    Logger.log('CAUTION: Ignoring recalibrating DoB because now succeeding on '
+      +' result row, '+currentRow+' and no evidence of change of age category, '
       + failedAgeCategory);
     return null;
   } else {
-    let ageFailed = failedAgeCategory.match(/\d+/);
-    let baseAgeYear = Number(ageFailed[0]);
-    let agePrev = prevAgeCategory.match(/\d+/);
-    let prevAgeYear = Number(agePrev[0]);
-    let diffinAgeCat = baseAgeYear-prevAgeYear; // CHECK: what if JM10 or JW10?
-    if (prevAgeCategory == failedAgeCategory)   // up the boundary - older than expected
-      baseAgeYear = baseAgeYear+diffinAgeCat;   // ...as if on next age group, 
-    else                                        // cancel boundary - younger than expected
-      baseAgeYear = baseAgeYear-diffinAgeCat;   // ...as if reverted to prev age group
-    let firstFailDate = new Date(failedDateValue);
-    var adjustedDoB = new Date(firstFailDate);
-    adjustedDoB.setFullYear(adjustedDoB.getFullYear() - baseAgeYear);
-    adjustedDoB.setTime(adjustedDoB.getTime()
-      - (3 * gc.oneDAY)); // assume 3 days BEFORE first fail
+    var adjustedDoB;
+    var explain;
+    if (prevAgeCategory == failedAgeCategory) {   
+      // Case 1: No boundary change in results batch...
+      // Runner hit the older Age Cat prematurely. Anchoring to FIRST fail covers all result positions.
+      let ageNums = failedAgeCategory.match(/\d+/g).map(Number);
+      let milestoneAgeYear = ageNums[1]
+        ? ageNums[1] + 1
+        : ageNums[0] + 1; // e.g. 
+      let firstFailDateValue = resultsSheet
+        .getRange(gc.resultsDateCOLUMN + firstFailRow)
+        .getValue(); 
+      let firstFailDate = new Date(firstFailDateValue);
+      adjustedDoB = new Date(firstFailDate);
+      adjustedDoB.setTime(adjustedDoB.getTime()
+        - (3 * gc.oneDAY)); // 3 days BEFORE first fail
+      adjustedDoB.setFullYear(adjustedDoB.getFullYear()-milestoneAgeYear); 
+      explain = ' since  3 days prior to first failed match (from a batch) on '
+        +firstFailDate.toDateString();
+    } else {                                        
+      // Case 2: Boundary arose in results batch, but that was premature...
+      // Runner remains in the younger Age Cat. Anchoring to LAST fail capture elapsed result positions.
+      let lastFailDateValue = resultsSheet
+        .getRange(gc.resultsDateCOLUMN + lastFailRow)
+        .getValue();
+      let lastFailDate = new Date(lastFailDateValue);
+      adjustedDoB = new Date(lastFailDate);
+      let milestoneAgeYear = Number(failedAgeCategory.match(/\d+/)[0]);
+      adjustedDoB.setFullYear(adjustedDoB.getFullYear() - milestoneAgeYear); 
+      adjustedDoB.setTime(adjustedDoB.getTime()
+        + (3 * gc.oneDAY)); // 3 days AFTER last fail
+      explain = ' since 3 days after the last failed match (from a batch) on '
+        +lastFailDate.toDateString();
+    }
     let revisedDoB = adjustedDoB.toDateString();  // for trace readability and for SS update
     Logger.log('CAUTION: Setting DoB as '+revisedDoB
-      +' since that was 3 days prior to first failed match (from a series) on '
-      +firstFailDate.toDateString());
+      +explain+', but this may need reverted!');
     return revisedDoB;
   }
 }
@@ -1744,12 +1788,28 @@ function RecalibrateDoB(runnerNameId,currentResultRange) {
 // WARNING: An equivalent function (different globals) exists in CoreCode.gs (for EstimateDoBs)
 function SetGCRRunnerDoB(runnerNameId,revisedDoB) {
   let [runnerName,runnerIndex] = runnerNameId.split('_');
-  runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
+  runnerIndex = +runnerIndex;   // ensure row number, 3+10=13 (not concatenated as 310) 
   gv.allRunnersSheet
     .getRange(
       gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
     )
     .setValue(revisedDoB);
+}
+
+function GetRunnerDoB(runnerNameId) {
+  let [runnerName,runnerIndex] = runnerNameId.split('_');
+  runnerIndex = +runnerIndex;   // ensure row number, 3+10=13 (not concatenated as 310) 
+  let formerDoB = gv.allRunnersSheet
+    .getRange(
+      gc.runnersDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
+    )
+    .getDisplayValue();
+  let fixedDoB = gv.allRunnersSheet
+    .getRange(
+      gc.runnersFreezeDoBCOLUMN+(gc.resultsStartROW+runnerIndex)
+    )
+    .getDisplayValue();
+  return [formerDoB,fixedDoB];
 }
 
 /**
@@ -1827,11 +1887,16 @@ async function SyncPositionsPerRunner(
       } else  // at least one success in batch, reset the panic counter
         ResetConsecFails(runnerNameId); 
       if (numFailures > 4) {    // e.g. 9-4 => 5 fails 
-        Logger.log('CAUTION: Due to successive failure to match age group, '
-            +'assuming DoB was an estimate and may need recalibrated...');
-        let revisedDoB = RecalibrateDoB(runnerNameId,resultRange);
-        if (revisedDoB)
-          SetGCRRunnerDoB(runnerNameId, revisedDoB);
+        let [currentDoB,fixedDoB] = GetRunnerDoB(runnerNameId);
+        if (currentDoB == fixedDoB) 
+          Logger.log('CAUTION: Resist recalibrating DoB since assumed frozen at '+fixedDoB);
+        else {
+          Logger.log('CAUTION: Due to successive failures matching age group, assuming DoB, '
+            +currentDoB+' (Fixed: '+fixedDoB+') was an estimate and may need recalibrated...');
+          let revisedDoB = RecalibrateDoB(runnerNameId,resultRange);
+          if (revisedDoB)
+            SetGCRRunnerDoB(runnerNameId,revisedDoB);
+        }
       }
       return moreBatches;
     });
