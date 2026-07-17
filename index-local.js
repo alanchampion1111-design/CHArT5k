@@ -25,6 +25,7 @@ const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends
 const parkrunnerURL = parkrunURL+'/parkrunner/';
 // Assumes each Parkrun domain certificates have been exported (from normal use) and held in GitHub directly
 // TODO: better to place in a certs subfolder (and limit access?)
+const myUserDataDir = 'C:\\CHArT5k-Puppet\\userDataDir';
 const allParkrunCERTS =
   './www.parkrun.org.uk.pem,'+
   './www.parkrun.com.pem,'+
@@ -62,6 +63,7 @@ let cloudBrowser = async (
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
     headless: true,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    userDataDir: myUserDataDir, // recall cookies and certs
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -119,7 +121,7 @@ let killBrowser = async () => {
     if (thisBrowserWSEp) {
       var thisBrowser = await puppeteer
         .connect({ browserWSEndpoint: thisBrowserWSEp });
-      if (thisPageId) {
+      if (thisBrowser && thisPageId) {
         var thisPage = (await thisBrowser.pages())
           .find(page => page.target()._targetId === thisPageId);
         if (thisPage) {
@@ -129,14 +131,23 @@ let killBrowser = async () => {
           console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
         }
       }
-      if (thisBrowser?.isConnected()) {
-        await thisBrowser.close();
-        console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
-        return true;
-      } else {
-        console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
+      let connectedBrowser = false;
+      try {
+        connectedBrowser = typeof thisBrowser.isConnected === 'function' 
+          ? thisBrowser.isConnected() 
+          : false;
+        if (connectedBrowser) {
+          await thisBrowser.close();
+          console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
+          return true;
+        } else {
+          console.warn('WARNING: Browser previously aborted or timed out - WS endpoint: ',thisBrowserWSEp);
+          return false;
+        }
+      } catch (err) {
+        console.warn('WARNING: Browser connection lost, already closed');
         return false;
-      }
+      }  
     } else {
       console.warn('WARNING: Browser previously terminated - WS endpoint:',thisBrowserWSEp);
       return false;
@@ -166,12 +177,16 @@ exports.initBrowser = async (_,res) => {
   if (!initPromise) {     // ...after all resources released
     initPromise = (async () => {
       try {
-        await cloudBrowser(60);  // Launched ok, but browser active in background
-        res.status(200).send(thisBrowserWSEp);
+        await cloudBrowser(60);  // Launched ok, with browser active in background
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(thisBrowserWSEp);
+        // res.status(200).send(thisBrowserWSEp);
       } catch (err) {
         console.error('ERROR: Failed to initialise browser:',err);
         // consider a relaunch with args, --pull from Docker if image is not properly cached!
-        res.status(500).send('ERROR: Failed to initialise browser, '+err);
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('ERROR: Failed to initialise browser, ' + err);
+        // res.status(500).send('ERROR: Failed to initialise browser, '+err);
       } finally {
         // NEVER disconnect because this loses the puppeteer Stealth (plugin) setting!
         // await thisBrowser.disconnect();
@@ -179,7 +194,9 @@ exports.initBrowser = async (_,res) => {
       }
     })();
   } else {  // REDUNDANT - do nothing because browser would normally have been previously launched
-    res.status(200).send(thisBrowserWSEp);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(thisBrowserWSEp);
+    // res.status(200).send(thisBrowserWSEp);
   }
 }
 
@@ -190,10 +207,15 @@ exports.initBrowser = async (_,res) => {
  */
 exports.stopBrowser = async (_, res) => {
   let terminatedOk = await killBrowser();
-  if (terminatedOk)
-    res.status(200).send('Browser terminated successfully');
-  else
-    res.status(204).send('WARNING: Browser previously terminated or timed out');
+  if (terminatedOk) {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('INFO: Browser terminated successfully');
+    // res.status(200).send('Browser terminated successfully');
+  } else {
+    res.writeHead(204, { 'Content-Type': 'text/plain' });
+    res.end('WARNING: Browser previously terminated or timed out');
+    // res.status(204).send('WARNING: Browser previously terminated or timed out');
+  }
 };
 
 /** ______________________________________________________________________________________
@@ -280,7 +302,7 @@ async function loadUrl(thisUrl,
     if (tableCount < 0) {
       console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
       return thisPage;
-    } else {  // TODO? 5k page assumed with full history + PB column (although Gender position in summary missing!)
+    } else {  // 5k page assumed with full history + PB column (Gender position missing!)
       await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
         document.querySelectorAll(selectResultsTABLE).length >= tableCount,
         {timeout: timeMax},tableCount,selectResultsTABLE);
@@ -312,10 +334,14 @@ exports.getUrl = async (req,res) => {
     ? [minClubTableCOUNT,loadDetailSECS] : [minRunnerTableCOUNT,loadSECS]; 
   try {
     var content = await loadUrl(thisUrl,minTableCount,timeoutSecs);
-    res.status(200).send(content);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(content);
+    // res.status(200).send(content);
   } catch (err) {
     console.error(err);
-    res.status(500).send('ERROR: Failed to load URL, '+thisUrl);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end('ERROR: Failed to load URL, '+thisUrl,' - ',err);
+    // res.status(500).send('ERROR: Failed to load URL, '+thisUrl);
   } finally {
     // AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
     // await thisBrowser.disconnect(); 
@@ -697,7 +723,9 @@ exports.filterUrl = async (req,res) => {
     }
   } catch (err) {
     console.error(err);
-    res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching+' - '+ err);
+    // res.status(500).send('ERROR: Failed to load URL, '+thisUrl+' while caching is '+caching ' + err);
   }
   if (thisPage) {
     try {  // Get 2 (or more) positions in series?
@@ -707,11 +735,14 @@ exports.filterUrl = async (req,res) => {
       let acPosition = await filterCategory(thisPage,matchRunner,numRunners,ageCat);
       // 3. Filter by Gender if need to get genderCat position of matchRunner
       let gcPosition = await filterCategory(thisPage,matchRunner,numRunners,genderCat,'gender');
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
       // res.status(200).json({acPosition,agPosition});      // in expected order
-      res.status(200).json({acPosition,agPosition,gcPosition});    // in expected order
+      res.end(JSON.stringify({acPosition,agPosition,gcPosition}));    // in expected order
     } catch (err) {
       console.error('ERROR:',err);
-      res.status(500).send('ERROR: '+err.message);
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('ERROR: '+err.message);
+      // res.status(500).send('ERROR: '+err.message);
     } finally {
       // TODO: await thisPage.close();  // re-use page may fail??, consider new Page for each parkrun results instance
     }
@@ -749,6 +780,7 @@ exports.deleteCookies = async (_,res) => {
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
       executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      userDataDir: myUserDataDir, // clear cookies and certs?
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -761,7 +793,9 @@ exports.deleteCookies = async (_,res) => {
   } catch (err) {
     let resultErr = 'ERROR: Failed to launch browser to delete Cookies\n'+err;
     console.error(resultErr);
-    res.status(500).send(resultErr);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end(resultErr +' - '+ err);
+    // res.status(500).send(resultErr);
   }
   let thisPage = await thisBrowser.newPage();  // Re-use the same Page since not in parallel
   for (var domainUrl of cookieJAR) {
@@ -786,6 +820,7 @@ exports.acceptCookies = async (_,res) => {
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
       headless: true,
       executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      userDataDir: myUserDataDir, // store cookies and certs
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -798,7 +833,9 @@ exports.acceptCookies = async (_,res) => {
   } catch (err) {
     let resultErr = 'ERROR: Failed to launch browser to check Cookies ok\n'+err;
     console.error(resultErr);
-    res.status(500).send(resultErr);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end(resultErr +' - '+ err);
+    // res.status(500).send(resultErr);
   }
   // CAUTION: Although any single parkrun certificate may suffice, ...
   //  ... do not assume the Cookie has been accepted on EACH and every domain!
@@ -816,10 +853,14 @@ exports.acceptCookies = async (_,res) => {
           value: 'some-value',
           domain: domainUrl
         });
-        if (accept) 
+        var result;
+        if (accept) {
+          await new Promise(r => setTimeout(r, 2000)); // Wait 2 second for any animations to finish
           // await accept.click();
-          await thisPage.click(accept);
-        let result = 'Cookies accepted for site, '+domainUrl;
+          await thisPage.click(acceptButton);
+          result = 'Cookies accepted for site, '+domainUrl;
+        } else   // otherwise assume already accepted and simply confirm so!
+          result = 'Assume cookies already accepted for site, ' + domainUrl;
         console.log(result);
         results.push(result);
       } catch (warning) {    // If no Accept button appears, then that is the norm
@@ -838,7 +879,9 @@ exports.acceptCookies = async (_,res) => {
   }
   if (thisPage) await thisPage.close();
   await thisBrowser.close();
-  res.status(200).send(results.join('<br><br>').replace(/\n/g, '<br>'));
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end(results.join('<br><br>').replace(/\n/g, '<br>'));
+  // res.status(200).send(results.join('<br><br>').replace(/\n/g, '<br>'));
 }
 
 /**
@@ -856,7 +899,9 @@ exports.acceptCookies = async (_,res) => {
 */
 exports.browser = async (req,res) => {
   var parsedUrl = url.parse(req.url,true);
+  req.query = parsedUrl.query;
   var path = parsedUrl.pathname;
+  console.log('Path identified: ',path);
   if (path === '/initBrowser')
     exports.initBrowser(req,res);
   else if (path === '/getUrl')
@@ -869,9 +914,9 @@ exports.browser = async (req,res) => {
     exports.acceptCookies(req,res);
   else if (path === '/deleteCookies')
     exports.deleteCookies(req,res);
-  else if (path.includes('wp-content'))// ignore internal relative dependencies
+  else if (path.includes('wp-content'))   // ignore internal relative dependencies
     console.log('INFO: Ignoring local dependencies: '+path);
-  else if (path === '/favicon.ico') {
+  else if (path === '/favicon.ico') {     // ...including icons
     res.writeHead(204, { 'Content-Type': 'image/x-icon' });
     res.end();
   } else {
@@ -881,44 +926,17 @@ exports.browser = async (req,res) => {
   } 
 }
 
-// Added for local execution...
-
-const server = http.createServer((req, res) => {
-  // 1. Enable CORS so Google Sheets can talk to your local machine
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Pinggy-No-Screen');
-  // Handle preflight OPTIONS requests
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-  // 2. Add express-like res.status().send() helper methods because original  uses res.status(404).send(...)
-  res.status = function(statusCode) {
-    this.statusCode = statusCode;
-    return this;
-  };
-  res.send = function(message) {
-    if (!res.headersSent) {
-      res.setHeader('Content-Type', 'text/plain');
-      res.writeHead(this.statusCode || 200);
-      res.end(message);
-    }
-  };
-  // 3. Hand the request off directly to your main routing function!
-  exports.browser(req, res)
-    .catch(err => {
-      console.error("Error handling request:", err);
-      if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end("Internal Server Error: " + err.message);
-      }
+// Define the server simply
+const nodeServer = http.createServer((req, res) => {
+    // Direct handoff to your existing logic
+    exports.browser(req, res).catch(err => {
+        console.error("Error:", err);
     });
 });
+
 // Start listening on port 36007
-server.listen(PORT, HOST, () => {
-  console.log('===================================================');
-  console.log('🚀 Local Server is active on '+browserURL);
-  console.log(`===================================================`);
+nodeServer.listen(PORT, HOST, () => {
+  console.log('=====================================================================================');
+  console.log('🚀 Local Node Server is active on '+browserURL);
+  console.log('=====================================================================================');
 });
