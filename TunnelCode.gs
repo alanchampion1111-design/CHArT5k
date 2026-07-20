@@ -1,8 +1,8 @@
 /* -------------------------------------------------------------------------------------
 /
 / This is the client-end GoogleApp Script that resides within the Family Template
-/ Google Spreadsheet.  It complements the server side JavaScript index.js script sinc
-/ dependent on those asynchronous GCR functions.
+/ Google Spreadsheet.  It complements the server side JavaScript index-ngrok.js script since
+/ dependent on those asynchronous import functions.
 / It primarily consist of a series of eight macro-based functions aimed at automating
 / the capture of results (Phase II) including positions (Phase III), and subsequently
 / automating the retro catch-up (Phase IV) and the automation of adding new members
