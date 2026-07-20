@@ -599,6 +599,7 @@ async function filterPositions(
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
     await thisPage.type(selectINPUT," ");                //      ...to ensure options become visible
+    await new Promise(r => setTimeout(r, 500));
     await thisPage.waitForSelector(selectOPTIONS,        //  2.  Skip to the multi drop-down list of options
       {visible: true, timeout: loadDetailSECS*1000});                              //      ...that are visible
     let optionExists = await thisPage.evaluate((selectCatOPTION,expectedVALUE) =>
@@ -621,7 +622,7 @@ async function filterPositions(
         console.log('Successfully filtered '+expectedVALUE);
     }
   } catch (err) {
-    console.error('ERROR: Unable to click on option with data-value as'+expectedVALUE+'\n'+err);
+    console.error('ERROR: Unable to click on option with data-value as '+expectedVALUE+'\n'+err);
   }
 }
 
