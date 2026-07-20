@@ -1,14 +1,16 @@
-// Multiple steps to do:
-//    0. Verify base image is in Artifact Registry (done)
-//    1. Verify triggers gets latest sources from GitHub including this index.js file (done)
-//    2. Verify build image uses Docker to install Chrome (done)
-//    3. Verify Chrome browser works directly on server after build (done)
-//    4. Verify server side, thisBrowser activated by client from Google Spreadsheet app (done)
-//    5. Verify sample page retrieved ok and that thisBrowser and thisPage persists (done)
-//    6. Upload profile/certificates for access to www.parkrun.owaitfoultsrrg.uk (done)
-//    7. Verify allowed to load content for www.parkrun.org.uk (done)
-//    8. Verify stealth access to individual parkrunner results table (tbd - although disallowed)
+// This index-ngrok.js runs in laptop and assumes installed:
+//  a. java SDK
+//  b. node.js
+//  c. Puppeteer (with stealth plugin option)
+//  d. ngrok (tunnel)
+// Operation: start the node service and the tunnel
+//  cd C:\CHArT5k-Puppet
+//  C:\CHArT5k-Puppet> ngrok start --all --config ngrok.yml 
+//  C:\CHArT5k-Puppet> node index-ngrok.js
+// Test in headless: false mode throughout
 
+const cookieSNAP = "%7B%22categories%22%3A%5B%22necessary%22%2C%22personalisation%22%2C%22analytics%22%5D%2C%22revision%22%3A1%2C%22data%22%3Anull%2C%22consentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22consentId%22%3A%22c799ab2b-e969-4a07-8f78-d688abbc9fff%22%2C%22services%22%3A%7B%22necessary%22%3A%5B%5D%2C%22personalisation%22%3A%5B%5D%2C%22analytics%22%3A%5B%22ga%22%2C%22mapbox%22%2C%22youtube%22%2C%22twitter%22%5D%7D%2C%22languageCode%22%3A%22en%22%2C%22lastConsentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22expirationTime%22%3A1798255525189%7D";
+const reciteSNAP = "%7B%22darkMode%22%3A%7B%22enabled%22%3Afalse%7D%2C%22style%22%3A%7B%22backgroundColor%22%3Anull%2C%22font%22%3A%7B%22color%22%3Anull%2C%22face%22%3Anull%2C%22size%22%3Anull%7D%2C%22link%22%3A%7B%22color%22%3Anull%7D%2C%22focus%22%3A%7B%22color%22%3Anull%7D%2C%22marginSize%22%3Anull%2C%22textAlign%22%3Anull%2C%22ruler%22%3A%7B%22enabled%22%3Afalse%2C%22color%22%3Anull%7D%2C%22screenMask%22%3A%7B%22enabled%22%3Afalse%2C%22color%22%3Anull%2C%22opacity%22%3A1%2C%22size%22%3A%7B%22label%22%3A%221%22%2C%22height%22%3A160%7D%7D%2C%22wwHighlight%22%3A%7B%22color%22%3Anull%7D%2C%22lineHeight%22%3Anull%2C%22charSpacing%22%3Anull%7D%2C%22dictionary%22%3A%7B%22enabled%22%3Afalse%7D%2C%22player%22%3A%7B%22autoplay%22%3Atrue%2C%22continuePlay%22%3Afalse%2C%22playbackSpeed%22%3A1%7D%2C%22textMode%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pauseMedia%22%3A%7B%22active%22%3Afalse%7D%2C%22focusText%22%3A%7B%22enabled%22%3Afalse%7D%2C%22imageOptions%22%3A%7B%22hideImages%22%3Afalse%2C%22showAltText%22%3Afalse%7D%2C%22playerControls%22%3A%7B%22enabled%22%3Atrue%2C%22movable%22%3Afalse%2C%22top%22%3Anull%2C%22left%22%3Anull%7D%2C%22language%22%3Anull%2C%22direction%22%3A%22%22%2C%22voice%22%3A%7B%22gender%22%3A%22f%22%7D%2C%22magnifier%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pointer%22%3A%7B%7D%2C%22readingaid%22%3A%7B%22enabled%22%3Afalse%2C%22showWarningModal%22%3Atrue%7D%2C%22simplifycontent%22%3A%7B%22enabled%22%3Afalse%7D%2C%22cssFilter%22%3A%7B%22enabled%22%3Afalse%7D%2C%22userGuide%22%3A%7B%22enabled%22%3Afalse%2C%22currentPage%22%3A1%2C%22prevPage%22%3Anull%2C%22showWelcome%22%3Afalse%2C%22showWhatsNew%22%3Afalse%7D%2C%22bsl%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pageStructure%22%3A%7B%22enabled%22%3Afalse%2C%22openTab%22%3A%22headings%22%7D%2C%22sidebar%22%3A%7B%22selectedTab%22%3Anull%2C%22currentTabs%22%3A%5B%5D%7D%2C%22voices%22%3A%7B%22en%22%3A%22Amy%22%7D%7D";
 // const functions = require('@google-cloud/functions-framework');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
@@ -27,7 +29,6 @@ const { exec } = require('child_process');
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
 const chromePATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const myUserDataDir = 'C:\\CHArT5k-Puppet\\userDataDir';
 // Assumes each Parkrun domain certificates have been exported (from normal use) and held in GitHub directly
 // TODO: better to place in a certs subfolder (and limit access?)
 const allParkrunCERTS =
@@ -38,12 +39,21 @@ const allParkrunCERTS =
   './www.parkrun.com.au.pem,'+
   './www.parkrun.ca.pem,'+
   './www.parkrun.jp.pem';
+const cookieJAR = [
+  'https://www.parkrun.org.uk',  // may be used internationally for any runner
+  'https://www.parkrun.com',     // this is required for consolidated results for a group date
+  'https://www.parkrun.co.nl',   // this and others may be used for an event results, wherever
+  'https://www.parkrun.com.de',
+  'https://www.parkrun.com.au',
+  'https://www.parkrun.ca',
+  'https://www.parkrun.jp',
+  'https://www.parkrun.co.za'
+];
 
 let prevPage;         // retain thisPage on weekly import (minimal cache => single page)
 let prevFilterUrl;    // recall previous event URL determines re-use of retained prevPage
 let browserTimeout;   // for browser session
 let browserTimer;
-let cachedPages = {};    // stores separate open URL pages when caching
 const sessionMINS = 60;  // browser session timeout about one hour
 const launchSECS = 50;  // initial first page load timeout
 const pageSECS = 3;     // Assume 10 seconds BETWEEN page accesses on parkrun site relies on stealth mode?
@@ -64,9 +74,8 @@ let cloudBrowser = async (
 {
   browserTimeout = sessionMins*60*1000;
   var thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
-    headless: true,
+    headless: false,
     executablePath: chromePATH,
-    userDataDir: myUserDataDir, // recall cookies and certs
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -94,42 +103,23 @@ let cloudBrowser = async (
       clearTimeout(browserTimer);
     }
   }, browserTimeout);
-  thisBrowserWSEp = thisBrowser ? thisBrowser.wsEndpoint() : null;  // return to client (although also global)
-  console.log('Retained browser WS Endpoint:',thisBrowserWSEp);
-  cachedPages = {};  // applicable to filterUrl only for shared events on same date
+  thisBrowserWSEp = thisBrowser
+    ? thisBrowser.wsEndpoint()
+    : null;  // return to client (although also global)
+  if (thisBrowserWSEp)
+    console.log('INFO: Retained browser endpoint: ',thisBrowserWSEp);
   try {
-    var thisPage = await thisBrowser.newPage();
-    if (thisPage) {
-      thisPageId = await thisPage.target()._targetId;
-      console.log('Retained page ID,',thisPageId);
-      thisPage.setDefaultTimeout(loadSECS*1000);  // Set the timeout for loading the page
-      await thisPage.goto('about:blank',{waitUntil: 'domcontentloaded'});    // Verify the browser is ready
-      var content = await thisPage.content();    // always ensure page is fully loaded
-      console.log('Blank page fully loaded');
-    } else {
-      console.warn('WARNING: Potentially failed to retain page ID,',thisPageId);
-    }
+    var pages = await thisBrowser.pages();
+    var thisPage = pages[0]; // blank page by default
+    thisPage.setDefaultTimeout(loadSECS*1000);  // Set the timeout for loading content
+    let targetPage = await thisPage.target();
+    thisPageId = targetPage._targetId;
+    if (thisBrowser.process() != null)
+      console.log('INFO: Blank page (ID: '+thisPageId+') fully ready on browser (EP: '+thisBrowserWSEp+')');
+    else
+      console.warn('WARNING: Unable to retain page (ID: '+thisPageId+') on browser (EP: '+thisBrowserWSEp+')');
   } catch (err) {
-    console.error('ERROR: Getting page ID:', err);
-  }
-}
-
-function forceKillBrowser() {
-  try {
-    const cmd = `wmic process where "commandline like '%C:\\\\CHArT5k-Puppet\\\\userDataDir%'" get ProcessId`;
-    const output = execSync(cmd).toString();
-    const pids = output.split('\n').slice(1).filter(line => line.trim() !== '');
-    pids.forEach(pid => {
-      console.log(`Killing process tree for PID: ${pid}`);
-      exec(`taskkill /F /T /PID ${pid.trim()}`);    // /F = Force, /T = Tree (kills children), /PID = Target
-    });
-    let lockFile = path.join(myUserDataDir,'SingletonLock');
-    if (fs.existsSync(lockFile)) {
-      fs.unlinkSync(lockFile);
-      console.log('Successfully removed orphaned SingletonLock.');
-    }
-  } catch (e) {
-    console.log("Cleanup complete or no processes found.");
+    console.error('ERROR: Failed to ready the browser (EP: '+thisBrowserWSEp+'): ', err);
   }
 }
 
@@ -140,33 +130,22 @@ function forceKillBrowser() {
 let killBrowser = async () => {
   try {
     if (thisBrowserWSEp) {
-      var thisBrowser = await puppeteer
-        .connect({ browserWSEndpoint: thisBrowserWSEp });
-      if (thisBrowser && thisPageId) {
-        var thisPage = (await thisBrowser.pages())
+      var thisBrowser = await puppeteer.connect({
+        browserWSEndpoint: thisBrowserWSEp,
+        defaultViewport: null // Prevents default viewport sizing issues
+      });
+      if (thisBrowser) {
+        var whatPage = (await thisBrowser.pages())
           .find(page => page.target()._targetId === thisPageId);
-        if (thisPage) {
-          await thisPage.close();
-          console.log('Page closed successfully - Page Id:',thisPageId);
-        } else {
+        if (whatPage) {
+          await whatPage.close();
+          console.log('INFO: Page closed successfully - Page Id: ',thisPageId);
+        } else
           console.warn('WARNING: Page previously closed or timed out - Page Id: ',thisPageId);
-        }
-      }
-      let connectedBrowser = false;
-      try {
-        connectedBrowser = typeof thisBrowser.isConnected === 'function' 
-          ? thisBrowser.isConnected() 
-          : false;
-        if (connectedBrowser) {
-          await thisBrowser.close();
-          console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
-          return true;
-        } else {    // force kill any process to unlock
-          console.warn('WARNING: Browser unreachable, attempting force-cleanup...');
-          forceKillBrowser();
-          return true; // Return success since forced the environment to clear
-        }
-      } catch (err) {
+        await thisBrowser.close();
+        console.log('Browser terminated successfully - WS endpoint:',thisBrowserWSEp);
+        return true;
+      } else {
         console.warn('WARNING: Browser connection lost, already closed');
         return true;  // as if closed
       }  
@@ -178,11 +157,11 @@ let killBrowser = async () => {
     console.error('FATAL: Failed to close page and/or terminate browser:',err);
     return false;  // unsafe to continue if unknown reason
   } finally {  // executed in all cases, even before the returns
+    console.log('INFO: Expected browser page also closed: ',thisPageId);
     thisBrowserWSEp = null;
     thisPageId = null;
     prevPage = undefined;
     prevFilterUrl = undefined;
-    console.log('INFO: Expected browser page also closed :',thisPageId);
     clearTimeout(browserTimer);
   }
 }
@@ -240,9 +219,11 @@ exports.stopBrowser = async (_, res) => {
 
     exports.getrUrl
       -> loadUrl
+        acceptCookiesInSitu
 
     exports.filterUrl
       -> loadUrl
+        acceptCookiesInSitu
       sortAgeGrade
         waitForResults
         sortPositions
@@ -259,9 +240,32 @@ exports.stopBrowser = async (_, res) => {
 */
 
 /**
+ * Accepts cookie on this loaded page; continueg if no prompt
+ *   @param {Page Object} thisPage may be prompted for cookies (first time this session)
+ *   @param {string} thisUrl - assume URL pre-loaded (within 10 secs?)
+ */
+async function acceptCookiesInSitu(thisPage,thisUrl) {
+  // potentially skip if accepted on this domain already for this session
+  // assume previously thisPage.waitForNetworkIdle({ idleTime: 500 }); 
+  const acceptBUTTON = `button.cm__btn[data-role="all"]`;
+  try {
+    let accept = await thisPage.waitForSelector(acceptBUTTON, {timeout: 1000});
+    if (accept) {
+      await accept.click();
+      console.log('WARNING: Cookies prompt intercepted and accepted.');
+      // Add a tiny artificial delay after clicking to simulate human UI interaction
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 500));
+    }
+  } catch (e) {
+    console.log('INFO: No Cookies prompted when page loaded.');
+    // No banner found, continue.
+  }
+}
+
+/**
  * Loads URL in Puppeteer and waits for page load
  *   @param {string} thisUrl - URL to load
- *   @param {number} tableCount [default 3] -  (-1 meansd returns thisPage)
+ *   @param {number} tableCount [default 3] -  (-1 means returns thisPage)
  *   @param {number} timeSecs - max timeout (in secs) to load (with table?)
  *   @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
  *  @returns the HTML content when table # is loaded, or thisPage object for alternative detailed searching
@@ -313,14 +317,19 @@ async function loadUrl(thisUrl,
       }
     }
     await thisPage.setDefaultTimeout(timeMax); // Ensure active page timeout matches current transaction scope
-    await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});
+    await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});    // alternatively, networkidle0
+    await acceptCookiesInSitu(thisPage);  // in case prompted at start (potentially skip per domain on this same session)
+    await thisPage.waitForNavigation
+      ({waitUntil: 'networkidle2', timeout: 3000})
+      .catch(e => console.log('INFO: Navigation settled or already idle.')
+      );
     if (tableCount < 0) {
       console.log('Event results page loaded for detailed sorting/filtering of URL,\n',thisUrl);
       return thisPage;
     } else {  // 5k page assumed with full history + PB column (Gender position missing!)
       await thisPage.waitForFunction((tableCount,selectResultsTABLE) =>
         document.querySelectorAll(selectResultsTABLE).length >= tableCount,
-        {timeout: timeMax},tableCount,selectResultsTABLE);
+        {timeout: 10000},tableCount,selectResultsTABLE);
       console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
       return await thisPage.content();   // when page content is fully loaded
     }
@@ -353,10 +362,10 @@ exports.getUrl = async (req,res) => {
     res.end(content);
     // res.status(200).send(content);
   } catch (err) {
-    console.error(err);
+    // console.error(err);
+    res.end('Ready to inspect (F12)');
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end('ERROR: Failed to load URL, '+thisUrl,' - ',err);
-    // res.status(500).send('ERROR: Failed to load URL, '+thisUrl);
+    res.end('ERROR: Failed to load URL, '+thisUrl+' - ',err);
   } finally {
     // AVOID disconnect because this loses the puppeteer Stealth (plugin) setting!
     // await thisBrowser.disconnect(); 
@@ -656,7 +665,7 @@ async function removeFilter(thisPage,category) {    // REDUNDANT since replaced 
 }
 
 /**
- *  Effects a filter of the results by category (agegroup/gender) and then remopves that filter
+ *  Effects a filter of the results by category (agegroup/gender) and then removes that filter
  *    @param {Page} thisPage - Puppeteer page object containing results for an event
  *    @param {string} matchRunner - Name & Surname to find in filtered table of runners
  *    @param {number} numRunners - total number of runners including Unknowns (or unspecified category)
@@ -714,15 +723,6 @@ exports.filterUrl = async (req,res) => {
   // console.log('caching type: '+typeof caching);
   var thisPage;
   // TODO: Instead of caching multiple pages per import, need to consider session-based multiple pages per spreadsheet!
-  // if (thisUrl in cachedPages) {        // typically, many runners at the same event (during weekly import only)
-    // console.log('No. of cached pages since caching: '+Object.keys(cachedPages).length);
-    // console.log('Re-using detailed cached results for URL, '+thisUrl);
-    // thisPage = cachedPages[thisUrl];    // ...and so no delay in loading OR in awaiting enforced delay between each
-  // } else {
-    // cachedPages[thisUrl] = thisPage;
-    // console.log('Cached results page for URL, '+thisUrl);
-    // console.log('No. of cached pages after caching: '+Object.keys(cachedPages).length);
-  // }
   try {
     if (caching && prevPage && thisUrl == prevFilterUrl) {
       thisPage = prevPage;
@@ -764,44 +764,21 @@ exports.filterUrl = async (req,res) => {
   }
 }
 
-const cookieJAR = [
-  'https://www.parkrun.org.uk',  // may be used interationally for any runner
-  'https://www.parkrun.com',     // this is required for consolidated results for a group date
-  'https://www.parkrun.co.nl',   // this and others may be used for an event results, wherever
-  'https://www.parkrun.com.de',
-  'https://www.parkrun.com.au',
-  'https://www.parkrun.ca',
-  'https://www.parkrun.jp',
-  'https://www.parkrun.co.za'
-];
-
-async function deleteOldCookies(page,targetUrl) {
-  try {
-    let cookies = await page.cookies();
-    if (await cookies.find(c => c.name === 'psc')) {
-      await page.deleteCookie({name:'psc',url:targetUrl});
-      await page.reload();
-    }
-  } catch (err) {
-    console.log('Cookie for url,',targetUrl,'to be deleted was not found:',err);
-  }
-}
-
 exports.deleteCookies = async (_,res) => {
   // No request because handles ALL parkrun domain URLs
-  // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
   var thisBrowser;
   try {
+    console.log("Attempting to launch browser...")
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
-      headless: true,
+      headless: false,
       executablePath: chromePATH,
-      userDataDir: myUserDataDir, // clear cookies and certs?
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--cert='+allParkrunCERTS,
         '--verbose',
+        '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
       ],
       timeout: launchSECS*1000,       // max launch time
     });
@@ -820,28 +797,31 @@ exports.deleteCookies = async (_,res) => {
       await thisPage.deleteCookie({name: 'psc', url: domainUrl});
     } catch (err) {
       console.error('ERROR: unable to delete parkrun cookie for '+domainUrl+'\n'+err);
-    } finally {
-      await thisPage.close();
-      if (thisBrowser) await thisBrowser.close();
     }
   }
+  await thisPage.close();
+  if (thisBrowser)
+    await thisBrowser.close();
+}
+
+function getConsent() {
+  return cookieSNAP;
 }
 
 exports.acceptCookies = async (_,res) => {
   // No request because handles ALL parkrun domain URLs
-  // TODO: This assumes initBrowser previously launched, and therefore ought to rely on the WSEP already set
   var thisBrowser;
   try {
     thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
-      headless: true,
+      headless: false,
       executablePath: chromePATH,
-      userDataDir: myUserDataDir, // store cookies and certs
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--cert='+allParkrunCERTS,
         '--verbose',
+        '--lang=en-GB'    //  ensures the date formats appear as dd/mm/yyyy
       ],
       timeout: launchSECS*1000,       // max launch time
     });
@@ -863,17 +843,35 @@ exports.acceptCookies = async (_,res) => {
       try {
         await thisPage.waitForSelector(acceptButton, {timeout: 5000});
         let accept = await thisPage.$(acceptButton);
-        await thisPage.setCookie({
-          name: 'psc',
-          value: 'some-value',
-          domain: domainUrl
-        });
+        let domainObj = new URL(domainUrl);
+        /*  skip setting the cookie here; let the 'Accept' button do that correctly!
+        await thisPage.setCookie(
+          {
+            name: 'psc',
+            value: getConsent(),
+            domain: '.'+domainObj.hostname, // prefix matches expectations
+            path: '/',
+            expires: '2027-01-27',  // aligned with psc consent date (+ 7 months?) 
+            secure: true,
+            sameSite: 'Lax'
+          },
+          {
+            name: 'Recite.Preferences',
+            value: reciteSNAP,
+            domain: 'www.parkrun.com',
+            path: '/',
+            secure: true,
+            sameSite: 'Strict' 
+          }
+        );
+        */
         var result;
         if (accept) {
           await new Promise(r => setTimeout(r, 2000)); // Wait 2 second for any animations to finish
           // await accept.click();
           await thisPage.click(acceptButton);
           result = 'Cookies accepted for site, '+domainUrl;
+          await new Promise(r => setTimeout(r, 20000)); // Wait 20 seconds allows F12 inspect of Applications
         } else   // otherwise assume already accepted and simply confirm so!
           result = 'Assume cookies already accepted for site, ' + domainUrl;
         console.log(result);
