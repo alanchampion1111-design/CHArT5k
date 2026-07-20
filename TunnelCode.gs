@@ -193,8 +193,8 @@ const tc = {
   // browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',  // shared GCR service
   browserURL: "https://harmless-subarctic-barrier.ngrok-free.dev", // shared local service (stable ngrok for 1GB & 20k requests/mth)
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
-  batchSizeMAX: 9,
-  importTimeSECS: 55, // avoid hitting maxTimeSECS:  ~6-10 imports before trigger recursively
+  batchSizeMAX: 13, // equivalent to 3 months of results for a single runner
+  importTimeSECS: 58, // avoid hitting maxTimeSECS:  ~6-10 imports before trigger recursively
   maxTimeSECS: 6*60,  // GAS execution limit is 6 mins
   oneDAY: 24*60*60*1000  // milliseconds in a day.
 };
