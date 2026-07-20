@@ -29,9 +29,8 @@
  * 
  */
 
-// Global constants and varaibles must be defined within a this file IF potentially a triggered
-// TODO: Sync gcrFunctions.gs with localFunctions.gs
-const lc = {
+// Core global constants and variables must be defined within this file IF potentially triggered
+const cc = {
   debug: true,            // WARNING: may slow down performance
   defaultDATE: '1-Sep-1939',  // considered a default unknown date (start of WWII)
   resultsStartROW: 3,
@@ -84,17 +83,17 @@ const lc = {
   chartColOFFSET: -2,     // column B from D on any performances chart sheet (e.g. for Leagues)
   trendColOFFSET: 12      // column N from B on runner's own trend chart sheet
 };
-var lv = {
+var cv = {
   activeSpreadsheet: SpreadsheetApp
     .getActiveSpreadsheet(),      // allows dynamic shift to new context
   startTime: Date.now()
 };
-lv.activeSpreadsheetId = lv.activeSpreadsheet.getId();       // the originator ID
-lv.activeSpreadsheetName = lv.activeSpreadsheet.getName();
-lv.allRunnersSheet = lv.activeSpreadsheet
-  .getSheetByName(lc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
-if (lc.debug)
-  Logger.log('Current Spreadsheet Id: '+lv.activeSpreadsheetId);  
+cv.activeSpreadsheetId = cv.activeSpreadsheet.getId();       // the originator ID
+cv.activeSpreadsheetName = cv.activeSpreadsheet.getName();
+cv.allRunnersSheet = cv.activeSpreadsheet
+  .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
+if (cc.debug)
+  Logger.log('Current Spreadsheet Id: '+cv.activeSpreadsheetId);  
 const scrollCOL = 13;         // Scroll down when selecting column M beyond the table
 
 /* ---------------------------------------------------------------------------
@@ -132,13 +131,13 @@ const scrollCOL = 13;         // Scroll down when selecting column M beyond the 
  *  @return {Array of strings} - two distinct ranges to protect: e.g. A1:W,X1:Z  
  */
 function GetProtectResultsRanges(
-  numRowsChange = lc.maxChangeROWS)
+  numRowsChange = cc.maxChangeROWS)
 {
   const resultsSheet = SpreadsheetApp.getActiveSheet();
   const runnerNameId = resultsSheet.getName();
   let lastColumn = resultsSheet.getLastColumn();
   let lastRow = resultsSheet.getLastRow();
-  let maxRowsChange = Math.min(numRowsChange,lastRow-lc.resultsStartROW);  // dividing line...
+  let maxRowsChange = Math.min(numRowsChange,lastRow-cc.resultsStartROW);  // dividing line...
   let lastRowFreeze = lastRow-maxRowsChange;
   let rangeFreeze = resultsSheet
     .getRange(1,1,lastRowFreeze,lastColumn)                             // ...all above
@@ -186,7 +185,7 @@ function ReallowRunnerResultsSheetWithException(rangeNotation) {
   UnprotectResultsSheet(resultsSheet);
   ProtectResultsSheetWithException(resultsSheet,rangeNotation);
   let runnerNameId = resultsSheet.getName();
-  if (lc.debug)
+  if (cc.debug)
     Logger.log("Reprotected results in sheet, "+runnerNameId+
       " sheet, except for the new results range, "+rangeNotation);
 }
@@ -203,12 +202,12 @@ function GetResultsEditorsForRunner(runnerNameId) {
     Logger.log('ERROR: '+runnerNameId+' is not a valid results sheet');
     return null;
   } else {
-    var editorsCell = lv.allRunnersSheet.getRange(lc.runnersStartROW+parseInt(index),editorsCOL);
-    if (lc.debug)
+    var editorsCell = cv.allRunnersSheet.getRange(cc.runnersStartROW+parseInt(index),editorsCOL);
+    if (cc.debug)
       Logger.log(editorsCell.getA1Notation());    // e.g. "D16" for runner_index, Alan_13
     var editorEmails = editorsCell.getValue().split(",");
     editorEmails = editorEmails.map(email => email.trim());
-    if (lc.debug)
+    if (cc.debug)
       Logger.log("Latest results on sheet, "+runnerNameId+" may be added/changed by:\n"
         +editorEmails.join(","));
     return editorEmails;
@@ -260,7 +259,7 @@ function ReprotectResultsRanges(rangeFreeze,rangeChange) {
       editorsEmails.forEach(email => {        // edit rights extended to specific Editor
         ProtectResultsRangeByEditor(email,thisProtection);
       });
-      if (lc.debug)
+      if (cc.debug)
         Logger.log("Changes permitted in range, "+changeRange+" only, on results sheet, "+
           runnerNameId+", allowing changes by:\n"+(editorsEmails.join(",")));
     } else {
@@ -284,13 +283,13 @@ function ReprotectResultsRanges(rangeFreeze,rangeChange) {
 function ReprotectResultsSheet(
   runnerNameId = 'Alan_13')
 {
-  const resultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
+  const resultsSheet = cv.activeSpreadsheet.getSheetByName(runnerNameId);
   if (resultsSheet) {
     resultsSheet.activate();
     UnprotectResultsSheet(resultsSheet);  // whether legacy/temporary
-    let [rangeFreeze,rangeChange] = GetProtectResultsRanges(lc.maxChangeROWS);
+    let [rangeFreeze,rangeChange] = GetProtectResultsRanges(cc.maxChangeROWS);
     ReprotectResultsRanges(rangeFreeze,rangeChange);
-    if (lc.debug)
+    if (cc.debug)
       Logger.log("Reprotections applied on results sheet, "+runnerNameId);
   }
 }
@@ -300,8 +299,8 @@ function ReprotectResultsSheet(
  * to add/change latest results.
  */
 function ReprotectResultsSheetPerRunner() {   // entry-point usage
-  const runnersRANGE = lc.runnersNameCOLUMN+lc.resultsStartROW+":"+lc.runnersSurnameCOLUMN;
-  let runnerFullNames = lv.allRunnersSheet.getRange(runnersRANGE)
+  const runnersRANGE = cc.runnersNameCOLUMN+cc.resultsStartROW+":"+cc.runnersSurnameCOLUMN;
+  let runnerFullNames = cv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
     .filter(name => name[0] != "")
     .map(name => [name[0],name[1]]);
@@ -330,7 +329,7 @@ const activeNOTE = 'If available, please include a HYPERLINK formula to any offi
 function AppendNewResultRow(resultsSheet) {
   resultsSheet.appendRow([""]);
   let lastResultRow = resultsSheet.getLastRow();
-  resultsSheet.getRange(lastResultRow,lc.PBtickBoxCOL)
+  resultsSheet.getRange(lastResultRow,cc.PBtickBoxCOL)
     .clearContent();  // ensure undefined (instead of FALSE) for MAP to be effective
   resultsSheet.setActiveSelection('A'+lastResultRow);
   return lastResultRow;
@@ -347,15 +346,15 @@ function AppendNonParkrunResult() {     // user
   if (isNaN(index)) {
     Logger.log('ERROR: '+runnerNameId+' is NOT a results sheet (like Alan_13)');
     return;
-  } else if (lc.debug)
+  } else if (cc.debug)
     Logger.log('Attempting to add non-parkrun result to '+runnerNameId+'...');
   let userEmail = Session.getEffectiveUser().getEmail();  // user permitted?
   let protection = resultsSheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)[1];
-  // const ownerEmail = lv.activeSpreadsheet.getOwner().getEmail();
+  // const ownerEmail = cv.activeSpreadsheet.getOwner().getEmail();
   let editorEmails = (protection)   // get actual list of editors from existing protection
     ? protection.getEditors().map(editor => editor.getEmail())
     : GetResultsEditorsForRunner(runnerNameId);   // ...OR get expected list (if not already set)
-   if (lc.debug)
+   if (cc.debug)
     Logger.log('Checking user, '+userEmail+' is in the authorised list:\n'+
       editorEmails+'\n'+', which includes the spreadsheet owner');
   if (editorEmails && editorEmails.includes(userEmail)) { 
@@ -378,17 +377,17 @@ function AppendNonParkrunResult() {     // user
  */
 function onEditDetectNeedToReprotect(event) {  // trigger on Edit runs as spreadsheet owner
   const col = event.range.getColumn();
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Column: '+col+'; Row: '+event.range.getRow()+'; Value: '+event.value);
   if (col !== onEditCOL || event.value === activeVALUE)
     return;   // exit ASAP to reduce interruption from interim/other edits
   let resultsSheet = event.range.getSheet();
   // Skip sheet if table does not contain Event results
-  if (resultsSheet.getRange(lc.eventHeaderCELL).getValue() !== lc.resultTABLE) return;
+  if (resultsSheet.getRange(cc.eventHeaderCELL).getValue() !== cc.resultTABLE) return;
   let runnerNameId = event.source.getName();    // OR resultsSheet.getName()
   const resultRow = event.range.getRow();
   if (resultsSheet.getRange(resultRow,2).getDisplayValue()) {
-    if (lc.debug)
+    if (cc.debug)
       Logger.log('Reprotecting results sheet, '+runnerNameId+'...');
     resultsSheet.activate();      // pre-requisite to get range
     ReprotectResultsSheet(runnerNameId);  // shift protection down 1 row
@@ -405,21 +404,21 @@ function ScrollBeyondLastResult() {
   // Select the first empty row in preparation for pasting a non-parkrun entry
   // Conveniently used to skip to the bottom of the table below the latest result
   var resultsSheet = SpreadsheetApp.getActiveSheet();
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Running '+functionNAME+' on sheet: '+resultsSheet.getName());
   var lastRow = resultsSheet.getLastRow();
-  if (lastRow <= lc.resultsStartROW) return; // table has no results yet
+  if (lastRow <= cc.resultsStartROW) return; // table has no results yet
   // Find an empty row from the bottom of the table since more efficient
   var ri = lastRow;
-  for (; ri>lc.resultsStartROW; ri--) 
-    if (resultsSheet.getRange(ri,lc.pasteCOL).getDisplayValue()) break;
+  for (; ri>cc.resultsStartROW; ri--) 
+    if (resultsSheet.getRange(ri,cc.pasteCOL).getDisplayValue()) break;
   // When last row has a result, prepare for pasting new result(s) below
   if (ri == lastRow) {
     var newRow = resultsSheet.appendRow([""]);
-    resultsSheet.getRange(newRow.getLastRow(),lc.PBtickBoxCOL).clearContent();
+    resultsSheet.getRange(newRow.getLastRow(),cc.PBtickBoxCOL).clearContent();
   }
   // Always select the row below the last result
-  resultsSheet.getRange(ri+1,lc.pasteCOL).activate();
+  resultsSheet.getRange(ri+1,cc.pasteCOL).activate();
 }
 
 /**
@@ -440,9 +439,9 @@ function onSelectionChange(e) {
   if (range.getColumn() !== scrollCOL) return
   var resultsSheet = e.source.getActiveSheet();
   // Skip sheet if table does not contain Event results
-  if (resultsSheet.getRange(lc.eventHeaderCELL).getValue() !== lc.resultTABLE) return;
+  if (resultsSheet.getRange(cc.eventHeaderCELL).getValue() !== cc.resultTABLE) return;
   // Skip also if first result has not been entered (and cleaned manually)
-  if (resultsSheet.getRange(lc.firstResultCELL).getValue() === "") return;
+  if (resultsSheet.getRange(cc.firstResultCELL).getValue() === "") return;
   ScrollBeyondLastResult();
 }
 
@@ -648,7 +647,7 @@ function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-
       .map(timestamp => new Date(timestamp))  // use timestamps to be sure (assumimg midnight)
       .sort((a,b) => a-b)                     // sort first and then return to be string
       .map(date => Utilities.formatDate(date,
-        Session.getScriptTimeZone(),lc.dateFORMAT));
+        Session.getScriptTimeZone(),cc.dateFORMAT));
   return uniqueDates.map(date => [
     date,
     ...runners.map(runner => {
@@ -663,13 +662,13 @@ function CollateDatedGroupResults(filteredDates,runners,runnersPerfs) {  // pre-
  * This filters by date BEFORE collating instead of filtering during the collation of results
  *    @param {string}                                - chart title,only used for tracking distinct groups
  *    @param {Array<string>}                         - runners - Array of runner names & indices from Group
- *    @param {number} [mostRecentYears=lc.recentYRS] - Number of recent years to include (0 to get all)
- *    @param {number} [perfIndex=lc.ageGradeINDEX]  - Column index of performance values (Age Grade, Time, etc.)
+ *    @param {number} [mostRecentYears=cc.recentYRS] - Number of recent years to include (0 to get all)
+ *    @param {number} [perfIndex=cc.ageGradeINDEX]  - Column index of performance values (Age Grade, Time, etc.)
  *  @returns {Array<Array>} Array of arrays containing dated performances (with nulls for absences)
  */
 function FilterDatedGroupResults(chartTitle,runners,
-  mostRecentYears = lc.recentYRS,   // assume all performances if zero years cut-off
-  perfIndex = lc.ageGradeINDEX)   // default presents values <1 as %ages
+  mostRecentYears = cc.recentYRS,   // assume all performances if zero years cut-off
+  perfIndex = cc.ageGradeINDEX)   // default presents values <1 as %ages
 {
   const NOW = new Date();
   let cutoffDate = mostRecentYears == 0 
@@ -690,18 +689,18 @@ function FilterDatedGroupResults(chartTitle,runners,
     }
     let runnerNameId = runnerName+'_'+runnerIndex;
     try {
-      var resultsSheet = lv.activeSpreadsheet.getSheetByName(runnerNameId);
+      var resultsSheet = cv.activeSpreadsheet.getSheetByName(runnerNameId);
       if (!resultsSheet) {
         SpreadsheetApp.getUi().alert('Error',
           'No results in unique runner sheet, '+runnerNameId,
           SpreadsheetApp.ButtonSet.OK);
         return;
       }
-      let numResults = resultsSheet.getLastRow()-lc.resultsStartROW+1;
+      let numResults = resultsSheet.getLastRow()-cc.resultsStartROW+1;
       let resultsRange = resultsSheet.getDataRange()
-        .offset(lc.resultsStartROW-1,0,numResults);
+        .offset(cc.resultsStartROW-1,0,numResults);
       var startResult = -1;    // to find first result from the cutoff date
-      let indexedDates = resultsRange.offset(0,lc.dateINDEX,numResults,1)
+      let indexedDates = resultsRange.offset(0,cc.dateINDEX,numResults,1)
         .getValues()      // for dates only to filter
         .filter((date,result) => {
           if (startResult >= 0)
@@ -715,10 +714,10 @@ function FilterDatedGroupResults(chartTitle,runners,
       // Logger.log('2b1A-start. Start dated result, '+startResult+ ' for runner,'+runnerName);
       if (startResult >= 0) {   // 0 if runner's very first result after cut-off date
         let perfs = resultsRange.offset(startResult,perfIndex,numFilteredResults,1)
-          [perfIndex == lc.timeINDEX
+          [perfIndex == cc.timeINDEX
                         ? 'getDisplayValues'
                         : 'getValues']
-          ().map((result,mi) => resultsSheet.isRowHiddenByUser(lc.resultsStartROW+startResult+mi)
+          ().map((result,mi) => resultsSheet.isRowHiddenByUser(cc.resultsStartROW+startResult+mi)
             ? null    // although date retained for alignment, blankout if distorts chart
             : result[0]);
         runnersPerfs[runnerNameId] = {};
@@ -732,11 +731,11 @@ function FilterDatedGroupResults(chartTitle,runners,
       Logger.log("ERROR: filtering results for unique runner, " +runnerName+'['+runnerIndex+"]\n"+err);
     }
   }
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Filtered Dated Group Results for all: '+runners);
   runnersDatedPerfs = CollateDatedGroupResults(
     filteredDates,runners,runnersPerfs);
- if (lc.debug)
+ if (cc.debug)
     Logger.log('Collated Dated Group Results for all: '+runners);
   return runnersDatedPerfs;
 }
@@ -751,16 +750,16 @@ function TransposeArray(array) {
  *    @param {Array<string>} runners            - Array of specified runners' names
  *    @param {Array<Array>} runnersPerfs        - Array of arrays containing runners' collated & dated performances
  *    @param {number} [groupPerfsRow=2]         - Row index where to start placing performances on the sheet
- *    @param {number} [groupPerfsCol=lc.groupPerfsCOL]         - Group Column in each Performances sheet
- *    @param {string} [dateFormat=lc.dateFORMAT]   - Format used for displayed dates
+ *    @param {number} [groupPerfsCol=cc.groupPerfsCOL]         - Group Column in each Performances sheet
+ *    @param {string} [dateFormat=cc.dateFORMAT]   - Format used for displayed dates
  *    @param {number} [decimalPlaces=4]         - Floating precision (unless integer)
  * @returns {Range} where performances are on the sheet (beyond subsequent charts)
  */
 function CopyGroupResultsToSheet(
   perfsSheet,runners,runnersPerfs,
   groupPerfsRow = 2,
-  groupPerfsCol = lc.groupPerfsCOL,
-  dateFormat = lc.dateFORMAT,     // aligned  with display format
+  groupPerfsCol = cc.groupPerfsCOL,
+  dateFormat = cc.dateFORMAT,     // aligned  with display format
   decimalPlaces = 4)
 {
   var dates = ['Date', ...runnersPerfs.map(date => date[0])];
@@ -796,7 +795,7 @@ function CopyGroupResultsToSheet(
     groupPerfsRange.offset(0,groupTable[0].length,  // clear any surplus from a previous run...
       groupTable.length,colsToClear)                // ...where earliest event dates lapse (fewer results)
         .clearContent();                            // ...OR if cut-off years reduced results considered
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Formatted dates are:\n'
       +groupPerfsRange.offset(0,1,1,groupTable[0].length-1).getDisplayValues());
   return groupPerfsRange;
@@ -817,7 +816,7 @@ function CopyGroupResultsToSheet(
 function ApplyFormatsOnGroupResultsChart (
   perfSheet,groupPerfsRange,runnersLegend,
   perfChartRow,perfChartCol,perfFormat,
-  chartHeight,chartWidth,offsetBorder=lc.offsetBORDER)
+  chartHeight,chartWidth,offsetBorder=cc.offsetBORDER)
 {
   const padFACTOR = 0.05;       // adjust min/max values to encourage "growth"
   const cellHeightSIZE = 21;    // cell height accounts for merged cells on chart
@@ -826,7 +825,7 @@ function ApplyFormatsOnGroupResultsChart (
   perfSheet.setRowHeight(perfChartRow,chartHeight+surroundFACTOR*offsetBorder
     -cellHeightSIZE*runnersLegend.length);  // Adjust for merging rows (later)
   perfSheet.setColumnWidth(perfChartCol,chartWidth+surroundFACTOR*offsetBorder);
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Rows: '+groupPerfsRange.getNumRows()+', '+'Cols: '+groupPerfsRange.getNumColumns());
   perfsRange = groupPerfsRange.offset(1,1,  // Get runners' performances only...
     groupPerfsRange.getNumRows()-1,         // ...ignoring the Date row
@@ -865,26 +864,26 @@ function ApplyFormatsOnGroupResultsChart (
  *    @param {boolean} [showDates=false]  - Allow non-contiguous dates on the horizontal
  *    @param {boolean} [reverseTrend=1]   - Trends in reverse: rising to low values
  *    @param {boolean} [stripIndex=false] - Simplify legend if first name context unique
- *    @param {number} [filterRecentYears=lc.recentYRS] - The cut-off years for results 
- *    @param {string} [perfTitle=lc.chartYAxisTITLE]   - Performance title on vertical
+ *    @param {number} [filterRecentYears=cc.recentYRS] - The cut-off years for results 
+ *    @param {string} [perfTitle=cc.chartYAxisTITLE]   - Performance title on vertical
  *                                                    (typically Age Grade in results)
- *    @param {string} [perfFormat=lc.ageGradeFORMAT]   - Format the performance (e.g. %age)
+ *    @param {string} [perfFormat=cc.ageGradeFORMAT]   - Format the performance (e.g. %age)
  */
 function EmbedGroupResultsChart(
   perfSheet,chartTitle,groupPerfsRange,runnersLegend,
   perfChartRow = 2,
   perfChartCol = 2,
   showDates=false,reverseTrend=1,stripIndex=false,
-  filterRecentYears = lc.recentYRS,
-  perfTitle = lc.chartYAxisTITLE,
-  perfFormat = lc.ageGradeFORMAT)
+  filterRecentYears = cc.recentYRS,
+  perfTitle = cc.chartYAxisTITLE,
+  perfFormat = cc.ageGradeFORMAT)
 {
   const chartWIDTH = 800;
   const chartHEIGHT = 350;
   var perfLimits = ApplyFormatsOnGroupResultsChart(
     perfSheet,groupPerfsRange,runnersLegend,
     perfChartRow,perfChartCol,perfFormat,
-    chartHEIGHT,chartWIDTH,lc.offsetBORDER);
+    chartHEIGHT,chartWIDTH,cc.offsetBORDER);
   if (filterRecentYears === 1)
     chartTitle += ' (past year)';
   else if (filterRecentYears > 0)
@@ -917,7 +916,7 @@ function EmbedGroupResultsChart(
     // .setHiddenDimensionStrategy(Charts.ChartHiddenDimensionStrategy.IGNORE_BOTH) // always shows
     .setTransposeRowsAndColumns(true)         // data on same sheet in D column?
     .setNumHeaders(1)
-    .setPosition(perfChartRow,perfChartCol,lc.offsetBORDER,lc.offsetBORDER)
+    .setPosition(perfChartRow,perfChartCol,cc.offsetBORDER,cc.offsetBORDER)
     .setXAxisTitle('Date')
     .setYAxisTitle(perfTitle)
     .setOption('useFirstColumnAsDomain',true) // Dates on x-axis (in 1st Row before transpose)
@@ -949,10 +948,10 @@ function ClearGroupChartsOnSheet(
   perfSheetName = "Leagues",
   index = 0)
 {
-  var perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
+  var perfSheet = cv.activeSpreadsheet.getSheetByName(perfSheetName);
   if (!perfSheet)
     try {
-      perfSheet = lv.activeSpreadsheet.insertSheet(perfSheetName);
+      perfSheet = cv.activeSpreadsheet.insertSheet(perfSheetName);
     } catch (err) {
       return null;
     }
@@ -1018,7 +1017,7 @@ function GenerateGroupChartInSheet(
   perfChartRow,perfChartCol,
   showDates=false,reverseTrend=1,stripIndex=false,
   filterRecentYears,
-  perfColumnTitle=lc.chartYAxisTITLE,perfColumnIndex,perfFormat)
+  perfColumnTitle=cc.chartYAxisTITLE,perfColumnIndex,perfFormat)
 {
   if (!perfSheet) return null;
   let runners = runnersLegend.map(runner=>[runner[0],runner[1]]); // include unique Id
@@ -1055,11 +1054,11 @@ var defaultPerfSheetName = 'Age Groups';    // may vary if overridden
 function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
   var grpBlocks = {};
   for (var gi=0; gi<groupsCount; gi++) {
-    var group1stRow = lc.groupsStartROW+lc.numGroupROWS*gi;
-    var params = groupsSheet.getRange(group1stRow,1,1,lc.groupStringsCOUNT)
+    var group1stRow = cc.groupsStartROW+cc.numGroupROWS*gi;
+    var params = groupsSheet.getRange(group1stRow,1,1,cc.groupStringsCOUNT)
       .getDisplayValues()[0]
       .concat(
-        groupsSheet.getRange(group1stRow,lc.groupStringsCOUNT+1,1,lc.groupValuesCOUNT)
+        groupsSheet.getRange(group1stRow,cc.groupStringsCOUNT+1,1,cc.groupValuesCOUNT)
           .getValues()[0]
       );
     let perfSheetName = params[0] || defaultPerfSheetName;
@@ -1069,12 +1068,12 @@ function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
     if (!grpBlocks[perfSheetName])
       	grpBlocks[perfSheetName] = [];
     var grpParams = {};
-      for (var pi=0; pi<lc.paramsCOUNT; pi++) {
+      for (var pi=0; pi<cc.paramsCOUNT; pi++) {
         switch (pi) {    // from columns B..K in 1st row
           case 0: grpParams.sheetName = perfSheetName; break;   // for completeness
           case 1: grpParams.groupName = params[1]; break;
           case 2: grpParams.groupTitle = params[2]; break;
-          case 3: grpParams.perfColumnTitle = params[3] || lc.chartYAxisTITLE; break;
+          case 3: grpParams.perfColumnTitle = params[3] || cc.chartYAxisTITLE; break;
           case 4: grpParams.perfFormat = params[4] || undefined; break;
           case 5: grpParams.perfColumnIndex = params[5] || undefined; break;
           case 6: grpParams.filterRecentYears = params[6] || undefined; break;
@@ -1084,10 +1083,10 @@ function PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount) {
           case 10: grpParams.disableDraw = (params[10] == true); break;
         }
       }
-    let maxRunnersCount = groupsSheet.getLastColumn()-lc.runnersStartCOL+1;
+    let maxRunnersCount = groupsSheet.getLastColumn()-cc.runnersStartCOL+1;
     grpParams.runnersRange = groupsSheet.getRange(
-      group1stRow+1,lc.runnersStartCOL,
-      lc.numRunnerROWS,maxRunnersCount);
+      group1stRow+1,cc.runnersStartCOL,
+      cc.numRunnerROWS,maxRunnersCount);
     grpBlocks[perfSheetName].push(grpParams);
   }
   return grpBlocks;
@@ -1122,33 +1121,33 @@ function GenerateChartsFromGroups(
   perfSheetNames = ['Age Groups','Leagues','Families','Gender'])
   // perfSheetNames = ['Age Groups'])    // test performance
 {
-  const groupsSheet = lv.activeSpreadsheet.getSheetByName(groupsSheetName);
+  const groupsSheet = cv.activeSpreadsheet.getSheetByName(groupsSheetName);
   if (!groupsSheet) return;
   let groupsEndRow = groupsSheet.getLastRow();
-  let groupsCount = (groupsEndRow-lc.groupsStartROW+1)/lc.numGroupROWS;
+  let groupsCount = (groupsEndRow-cc.groupsStartROW+1)/cc.numGroupROWS;
 
   // Stage 1: Identify blocks of groups (per sheet output) with parameters from Groups sheet
   let grpBlocks = PrepassBlocksOfGroups(groupsSheet,perfSheetNames,groupsCount);
-  if (lc.debug)
+  if (cc.debug)
     Logger.log('Pre-pass '+groupsCount+' groups of charts for four separate target sheets');
   for (var perfSheetName in grpBlocks) {
     if (!perfSheetNames.includes(perfSheetName))
       continue;   // split scope into separate tasks: two blocks per scope
-    if (lc.debug)
+    if (cc.debug)
       Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
     var index = parseInt(PropertiesService
       .getScriptProperties()
-      .getProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName))
+      .getProperty(continueINDEX+'_'+cv.activeSpreadsheetId+'_'+perfSheetName))
         || 0;   // continue from index
     // ONLY clear/clean a perf chart sheet if one or more charts NOT disabled
     var perfSheet = ClearGroupChartsOnSheet(perfSheetName,index);
-    if (lc.debug && index === 0)
+    if (cc.debug && index === 0)
       Logger.log('Cleared all charts from sheet, '+perfSheetName);
     for (; index<grpBlocks[perfSheetName].length; index++) {
       var grpParams = grpBlocks[perfSheetName][index];
-      if (lc.debug)
+      if (cc.debug)
         Logger.log('Group '+index+': '+JSON.stringify(grpParams));
 
       // Stage 2a. Establish valid group of runners with colour legend...
@@ -1175,10 +1174,10 @@ function GenerateChartsFromGroups(
       );
       if (index+1 == grpBlocks[perfSheetName].length)
         continue;
-      let remainingTimeSecs = lc.maxTimeSECS-Math.floor((new Date().getTime()-lv.startTime)/1000); 
-      if (lc.debug)
+      let remainingTimeSecs = cc.maxTimeSECS-Math.floor((new Date().getTime()-cv.startTime)/1000); 
+      if (cc.debug)
         Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
-      if (remainingTimeSecs < lc.chartTimeSECS) {
+      if (remainingTimeSecs < cc.chartTimeSECS) {
         Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to generate any more charts.');
         let continueGenerate = 'Generate'+perfSheetName.replace(/\s+/g, '')+'BlockCharts';
         if (typeof globalThis[continueGenerate] === "function"  // directed to sandbox (i.e. CHAMPION Parkrunners)
@@ -1188,7 +1187,7 @@ function GenerateChartsFromGroups(
             ' by re-triggering '+continueGenerate);
           PropertiesService
             .getScriptProperties()
-            .setProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName,index+1);
+            .setProperty(continueINDEX+'_'+cv.activeSpreadsheetId+'_'+perfSheetName,index+1);
           ScriptApp.newTrigger(continueGenerate)
             .timeBased()
             .after(10*1000) // resume in 10 seconds
@@ -1200,7 +1199,7 @@ function GenerateChartsFromGroups(
       }
     }   // Generated all charts for this perfSheetName 
     PropertiesService.getScriptProperties()
-      .deleteProperty(continueINDEX+'_'+lv.activeSpreadsheetId+'_'+perfSheetName);
+      .deleteProperty(continueINDEX+'_'+cv.activeSpreadsheetId+'_'+perfSheetName);
   }
 }
                
@@ -1220,7 +1219,7 @@ function GenerateGenderBlockCharts() {
 function ColourLegendsInGroups(
   sheetName="Groups")
 {
-  var sheet = lv.activeSpreadsheet.getSheetByName(sheetName);
+  var sheet = cv.activeSpreadsheet.getSheetByName(sheetName);
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
   for (var gi=0; gi<values.length; gi++) {
@@ -1264,7 +1263,7 @@ function GenBatchChartsFromGroups() {
 function GetRelatedTabColor(
   nameIndex = 'Alan_13')
 {
-  let resultsSheet = lv.activeSpreadsheet.getSheetByName(nameIndex);
+  let resultsSheet = cv.activeSpreadsheet.getSheetByName(nameIndex);
   const colour = resultsSheet.getTabColor();
   Logger.log('Colour: '+colour);
   return colour || "#ffffff"; // default if no color
@@ -1299,7 +1298,7 @@ function GetChartRunnersNames(resultsRange) {
 function GetChartRange(
   resultsRange,
   chartRowOffset = 0,
-  chartColOffset = lc.chartColOFFSET,
+  chartColOffset = cc.chartColOFFSET,
   numRows = 1,
   numCols = 1)
 {
@@ -1308,7 +1307,7 @@ function GetChartRange(
 }
 
 function GetChart(sheetName,chartId) {
-  var sheet = lv.activeSpreadsheet.getSheetByName(sheetName);
+  var sheet = cv.activeSpreadsheet.getSheetByName(sheetName);
   var chart = sheet.getCharts().find(c => c.getId() === chartId);
   if (chart) {
     Logger.log('Title: ' + chart.getOptions().get('title'));
@@ -1350,9 +1349,9 @@ function IsTriggerType(
  */
 function GetOverview() {
   var overviewTable=[["Overview","Value"]];
-  overviewTable.push(["Spreadsheet",lv.activeSpreadsheetName]);
-  overviewTable.push(["SS Id",lv.activeSpreadsheetId]);
-  let owner = lv.activeSpreadsheet.getOwner().getEmail();
+  overviewTable.push(["Spreadsheet",cv.activeSpreadsheetName]);
+  overviewTable.push(["SS Id",cv.activeSpreadsheetId]);
+  let owner = cv.activeSpreadsheet.getOwner().getEmail();
   overviewTable.push(["Owner",owner]);
   const resultsSheets = [
     ["Runners","Runners Gid"],
@@ -1361,7 +1360,7 @@ function GetOverview() {
     ["Challenges","Challenges Gid"]
   ];
   resultsSheets.forEach(([resultsSheetName,resultsSheetIdHeader]) => {
-    let resultsSheet = lv.activeSpreadsheet.getSheetByName(resultsSheetName);
+    let resultsSheet = cv.activeSpreadsheet.getSheetByName(resultsSheetName);
     let resultsSheetId = resultsSheet.getSheetId();
     overviewTable.push([resultsSheetIdHeader,resultsSheetId]);
   });
@@ -1382,7 +1381,7 @@ function GetOverview() {
 
   let csv = overviewTable.map(row => row.join(',')).join('\n');
   Logger.log(csv);
-  let overviewSheet = lv.activeSpreadsheet.getSheetByName('Overview');
+  let overviewSheet = cv.activeSpreadsheet.getSheetByName('Overview');
   // overviewSheet.clear();  // already exists in template and pre-formatted
   // let titleRange = overviewSheet.getRange(1,1,1,2);    // table header (below title) has 2 columns (for transposing)
   overviewSheet.getRange(1,1,overviewTable.length,overviewTable[0].length)
@@ -1404,7 +1403,7 @@ function GetPerformanceCharts(
   let chartsTable = [["Charts","=Overview!B$3","","","","","",""]];
   chartsTable.push(["Performance Chart","SS Id","Perf Gid","Perf Sheet","Range","Chart Id","#","Runners Ids"]);
   perfSheetNames.forEach(perfSheetName => {
-    let perfSheet = lv.activeSpreadsheet.getSheetByName(perfSheetName);
+    let perfSheet = cv.activeSpreadsheet.getSheetByName(perfSheetName);
     if (perfSheet) {
       perfSheetId = perfSheet.getSheetId();
       let perfCharts = perfSheet.getCharts();
@@ -1414,9 +1413,9 @@ function GetPerformanceCharts(
         let resultsRange = perfChart.getRanges()[0];   // only one range exists
         // let resultsCells = resultsRange.getA1Notation();
         let numRunners = resultsRange.getNumRows()-1;
-        let chartRange = GetChartRange(resultsRange,0,lc.chartColOFFSET,numRunners+1,1)
+        let chartRange = GetChartRange(resultsRange,0,cc.chartColOFFSET,numRunners+1,1)
             .getA1Notation();
-        if (lc.debug)
+        if (cc.debug)
           Logger.log(chartTitle+'|'+chartId+'|'
             +perfSheetName+'|'+perfSheetId+'|'+chartRange);
         let runnersNames = GetChartRunnersNames(resultsRange);
@@ -1424,7 +1423,7 @@ function GetPerformanceCharts(
           if(runnersNames.some(indexedName => String(indexedName).includes(runnerNameId))   // select if any match indexed name
               || runnersNames.some((strippedName,i) => i % 2 === 1   // otherwise, index preserved and precedes name entry 
               && runnerNameId === strippedName+'_'+runnersNames[i-1])) {
-            let resultsSheetId = lv.activeSpreadsheet
+            let resultsSheetId = cv.activeSpreadsheet
               .getSheetByName(runnerNameId)
               .getSheetId();
             selectPerfCharts[chartId] = {
@@ -1457,7 +1456,7 @@ function GetPerformanceCharts(
   } else {
     let csv = chartsTable.map(row => row.join(',')).join('\n');
     Logger.log(csv);
-    chartsSheet = lv.activeSpreadsheet.getSheetByName('Charts');
+    chartsSheet = cv.activeSpreadsheet.getSheetByName('Charts');
     // chartsSheet.clear();  // already exists in template and pre-formatted
     // let titleRange = chartsSheet.getRange(1,1,1,8);    // table header (below title) has 8 columns
     chartsSheet.getRange(1,1,chartsTable.length,chartsTable[0].length)
@@ -1476,8 +1475,8 @@ function GetNumRuns(
   const numRunsCOL = 13;  // column M of Runners sheet
   let runnerIdx = Number(runnerNameId
     .split("_")[1]);
-  let numRuns = lv.allRunnersSheet      //  assume current SS
-    .getRange(lc.runnersStartROW+runnerIdx,numRunsCOL)
+  let numRuns = cv.allRunnersSheet      //  assume current SS
+    .getRange(cc.runnersStartROW+runnerIdx,numRunsCOL)
     .getValue();
   return numRuns ? numRuns : 0;
   // alternatively on the resultsSheet
@@ -1495,11 +1494,11 @@ function GetRole(
   const emailCOL = 4;  // column D of Runners sheet
   let runnerIdx = Number(runnerNameId
     .split("_")[1]);
-  let email = lv.allRunnersSheet      //  assume current SS
-    .getRange(lc.runnersStartROW+runnerIdx,emailCOL)
+  let email = cv.allRunnersSheet      //  assume current SS
+    .getRange(cc.runnersStartROW+runnerIdx,emailCOL)
     .getValue();
   if (!email) return "Blocked";
-  const ssFile = lv.activeSpreadsheet;
+  const ssFile = cv.activeSpreadsheet;
   if (ssFile.getOwner().getEmail() === email) return "Owner";
   const editors = ssFile.getEditors().map(u => u.getEmail());
   if (editors.includes(email)) return "Editor";
@@ -1509,7 +1508,7 @@ function GetRole(
 }
 
 function GetSpreadsheetShares() {
-  var ssFile = lv.activeSpreadsheet;
+  var ssFile = cv.activeSpreadsheet;
   const owner = ssFile.getOwner();
   const editors = ssFile.getEditors();
   const viewers = ssFile.getViewers();
@@ -1521,7 +1520,7 @@ function GetSpreadsheetShares() {
   output.push(["",""]);
   const accessSheet = ssFile    // dump for easy summ,ary
     .insertSheet("Sharing_List_" + new Date().toISOString().slice(0,10));
-  ssFile = DriveApp.getFileById(lv.activeSpreadsheetId);  // for more detail
+  ssFile = DriveApp.getFileById(cv.activeSpreadsheetId);  // for more detail
   const access = ssFile.getSharingAccess(); // PUBLIC, DOMAIN, PRIVATE
   const permission = ssFile.getSharingPermission(); // VIEW, EDIT, NONE
   output.push(["Link Sharing", access.toString()]),
@@ -1553,14 +1552,14 @@ function GetMyTrendsCharts(
   let runnerTrendCharts = {};
   var trendsTable = [["Trends","=Overview!B$3","","",""]];    // SS Id to span 2 cells propagated into table
   trendsTable.push(["Runner Id","SS Id","Results Gid","#","Shared"]);
-  const runnersRANGE = lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN;
-  let runnersNames = lv.allRunnersSheet.getRange(runnersRANGE)
+  const runnersRANGE = cc.runnersNameCOLUMN+cc.runnersStartROW+":"+cc.runnersNameCOLUMN;
+  let runnersNames = cv.allRunnersSheet.getRange(runnersRANGE)
     .getValues()
     .filter(name => name[0] != "")
     .map(name => [name[0]]);
   runnersNames.forEach((runnerName,index) => {
     let runnerId = runnerName+"_"+index;
-    let runnerResultsSheet = lv.activeSpreadsheet.getSheetByName(runnerId);
+    let runnerResultsSheet = cv.activeSpreadsheet.getSheetByName(runnerId);
     if (runnerResultsSheet) {
       let runnerShared = GetRole(runnerId);
       let runnerNumRuns = GetNumRuns(runnerId);
@@ -1571,7 +1570,7 @@ function GetMyTrendsCharts(
         let chartId = trendChart.getChartId();    // only one, but potentially more
         let chartTitle = trendChart.getOptions().get('title');
         let resultsRange = trendChart.getRanges()[0];
-        let chartRange = GetChartRange(resultsRange,1,lc.trendColOFFSET,19,2) // approx 20 rows in height
+        let chartRange = GetChartRange(resultsRange,1,cc.trendColOFFSET,19,2) // approx 20 rows in height
           .getA1Notation();
         if (runnerNameId)    // filter by runner
           runnerTrendCharts[chartId] = {
@@ -1594,7 +1593,7 @@ function GetMyTrendsCharts(
   } else {
     let csv = trendsTable.map(row => row.join(',')).join('\n');
     Logger.log(csv);
-    trendsSheet = lv.activeSpreadsheet.getSheetByName('Trends');
+    trendsSheet = cv.activeSpreadsheet.getSheetByName('Trends');
     // trendsSheet.clear();  // if required, may already exist in template and pre-formatted; otherwise dynamic
     // let titleRange = trendsSheet.getRange(1,1,1,5);    // table header (below title) has 5 columns
     trendsSheet.getRange(1,1,trendsTable.length,trendsTable[0].length)
@@ -1621,14 +1620,14 @@ function GetMyTrendsCharts(
 */
 
 function SnatchAgeCategoryIfHeld(runnerNameId) {
-  let resultsSheet = lv.activeSpreadsheet
+  let resultsSheet = cv.activeSpreadsheet
     .getSheetByName(runnerNameId);
   if (resultsSheet) {
     let ageCategory = resultsSheet
-      .getRange(lc.resultsTempAgeCatCELL)
+      .getRange(cc.resultsTempAgeCatCELL)
       .getValue();
     resultsSheet    // and clear temporary holding
-      .getRange(lc.resultsTempAgeCatCELL)
+      .getRange(cc.resultsTempAgeCatCELL)
       .clearContent();
     return ageCategory;
   }
@@ -1636,11 +1635,11 @@ function SnatchAgeCategoryIfHeld(runnerNameId) {
 }
 
 function GetLastResultDate(runnerNameId) {
-  let resultsSheet = lv.activeSpreadsheet
+  let resultsSheet = cv.activeSpreadsheet
     .getSheetByName(runnerNameId);
   return resultsSheet
     ? resultsSheet.getRange(
-        lc.resultsDateCOLUMN + resultsSheet.getLastRow()
+        cc.resultsDateCOLUMN + resultsSheet.getLastRow()
       ).getDisplayValue()
     : null;
 }
@@ -1681,9 +1680,9 @@ function GetEstimatedDoB(eventDateStr, categoryStr) {
 function SetRunnerDoB(runnerNameId,runnerDoB) {
   let [runnerName,runnerIndex] = runnerNameId.split('_');
   runnerIndex = +runnerIndex;   // ensure row number added, 3+10=13 (not concatenated as 310) 
-  lv.allRunnersSheet
+  cv.allRunnersSheet
     .getRange(
-      lc.runnersDoBCOLUMN+(lc.resultsStartROW+runnerIndex)
+      cc.runnersDoBCOLUMN+(cc.resultsStartROW+runnerIndex)
     )
     .setValue(runnerDoB);
 }
@@ -1700,26 +1699,26 @@ function FormatDate(dateSource,dateFormat) {
  * Retrieves estimated DoBs from (lost!) age category and date of runners's last result
  */
 async function EstimateDoBs() {
-  const unknownDOB = FormatDate(lc.defaultDATE,lc.dateFORMAT);
-  let runnersNames = lv.allRunnersSheet
-    .getRange(lc.runnersNameCOLUMN+lc.runnersStartROW+":"
-      +lc.runnersNameCOLUMN)
+  const unknownDOB = FormatDate(cc.defaultDATE,cc.dateFORMAT);
+  let runnersNames = cv.allRunnersSheet
+    .getRange(cc.runnersNameCOLUMN+cc.runnersStartROW+":"
+      +cc.runnersNameCOLUMN)
     .getValues()
     .map(x => x[0])
     .filter(String);
-  let runnersHasPosns = lv.allRunnersSheet    // column J..K
-    .getRange(lc.hasPosnsCOLUMN+lc.runnersStartROW+":"
-      +lc.hasPosnsCOLUMN)
+  let runnersHasPosns = cv.allRunnersSheet    // column J..K
+    .getRange(cc.hasPosnsCOLUMN+cc.runnersStartROW+":"
+      +cc.hasPosnsCOLUMN)
     .getValues()
     .map(x => x[0]);
-  let runnersDoBs = lv.allRunnersSheet
-    .getRange(lc.runnersDoBCOLUMN+lc.runnersStartROW+":"
-      +lc.runnersDoBCOLUMN)
+  let runnersDoBs = cv.allRunnersSheet
+    .getRange(cc.runnersDoBCOLUMN+cc.runnersStartROW+":"
+      +cc.runnersDoBCOLUMN)
     .getDisplayValues()
     .map(x => x[0]);
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     if (runnersHasPosns[runnerIndex])   // // column L has Positions
-      if (lc.debug)
+      if (cc.debug)
         Logger.log('INFO: Runner, '+runnerName+
           ' (index: '+runnerIndex+') assumed DoB okay since all positions updated');
     else {
@@ -1732,7 +1731,7 @@ async function EstimateDoBs() {
             +runnerNameId);
           continue;
         }
-        if (lc.debug)
+        if (cc.debug)
           Logger.log('INFO: Estimating DoB for runner, '+runnerName+
             ' (index: '+runnerIndex+'): based on recalled/researched age category: '+ageCategory);
         let lastResultDate = GetLastResultDate(runnerNameId);
@@ -1749,14 +1748,14 @@ async function EstimateDoBs() {
 
 function CloneTrendsChart(runnerResultsSheet,trendCharts) {
   let resultsDates = runnerResultsSheet
-    .getRange(lc.resultsDateCOLUMN+lc.resultsStartROW+":"+
-      lc.resultsDateCOLUMN+runnerResultsSheet.getLastRow())
+    .getRange(cc.resultsDateCOLUMN+cc.resultsStartROW+":"+
+      cc.resultsDateCOLUMN+runnerResultsSheet.getLastRow())
     .getValues();
   let pivotRow = 0;
   for (let i=0; i<resultsDates.length; i++) {
     let dateString = resultsDates[i][0];
     if (dateString.endsWith("-" + yearYY)) {
-      pivotRow = i + lc.resultsStartROW;
+      pivotRow = i + cc.resultsStartROW;
       break;
     }
   }
@@ -1789,26 +1788,26 @@ function CloneTrendsChart(runnerResultsSheet,trendCharts) {
 }
 
 function MeritDetailedTrendsChart() {
-  let runnersNames = lv.allRunnersSheet
-    .getRange(lc.runnersNameCOLUMN+lc.runnersStartROW+":"+lc.runnersNameCOLUMN)
+  let runnersNames = cv.allRunnersSheet
+    .getRange(cc.runnersNameCOLUMN+cc.runnersStartROW+":"+cc.runnersNameCOLUMN)
     .getValues().map(x => x[0]).filter(String);
-  let numRunsRange = lc.runnersNumRunsCOLUMN+lc.runnersStartROW+":"
-    +lc.runnersNumRunsCOLUMN;
-  let runnersNumRuns = lv.allRunnersSheet
+  let numRunsRange = cc.runnersNumRunsCOLUMN+cc.runnersStartROW+":"
+    +cc.runnersNumRunsCOLUMN;
+  let runnersNumRuns = cv.allRunnersSheet
     .getRange(numRunsRange)
     .getValues().map(x => x[0]);
-  const meritNumRUNS = lv.allRunnersSheet
-    .getRange(lc.meritNumRunsCELL)
+  const meritNumRUNS = cv.allRunnersSheet
+    .getRange(cc.meritNumRunsCELL)
     .getValue();
-  const sinceYEAR = lv.allRunnersSheet
-    .getRange(lc.sinceYearCELL)
+  const sinceYEAR = cv.allRunnersSheet
+    .getRange(cc.sinceYearCELL)
     .getValue();
   const yearYY = String(sinceYEAR).slice(-2);   // dates held as strings
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     let numRuns = runnersNumRuns[runnerIndex];
     if ( numRuns < meritNumRUNS) continue;   // not reached threshhold (150)
     let runnerNameId = runnerName+'_'+runnerIndex;
-    let runnerResultsSheet = lv.activeSpreadsheet
+    let runnerResultsSheet = cv.activeSpreadsheet
       .getSheetByName(runnerNameId);
     let trendCharts = runnerResultsSheet.getCharts();
     if (trendCharts.length >= 2) {
@@ -1878,7 +1877,7 @@ function SetupPlanetTriggers(targetSpreadsheetId) {
 // Surplus extras may be useful
 
 function PasteAboveRangeFormula() {
-  var sheet = lv.activeSpreadsheet.getActiveSheet();
+  var sheet = cv.activeSpreadsheet.getActiveSheet();
   var activeCells = sheet.getActiveRange();
   var aboveCells = sheet.getRange(
     activeCells.getRow()-1, 
@@ -1890,7 +1889,7 @@ function PasteAboveRangeFormula() {
 }
 
 function DuplicateAboveRowFormula() {
-  var sheet = lv.activeSpreadsheet.getActiveSheet();
+  var sheet = cv.activeSpreadsheet.getActiveSheet();
   var activeRange = sheet.getActiveRange();
   var row = activeRange.getRow();
   sheet.insertRowBefore(row);
@@ -1901,7 +1900,7 @@ function DuplicateAboveRowFormula() {
 
 function swapColumns() {
   // Swap columns selected by user (potentially across multiple sheets)
-  var selection = lv.activeSpreadsheet.getActiveRangeList().getRanges();
+  var selection = cv.activeSpreadsheet.getActiveRangeList().getRanges();
   // Check if selection is valid (2 columns, same sheet or extended selection)
   if (selection.length < 2) {
     SpreadsheetApp.getUi().alert('Please select at least two columns to swap.');
@@ -1923,5 +1922,5 @@ function swapColumns() {
     range1.setValues(range2.getValues());
     range2.setValues(temp);
   });
-  // lv.activeSpreadsheet.getActiveRangeList().removeAllRanges();
+  // cv.activeSpreadsheet.getActiveRangeList().removeAllRanges();
 }
