@@ -194,7 +194,7 @@ const tc = {
   browserURL: "https://harmless-subarctic-barrier.ngrok-free.dev", // shared local service (stable ngrok for 1GB & 20k requests/mth)
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
   batchSizeMAX: 9,
-  importTimeSECS: 42, // avoid hitting maxTimeSECS:  ~8-10 imports before trigger recursively
+  importTimeSECS: 55, // avoid hitting maxTimeSECS:  ~6-10 imports before trigger recursively
   maxTimeSECS: 6*60,  // GAS execution limit is 6 mins
   oneDAY: 24*60*60*1000  // milliseconds in a day.
 };
@@ -1003,6 +1003,7 @@ function ImportResultForEachRunner(
       .then(eventsResults => { 
         // EITHER start afresh (new date, index 0) OR continue from previous import (same datem next index)
         let promise = Promise.resolve();  // a promise avoids need for recursion to enforce sequential import
+        CleanupImportBatch(reImportResultsFN);    // start with a clean set of triggers!
         for (let index=startIndex; index<runners.length; index++) {
           promise = promise.then(() =>
             ImportRunnerResult(index,runners,eventDate,eventsResults))
@@ -1022,7 +1023,7 @@ function ImportResultForEachRunner(
         }
         return promise
           .then(() => {
-            CleanupGCRBatch(reImportResultsFN);
+            CleanupImportBatch(reImportResultsFN);
             if (tc.debug)
               Logger.log('Completed number of imports ('+tv.numImports+')')
           })
@@ -1949,7 +1950,7 @@ const lockINDEX = 'positionIndex';
  * Cleans up triggers and script properties after batching for each runner has completed
  *  @param {string} [thisScript=threadBatchFN] - script to clean up
  */
-function CleanupGCRBatch(
+function CleanupImportBatch(
   thisScript = threadBatchFN,
   anotherscript) // optional 2nd script
 {
@@ -2052,13 +2053,13 @@ function BatchPositionsForRunner() {
   })
   .then((moreToDo) => { 
     if (moreToDo) {
-      CleanupGCRBatch(recurseBatchFN);  // clean as you go!
+      CleanupImportBatch(recurseBatchFN);  // clean as you go!
       Logger.log('Recursing runner: '+runnerName+'\t['+runnerIndex+']');
       LockCallerForwardsTo(recurseBatchFN,'recursed',runnerNameId);  
     } else {
       let runnersStatus = MarkRunnerPositionsDone(runnerIndex);
       if (AllPositionsDone(runnersStatus)) {
-        CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
+        CleanupImportBatch(threadBatchFN,anotherCatchupFN);
         return;
       } else  // loop back for next "unfinished" runner
         ScriptApp.newTrigger(anotherCatchupFN)
@@ -2116,7 +2117,7 @@ function CatchUpAllPositions() {
     }
   }
   if (AllPositionsDone(runnersStatus)) {
-    CleanupGCRBatch(threadBatchFN,anotherCatchupFN);
+    CleanupImportBatch(threadBatchFN,anotherCatchupFN);
     return;
   }
 }
