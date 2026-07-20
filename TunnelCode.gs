@@ -1891,7 +1891,7 @@ async function SyncPositionsPerRunner(
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,tc.genderPosnCOL).getValue();
       if (!genderPositionKnown) {
-        promises.push(AppendPositionsForResult(runnerFullName,resultRange));
+        await AppendPositionsForResult(runnerFullName,resultRange);
         batchMore--;
       }
       if (batchMore)
