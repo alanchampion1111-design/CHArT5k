@@ -4,7 +4,6 @@
   "description": "",
   "main": "index-ngrok.js",
   "scripts": {
-    "start": "node index-ngrok.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,12 +11,12 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "dos2unix": "^1.1.2",
     "express": "^5.2.1",
-    "git": "^0.1.5",
-    "ngrok": "^5.0.0",
     "puppeteer": "^25.3.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "allowScripts": {
+    "puppeteer": true
   }
 }
