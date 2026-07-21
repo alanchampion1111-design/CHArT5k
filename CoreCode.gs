@@ -1351,8 +1351,13 @@ function GetOverview() {
   var overviewTable=[["Overview","Value"]];
   overviewTable.push(["Spreadsheet",cv.activeSpreadsheetName]);
   overviewTable.push(["SS Id",cv.activeSpreadsheetId]);
-  let owner = cv.activeSpreadsheet.getOwner().getEmail();
-  overviewTable.push(["Owner",owner]);
+  let ownerEmail = cv.activeSpreadsheet.getOwner().getEmail();
+  overviewTable.push(["Owner",ownerEmail]);
+  const ownerService = {  // tunnel service running on a dedicated laptop owned by Group owner
+    "alan.champion1111@gmail.com": "https://harmless-subarctic-barrier.ngrok-free.dev",
+    "ironchamp@gmail.com": "https://doormat-obsolete-exemption.ngrok-free.dev"
+  };
+  overviewTable.push(["Tunnel",ownerService[ownerEmail]]);
   const resultsSheets = [
     ["Runners","Runners Gid"],
     ["Latest","Latest Gid"],
