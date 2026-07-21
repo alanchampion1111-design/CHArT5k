@@ -9,8 +9,6 @@
 //  C:\CHArT5k-Puppet> node index-ngrok.js
 // Test in headless: false mode throughout
 
-const cookieSNAP = "%7B%22categories%22%3A%5B%22necessary%22%2C%22personalisation%22%2C%22analytics%22%5D%2C%22revision%22%3A1%2C%22data%22%3Anull%2C%22consentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22consentId%22%3A%22c799ab2b-e969-4a07-8f78-d688abbc9fff%22%2C%22services%22%3A%7B%22necessary%22%3A%5B%5D%2C%22personalisation%22%3A%5B%5D%2C%22analytics%22%3A%5B%22ga%22%2C%22mapbox%22%2C%22youtube%22%2C%22twitter%22%5D%7D%2C%22languageCode%22%3A%22en%22%2C%22lastConsentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22expirationTime%22%3A1798255525189%7D";
-const reciteSNAP = "%7B%22darkMode%22%3A%7B%22enabled%22%3Afalse%7D%2C%22style%22%3A%7B%22backgroundColor%22%3Anull%2C%22font%22%3A%7B%22color%22%3Anull%2C%22face%22%3Anull%2C%22size%22%3Anull%7D%2C%22link%22%3A%7B%22color%22%3Anull%7D%2C%22focus%22%3A%7B%22color%22%3Anull%7D%2C%22marginSize%22%3Anull%2C%22textAlign%22%3Anull%2C%22ruler%22%3A%7B%22enabled%22%3Afalse%2C%22color%22%3Anull%7D%2C%22screenMask%22%3A%7B%22enabled%22%3Afalse%2C%22color%22%3Anull%2C%22opacity%22%3A1%2C%22size%22%3A%7B%22label%22%3A%221%22%2C%22height%22%3A160%7D%7D%2C%22wwHighlight%22%3A%7B%22color%22%3Anull%7D%2C%22lineHeight%22%3Anull%2C%22charSpacing%22%3Anull%7D%2C%22dictionary%22%3A%7B%22enabled%22%3Afalse%7D%2C%22player%22%3A%7B%22autoplay%22%3Atrue%2C%22continuePlay%22%3Afalse%2C%22playbackSpeed%22%3A1%7D%2C%22textMode%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pauseMedia%22%3A%7B%22active%22%3Afalse%7D%2C%22focusText%22%3A%7B%22enabled%22%3Afalse%7D%2C%22imageOptions%22%3A%7B%22hideImages%22%3Afalse%2C%22showAltText%22%3Afalse%7D%2C%22playerControls%22%3A%7B%22enabled%22%3Atrue%2C%22movable%22%3Afalse%2C%22top%22%3Anull%2C%22left%22%3Anull%7D%2C%22language%22%3Anull%2C%22direction%22%3A%22%22%2C%22voice%22%3A%7B%22gender%22%3A%22f%22%7D%2C%22magnifier%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pointer%22%3A%7B%7D%2C%22readingaid%22%3A%7B%22enabled%22%3Afalse%2C%22showWarningModal%22%3Atrue%7D%2C%22simplifycontent%22%3A%7B%22enabled%22%3Afalse%7D%2C%22cssFilter%22%3A%7B%22enabled%22%3Afalse%7D%2C%22userGuide%22%3A%7B%22enabled%22%3Afalse%2C%22currentPage%22%3A1%2C%22prevPage%22%3Anull%2C%22showWelcome%22%3Afalse%2C%22showWhatsNew%22%3Afalse%7D%2C%22bsl%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pageStructure%22%3A%7B%22enabled%22%3Afalse%2C%22openTab%22%3A%22headings%22%7D%2C%22sidebar%22%3A%7B%22selectedTab%22%3Anull%2C%22currentTabs%22%3A%5B%5D%7D%2C%22voices%22%3A%7B%22en%22%3A%22Amy%22%7D%7D";
 // const functions = require('@google-cloud/functions-framework');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
@@ -23,9 +21,6 @@ const http = require('http');
 const HOST = '127.0.0.1';    // equivalent to localhost
 const PORT = 36007;
 const browserURL = 'http://'+HOST+':'+PORT;
-const fs = require('fs');
-const path = require('path');
-const { exec } = require('child_process');
 const parkrunURL = 'https://www.parkrun.org.uk';    // TODO: unltimately depends on owner's native site
 const parkrunnerURL = parkrunURL+'/parkrunner/';
 const chromePATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -58,9 +53,9 @@ const sessionMINS = 60;  // browser session timeout about one hour
 const launchSECS = 50;  // initial first page load timeout
 const pageSECS = 3;     // Assume 10 seconds BETWEEN page accesses on parkrun site relies on stealth mode?
 const minRunnerTableCOUNT = 3;  // 3 for a 5k runner
-const loadSECS = 30;            // max time to load each runner's results page
+const loadSECS = 25;            // max time to load each runner's results page
 const minClubTableCOUNT = 1;    // 1..10+ tables for event locations for a family/club? 
-const loadDetailSECS = 40;      // max time to load any event results page or global site consolidated club results page
+const loadDetailSECS = 20;      // max time to load any event results page or global site consolidated club results page
 let isLaunching = false; // PREVENT concurrent re-launch spikes inside loadUrl
 
 /**
@@ -219,11 +214,11 @@ exports.stopBrowser = async (_, res) => {
 
     exports.getrUrl
       -> loadUrl
-        acceptCookiesInSitu
+        presetDomainCookies
 
     exports.filterUrl
       -> loadUrl
-        acceptCookiesInSitu
+        presetDomainCookies
       sortAgeGrade
         waitForResults
         sortPositions
@@ -240,26 +235,50 @@ exports.stopBrowser = async (_, res) => {
 */
 
 /**
- * Accepts cookie on this loaded page; continueg if no prompt
+ * Circumvents Cookie dialogue by embedding a fresh Cookie in the request page
  *   @param {Page Object} thisPage may be prompted for cookies (first time this session)
  *   @param {string} thisUrl - assume URL pre-loaded (within 10 secs?)
  */
-async function acceptCookiesInSitu(thisPage,thisUrl) {
-  // potentially skip if accepted on this domain already for this session
-  // assume previously thisPage.waitForNetworkIdle({ idleTime: 500 }); 
-  const acceptBUTTON = `button.cm__btn[data-role="all"]`;
-  try {
-    let accept = await thisPage.waitForSelector(acceptBUTTON, {timeout: 1000});
-    if (accept) {
-      await accept.click();
-      console.log('WARNING: Cookies prompt intercepted and accepted.');
-      // Add a tiny artificial delay after clicking to simulate human UI interaction
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 500));
-    }
-  } catch (e) {
-    console.log('INFO: No Cookies prompted when page loaded.');
-    // No banner found, continue.
-  }
+async function presetDomainCookies(thisPage,thisUrl) {
+  // await thisPage.evaluate(() => {
+  //   name: "psc", expiresAfterDays: 182, expiry = new Date(Date.now() + 182 * 24 * 60 * 60 * 1000).toUTCString();
+  //   document.cookie = `psc=accepted; expires=${expiry}; path=/; domain=.parkrun.org.uk; SameSite=Lax`;
+  // });
+  // values based on reverse engineering this:
+  // const cookieSNAP = "%7B%22categories%22%3A%5B%22necessary%22%2C%22personalisation%22%2C%22analytics%22%5D%2C%22revision%22%3A1%2C%22data%22%3Anull%2C%22consentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22consentId%22%3A%22c799ab2b-e969-4a07-8f78-d688abbc9fff%22%2C%22services%22%3A%7B%22necessary%22%3A%5B%5D%2C%22personalisation%22%3A%5B%5D%2C%22analytics%22%3A%5B%22ga%22%2C%22mapbox%22%2C%22youtube%22%2C%22twitter%22%5D%7D%2C%22languageCode%22%3A%22en%22%2C%22lastConsentTimestamp%22%3A%222026-06-27T03%3A25%3A25.188Z%22%2C%22expirationTime%22%3A1798255525189%7D"ull%7D%2C%22dictionary%22%3A%7B%22enabled%22%3Afalse%7D%2C%22player%22%3A%7B%22autoplay%22%3Atrue%2C%22continuePlay%22%3Afalse%2C%22playbackSpeed%22%3A1%7D%2C%22textMode%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pauseMedia%22%3A%7B%22active%22%3Afalse%7D%2C%22focusText%22%3A%7B%22enabled%22%3Afalse%7D%2C%22imageOptions%22%3A%7B%22hideImages%22%3Afalse%2C%22showAltText%22%3Afalse%7D%2C%22playerControls%22%3A%7B%22enabled%22%3Atrue%2C%22movable%22%3Afalse%2C%22top%22%3Anull%2C%22left%22%3Anull%7D%2C%22language%22%3Anull%2C%22direction%22%3A%22%22%2C%22voice%22%3A%7B%22gender%22%3A%22f%22%7D%2C%22magnifier%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pointer%22%3A%7B%7D%2C%22readingaid%22%3A%7B%22enabled%22%3Afalse%2C%22showWarningModal%22%3Atrue%7D%2C%22simplifycontent%22%3A%7B%22enabled%22%3Afalse%7D%2C%22cssFilter%22%3A%7B%22enabled%22%3Afalse%7D%2C%22userGuide%22%3A%7B%22enabled%22%3Afalse%2C%22currentPage%22%3A1%2C%22prevPage%22%3Anull%2C%22showWelcome%22%3Afalse%2C%22showWhatsNew%22%3Afalse%7D%2C%22bsl%22%3A%7B%22enabled%22%3Afalse%7D%2C%22pageStructure%22%3A%7B%22enabled%22%3Afalse%2C%22openTab%22%3A%22headings%22%7D%2C%22sidebar%22%3A%7B%22selectedTab%22%3Anull%2C%22currentTabs%22%3A%5B%5D%7D%2C%22voices%22%3A%7B%22en%22%3A%22Amy%22%7D%7D";
+  let domainHost = new URL(thisUrl).hostname;
+  let cookieDomain = domainHost.startsWith('.')
+    ? domainHost
+    : '.'+domainHost;   // prefix matches expectations
+  const now = new Date();
+  let expiryTimestamp = Math.floor(Date.now() / 1000) + (182 * 24 * 60 * 60);
+  let pscValue = JSON.stringify({
+    categories: ["necessary", "personalisation", "analytics"],
+    revision: 1,
+    data: null,
+    consentTimestamp: now.toISOString(),
+    consentId: "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    }),
+    services: {
+      necessary: [],
+      personalisation: [],
+      analytics: ["ga", "mapbox", "youtube", "twitter"]
+    },
+    languageCode: "en",
+    lastConsentTimestamp: now.toISOString(),
+    expirationTime: Date.now() + (182 * 24 * 60 * 60 * 1000)
+  });
+  await thisPage.setCookie({
+    name: 'psc',
+    value: pscValue,
+    domain: cookieDomain,
+    path: '/',
+    expires: expiryTimestamp,  // aligned with psc consent date (today + 6 months?) 
+    secure: true,
+    sameSite: 'Lax'
+  });
 }
 
 /**
@@ -316,9 +335,10 @@ async function loadUrl(thisUrl,
         // await thisPage.setUserAgent(userAgent);
       }
     }
-    await thisPage.setDefaultTimeout(timeMax); // Ensure active page timeout matches current transaction scope
-    await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: timeMax});    // alternatively, networkidle0
-    await acceptCookiesInSitu(thisPage);  // in case prompted at start (potentially skip per domain on this same session)
+    await thisPage.setDefaultTimeout(timeMax);      // Ensure active page timeout matches current transaction scope
+    await presetDomainCookies(thisPage,thisUrl);    // required on every Page?
+    await new Promise(resolve => setTimeout(resolve, 2000+Math.floor(Math.random()*3000)));   // mimic 2-5 secs human delay
+    await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: 11000});    // alternatively, networkidle0
     await thisPage.waitForNavigation
       ({waitUntil: 'networkidle2', timeout: 3000})
       .catch(e => console.log('INFO: Navigation settled or already idle.')
@@ -331,7 +351,7 @@ async function loadUrl(thisUrl,
         document.querySelectorAll(selectResultsTABLE).length >= tableCount,
         {timeout: 10000},tableCount,selectResultsTABLE);
       console.log('Runner results with ['+tableCount+'] tables loaded for URL,\n',thisUrl);
-      return await thisPage.content();   // when page content is fully loaded
+      return await thisPage.content();
     }
   } catch (err) {
     isLaunching = false;
@@ -618,8 +638,11 @@ async function filterPositions(
       {                                                //  4.  Verify by checking reduced no. of runners in table  
         return document.querySelectorAll(selectFilteredRUNNERS).length < numRunners;
       },{timeout: loadDetailSECS*1000},numRunners,selectFilteredRUNNERS);
-      if (filteredOk)
+      if (filteredOk) {
         console.log('Successfully filtered '+expectedVALUE);
+        await new Promise(r => setTimeout(r, 600));  // Add an extra beat to ensure table populated
+        // await thisPage.waitForSelector(selectFilteredRUNNERS, { timeout: 3000 }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error('ERROR: Unable to click on option with data-value as '+expectedVALUE+'\n'+err);
@@ -805,10 +828,6 @@ exports.deleteCookies = async (_,res) => {
     await thisBrowser.close();
 }
 
-function getConsent() {
-  return cookieSNAP;
-}
-
 exports.acceptCookies = async (_,res) => {
   // No request because handles ALL parkrun domain URLs
   var thisBrowser;
@@ -845,14 +864,15 @@ exports.acceptCookies = async (_,res) => {
         await thisPage.waitForSelector(acceptButton, {timeout: 5000});
         let accept = await thisPage.$(acceptButton);
         let domainObj = new URL(domainUrl);
+        let expiryTimestamp = Math.floor(Date.now() / 1000) + (182 * 24 * 60 * 60); // add 6 months
         /*  skip setting the cookie here; let the 'Accept' button do that correctly!
         await thisPage.setCookie(
           {
             name: 'psc',
-            value: getConsent(),
+            value: '{"level":["necessary","analytics","personalisation"],"revision":1,"data":{},"rfc_cookie":true}',
             domain: '.'+domainObj.hostname, // prefix matches expectations
             path: '/',
-            expires: '2027-01-27',  // aligned with psc consent date (+ 7 months?) 
+            expires: expiryTimestamp,  // 
             secure: true,
             sameSite: 'Lax'
           },
