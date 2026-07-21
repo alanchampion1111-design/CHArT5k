@@ -1,14 +1,23 @@
 {
-  "name": "browser-automation-service",
+  "name": "chart5k-puppet",
   "version": "1.0.0",
-  "main": "index.js",
-  "dependencies": {
-    "@google-cloud/functions-framework": "^3.1.2",
-    "puppeteer": "^24.15.0",
-    "puppeteer-extra": "^3.1.18",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
-  },
+  "description": "",
+  "main": "index-ngrok.js",
   "scripts": {
-    "start": "functions-framework --target=browser"
+    "start": "node index-ngrok.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dos2unix": "^1.1.2",
+    "express": "^5.2.1",
+    "git": "^0.1.5",
+    "ngrok": "^5.0.0",
+    "puppeteer": "^25.3.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }
