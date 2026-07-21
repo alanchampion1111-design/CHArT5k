@@ -800,7 +800,7 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
  *    @param {voolean} cacheUrl - cache as separate Page for re-use (REDUNDANT?)
  *  @returns {boolean} Success flag
  */
-async function AppendPositionsForResult(runnerFullName,resultRange,
+ async function AppendPositionsForResult(runnerFullName,resultRange,
   runnerIndex = -1,   // by default, do NOT track importing positions for all runners
   cacheUrl = false)
 {
@@ -1885,13 +1885,15 @@ async function SyncPositionsPerRunner(
   if (resultRange) {   //skip this runner if all positions known
     // WARNING: Limit batch of results to catch up (recursively) because 6 mins max per App script!
     let lastResultRow = resultsSheet.getLastRow();
-    let promises = [];
     failedCatch = [];   // clear failed status for this new batch 
-    let batchMore = tc.batchSizeMAX; 
+    let batchMore = tc.batchSizeMAX;
+    let updatesApplied = 0;
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,tc.genderPosnCOL).getValue();
       if (!genderPositionKnown) {
-        await AppendPositionsForResult(runnerFullName,resultRange);
+        let success = await AppendPositionsForResult(runnerFullName,resultRange);
+        if (success)
+          updatesApplied++;
         batchMore--;
       }
       if (batchMore)
@@ -1906,35 +1908,33 @@ async function SyncPositionsPerRunner(
         +' and reached result, '+resultRange.getLastRow());
     let remainToDo = lastResultRow-resultRange.getLastRow();
     var moreBatches = (remainToDo > 0);
-    return Promise.all(promises).then(results => {
-      let updatesApplied = results.filter(Boolean).length;
-      batchSize = results.length; // = tc.batchSizeMAX-batchMore?
-      let numFailures = batchSize - updatesApplied;
-      remainToDo = remainToDo + numFailures;
-      moreBatches = (remainToDo > 0);
-      let morePositions = (moreBatches)
-        ? ' with '+remainToDo+' more positions needed to catch up' : '';
-      Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
-        +' (out of '+batchSize+' in this batch)'+morePositions);
-      if (updatesApplied === 0) {
-        if (CheckConsecFails(runnerNameId))   // 🚨 External Network or parkrun site failed
-          throw new Error('FATAL: Batching aborted to avoid infinite looping because no updates');
-      } else  // at least one success in batch, reset the panic counter
-        ResetConsecFails(runnerNameId); 
-      if (numFailures > 4) {    // e.g. 9-4 => 5 fails 
-        let [currentDoB,fixedDoB] = GetRunnerDoB(runnerNameId);
-        if (currentDoB == fixedDoB) 
-          Logger.log('CAUTION: Resist recalibrating DoB since assumed frozen at '+fixedDoB);
-        else {
-          Logger.log('CAUTION: Due to successive failures matching age group, assuming DoB, '
-            +currentDoB+' (Fixed: '+fixedDoB+') was an estimate and may need recalibrated...');
-          let revisedDoB = RecalibrateDoB(runnerNameId,resultRange);
-          if (revisedDoB)
-            SetGCRRunnerDoB(runnerNameId,revisedDoB);
-        }
+    // batchSize = tc.batchSizeMAX-batchMore;  // adjusted at end of results table?
+    let numFailures = batchSize - updatesApplied;
+    remainToDo = remainToDo + numFailures;
+    moreBatches = (remainToDo > 0);
+    let morePositions = (moreBatches)
+      ? ' with '+remainToDo+' more positions needed to catch up'
+      : '';
+    Logger.log('Runner: '+runnerFullName+'\tUpdates applied: '+updatesApplied
+      +' (out of '+batchSize+' in this batch)'+morePositions);
+    if (updatesApplied === 0) {
+      if (CheckConsecFails(runnerNameId))   // 🚨 External Network or parkrun site failed
+        throw new Error('FATAL: Batching aborted to avoid infinite looping because no updates');
+    } else  // at least one success in batch, reset the panic counter
+      ResetConsecFails(runnerNameId); 
+    if (numFailures > 4) {    // e.g. 9-4 => 5 fails 
+      let [currentDoB,fixedDoB] = GetRunnerDoB(runnerNameId);
+      if (currentDoB == fixedDoB) 
+        Logger.log('CAUTION: Resist recalibrating DoB since assumed frozen at '+fixedDoB);
+      else {
+        Logger.log('CAUTION: Due to successive failures matching age group, assuming DoB, '
+          +currentDoB+' (Fixed: '+fixedDoB+') was an estimate and may need recalibrated...');
+        let revisedDoB = RecalibrateDoB(runnerNameId,resultRange);
+        if (revisedDoB)
+          SetGCRRunnerDoB(runnerNameId,revisedDoB);
       }
-      return moreBatches;
-    });
+    }
+    return moreBatches;
   } else {
     if (tc.debug) Logger.log('Runner: '+runnerFullName+'\tNo (more) blank positions to catch up');
     return false;   // no more batches
