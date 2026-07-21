@@ -45,8 +45,10 @@ Overall design context:
       (where all code files are held in GitHub: https://github.com/alanchampion1111-design/CHArT5k)
 
     Sun: Ngrok supports Puppeteer node imports from parkrun sites on a laptop with active configuration:
-        a.  C:\CHArT5k-Puppet> ngrok start --all --config ngrok.yml
-        b.  C:\CHArT5k-Puppet> node index-ngrok.js
+        a.  C:\CHArT5k-Puppet> npm install # based on package.json dependencies
+        b.  C:\CHArT5k-Puppet> ngrok http 36007
+        c.  C:\CHArT5k-Puppet> ngrok start --all --config ngrok.yml
+        d.  C:\CHArT5k-Puppet> node index-ngrok.js
 
     Planets: one per Group Spreadsheet covers:
         a.  Earth sandbox (original CHAMPION Parkrunners SS) for developing two sets of code:
@@ -190,10 +192,10 @@ const tc = {
   summaryPrefixURL: 'https://www.parkrun.', // org.uk (domain) in D1
   consolidatedReportURL: 'https://www.parkrun.com/results/consolidatedclub/?clubNum=',
   runnersSheetNAME: 'Runners',
-  // browserURL: 'https://browser-automation-service-224251628103.europe-west1.run.app',  // shared GCR service
-  browserURL: "https://harmless-subarctic-barrier.ngrok-free.dev", // shared local service (stable ngrok for 1GB & 20k requests/mth)
+  overviewSheetNAME: 'Overview',
+  overviewTunnelCELL: "B5",
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
-  batchSizeMAX: 13, // equivalent to 3 months of results for a single runner
+  batchSizeMAX: 9, // equivalent to 2 months of results for a single runner
   importTimeSECS: 58, // avoid hitting maxTimeSECS:  ~6-10 imports before trigger recursively
   maxTimeSECS: 6*60,  // GAS execution limit is 6 mins
   oneDAY: 24*60*60*1000  // milliseconds in a day.
@@ -208,12 +210,16 @@ var tv = {
 tv.activeSpreadsheetId = tv.activeSpreadsheet.getId();       // the originator ID
 tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
-if (tc.debug) Logger.log('Current Spreadsheet Id: '+tv.activeSpreadsheetId);  
+if (tc.debug) Logger.log('Current Spreadsheet Id: '+tv.activeSpreadsheetId); 
+tv.browserURL = tv.activeSpreadsheet
+  .getSheetByName(tc.overviewSheetNAME)
+  .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
+  .toString().trim();           // shared local service (stable ngrok for 1GB & 20k requests/mth)
 
 async function FetchNgrok(path, options = {}) {
   options.headers = options.headers || {};
   options.headers["ngrok-skip-browser-warning"] = "true"; // Bypass ERR_NGROK_6024 warning (arises 1st call)
-  return await UrlFetchApp.fetch(tc.browserURL+'/'+path, options);
+  return await UrlFetchApp.fetch(tv.browserURL+'/'+path, options);
 }
 
 async function OpenChromeBrowser() {
@@ -234,7 +240,7 @@ async function AccessPage(
   timeSecs = 20)
 {
   // Replicating your exact working GCR string format
-  const getBrowserURL = tc.browserURL + '/getUrl?url=' + thisUrl;
+  const getBrowserURL = tv.browserURL + '/getUrl?url=' + thisUrl;
   let timeMax = timeSecs * 1000;
   try {
     var response = await UrlFetchApp.fetch(getBrowserURL, {
