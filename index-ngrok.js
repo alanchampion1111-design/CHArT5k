@@ -337,7 +337,7 @@ async function loadUrl(thisUrl,
     }
     await thisPage.setDefaultTimeout(timeMax);      // Ensure active page timeout matches current transaction scope
     await presetDomainCookies(thisPage,thisUrl);    // required on every Page?
-    await new Promise(resolve => setTimeout(resolve, 2000+Math.floor(Math.random()*3000)));   // mimic 2-5 secs human delay
+    await new Promise(resolve => setTimeout(resolve, 4000+Math.floor(Math.random()*4000)));   // mimic 4-8 secs human delay
     await thisPage.goto(thisUrl,{waitUntil: 'domcontentloaded',timeout: 11000});    // alternatively, networkidle0
     await thisPage.waitForNavigation
       ({waitUntil: 'networkidle2', timeout: 3000})
@@ -619,7 +619,7 @@ async function filterPositions(
     await thisPage.waitForSelector(selectINPUT);
     await thisPage.click(selectINPUT);                   //  1.  Pre-requisite for selecting drop-down?
     await thisPage.type(selectINPUT," ");                //      ...to ensure options become visible
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 700));
     await thisPage.waitForSelector(selectOPTIONS,        //  2.  Skip to the multi drop-down list of options
       {visible: true, timeout: loadDetailSECS*1000});                              //      ...that are visible
     let optionExists = await thisPage.evaluate((selectCatOPTION,expectedVALUE) =>
@@ -640,7 +640,7 @@ async function filterPositions(
       },{timeout: loadDetailSECS*1000},numRunners,selectFilteredRUNNERS);
       if (filteredOk) {
         console.log('Successfully filtered '+expectedVALUE);
-        await new Promise(r => setTimeout(r, 600));  // Add an extra beat to ensure table populated
+        await new Promise(r => setTimeout(r, 700));  // Add an extra beat to ensure table populated
         // await thisPage.waitForSelector(selectFilteredRUNNERS, { timeout: 3000 }).catch(() => {});
       }
     }
