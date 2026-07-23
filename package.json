@@ -4,7 +4,7 @@
   "description": "",
   "main": "index-ngrok.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
     "tunnel": "ngrok http 36007"
   },
   "keywords": [],
@@ -12,7 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@ngrok/ngrok": "^3.39.8",
+    "@ngrok/ngrok": "^1.7.0",
     "express": "^5.2.1",
     "puppeteer": "^25.3.0",
     "puppeteer-extra": "^3.3.6",
