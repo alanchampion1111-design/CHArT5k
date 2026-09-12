@@ -971,8 +971,11 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
  *  ImportResultForEachRunner is scheduled trigger than needs to be preserved.
  */
 function ReImportResultForEachRunner(
-  eventDate = undefined)  // undefined means latest Saturday - return to this state otherwise
+  eventDate = undefined)  // undefined means always continue with precedent import date
 {
+  eventDate = tv.allRunnersSheet
+      .getRange(tc.importDateCELL)
+      .getValue();
   ImportResultForEachRunner(eventDate);
 }
 
