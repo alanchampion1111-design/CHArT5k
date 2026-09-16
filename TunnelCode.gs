@@ -863,7 +863,7 @@ function TrackImportDate(eventDate) {
   let startIndex = 0;
   let prevImportDate = tv.allRunnersSheet
     .getRange(tc.importDateCELL)
-    .getDisplayValue();;   // assumes dd/mm/yyyy format on SS (as in parkrun)
+    .getDisplayValue();   // assumes dd/mm/yyyy format on SS (as in parkrun)
   if (tc.debug) 
     Logger.log('Import date: '+eventDate+' ('+prevImportDate+')');
   if (eventDate === prevImportDate) {   // continue since assume prev import incomplete
@@ -975,7 +975,7 @@ function ReImportResultForEachRunner(
 {
   eventDate = tv.allRunnersSheet
       .getRange(tc.importDateCELL)
-      .getValue();
+      .getDisplayValue();   // consistently dd/mm/yyyy format on SS (as in parkrun)
   ImportResultForEachRunner(eventDate);
 }
 
