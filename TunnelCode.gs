@@ -459,14 +459,13 @@ function FormatDate(dateSource,dateFormat) {
 
 function PrepareResultRow(thisResult) { // cols A..G (7)
   const linksNUM = hyperLinks.length; // cols A..C (3)
-  const valsNUM = thisResult.length - linksNUM; // cols D..G (4)
   try {
     thisResult = thisResult.map(cellValue => {
       if (hyperLinks.length) {        // initially, assume 3?
         return '=HYPERLINK("'+
           hyperLinks.shift()          // ..with consuming side-effect
           +'","'+cellValue+'")';
-      } else {
+      } else {        // D..G as normal
         return cellValue;
       }
     });
@@ -486,15 +485,14 @@ function PrepareResultRow(thisResult) { // cols A..G (7)
  *    @param {offset} default append (or update last if first row)
  *  @returns {range} resultsRow - contains the results link to determine detailed positions
 */
-// TODO: Replace with PrepareResultRow, and then setValue in the caller (for each runner)
+// TODO: Potentially replace with PrepareResultRow, and then setValue in the caller?
 function AppendResultRow(
   thisResult,   // cols A..G (7)
   resultsSheet,
   numRows = 1)
 {
   try {
-    const linksNUM = hyperLinks.length;             // cols A..C (3)
-    const valsNUM = thisResult.length-linksNUM;     // cols D..G (4)
+    // const linksNUM = hyperLinks.length;             // cols A..C (3)
     thisResult = thisResult.map(cellValue => {
       if (hyperLinks.length) {    // initially, assume 3?
         return '=HYPERLINK("'+
@@ -506,10 +504,8 @@ function AppendResultRow(
     });
     // Apply likewise differently to the linked cells
     var insertRow = resultsSheet.getLastRow()+1;  // Assumes MAP formula in 1st Row is never the last
-    resultsSheet.getRange(insertRow,1,1,linksNUM)
-      .setFormulas([thisResult.slice(0,linksNUM)]);   // A3:C3 first row
-    resultsSheet.getRange(insertRow,linksNUM+1,1,valsNUM)
-      .setValues([thisResult.slice(linksNUM)]);       // D3:G3 first row    
+    resultsSheet.getRange(insertRow,1,1,thisResult.length)
+      .setValues([thisResult]); 
     var pastedRowRange = resultsSheet.getRange(insertRow,1,1,thisResult.length);
     if (numRows === 1)
       if (insertRow > tc.resultsStartROW)
@@ -541,17 +537,20 @@ function AppendResultRow(
   var thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX],tc.dateFORMAT);
   var thisLocation = thisResult[tc.locationINDEX];
   var resultsSheet = tv.activeSpreadsheet.getSheetByName(runnerNameId);
-  var maxRows = Math.min(previousROWS,resultsSheet.getLastRow()-tc.resultsStartROW+1); // e.g. 1 if only 3 rows
-  var firstPrevRow = resultsSheet.getLastRow()-maxRows+1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
+  var lastRow = resultsSheet.getLastRow();
+  var maxRows = Math.min(previousROWS,lastRow-tc.resultsStartROW+1); // e.g. 1 if only 3 rows
+  var firstPrevRow = lastRow-maxRows+1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
   var previousResultsRange = resultsSheet.getRange(firstPrevRow,1,maxRows,resultsSheet.getLastColumn());
-  var previousResults = previousResultsRange.getDisplayValues();
+  var previousResults = previousResultsRange.getValues(); // DisplayValues is slower! 
   // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
   if (previousResults.length < 1) {
     Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' to be able to match new result');
     return null;
   }
-  let matchingResults = previousResults.map(function(row) {
-    return row[tc.locationINDEX]+'&'+row[tc.dateINDEX];
+  if (tc.debug)
+    Logger.log('Matching dated event result from last '+previousROWS+' results on sheet, '+runnerNameId+'...');
+  let matchingResults = previousResults.map(function(row) { // match with thisDate format
+    return row[tc.locationINDEX]+'&'+FormatDate(row[tc.dateINDEX],tc.dateFORMAT);
   });
   let matchIndex = matchingResults.indexOf(thisLocation+'&'+thisDate);  // check duplicate?
   if (matchIndex > -1) {   // existing result, but is it complete?
@@ -577,6 +576,9 @@ function AppendResultRow(
       return partialResult;   // continue as if new result because positions omitted
     }
   } else {    // new result
+    if (tc.debug)
+      Logger.log('Appending new result for '+thisLocation+' on '+thisDate+
+      ' added for unique runner, '+runnerNameId);
     var pastedResult = AppendResultRow(thisResult,resultsSheet);
     Logger.log('New result imported for '+thisLocation+' on '+thisDate+
       ' added for unique runner, '+runnerNameId);
@@ -657,39 +659,11 @@ function ExtendRange(resultRange,numRows,numCols) {
  */
 function GetResultsUrl(eventDateCell,eventLocation,eventInstance) {
   var resultsLink;
-  const eventDate = eventDateCell.getDisplayValue;
-  eventDateCell.activate();   // hyperlink may surface when cell selected?
+  // const eventDate = eventDateCell.getValue; // getDisplayValue is slower!
+  // eventDateCell.activate();   // hyperlink may surface when cell selected?
   let richText = eventDateCell.getRichTextValue();
-  if (richText) {   // WARNING: Only works for cells with HYPERLINK formulae
-    resultsLink = richText.getLinkUrl();
-  } else {   // REDUNDANT: Legacy complication for past results, the embedded URL was not retrievable!!
-     const locationUrlMap = {
-      'Nidda': 'com.de',
-      'Kagerzoom': 'co.nl',
-      'Kralingse Bos': 'co.nl',
-      'Delftse Hout': 'co.nl',
-      'Zuiderpark': 'co.nl'
-    };
-    // const location = 'Nidda';
-    // const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=YOUR_API_KEY`);
-    // const data = await response.json();
-    // const countryCode = data.results[0].address_components.filter(c => c.types.includes('country')).short_name;
-    const eventMap = {
-      'Bushy Park': 'Bushy',
-      'Richmond Park': 'Richmond',
-      'Crane Park': 'Crane',
-      'Walsall Arboretum': 'Walsall',
-      'Wimbledon Common': 'Wimbledon',
-      'Medina I.O.W.': 'Medina'
-    };
-    eventLocation = eventMap[eventLocation] || eventLocation;
-    let parkrunDomain = locationUrlMap[eventLocation]
-      ? parkrunURL.replace('org\.uk',locationUrlMap[eventLocation])
-      : parkrunURL;
-    eventLocation = eventLocation.toLowerCase()
-      .replace(/[-\.,\'’ ]/g,"");
-    resultsLink = parkrunDomain+eventLocation+oneForALL+eventInstance;
-  }
+  // if (richText) {   // WARNING: Only works for cells with HYPERLINK formulae
+  resultsLink = richText.getLinkUrl();
   resultsLink = (resultsLink.includes('parkrun')) ? resultsLink : null;
   return resultsLink;
 }
