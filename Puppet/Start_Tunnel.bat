@@ -1,5 +1,5 @@
 @echo off
-title CHArT5k-Puppet Tunnel Manager
+title Tunnel
 echo Cleaning up existing ngrok instances...
 taskkill /f /im ngrok.exe >nul 2>&1
 cd C:\CHArT5k-Puppet
