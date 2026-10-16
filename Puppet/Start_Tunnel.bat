@@ -10,5 +10,5 @@ echo Alternative "local" club assignments (who?) where a different yml may opera
 echo Poole AC Parkrunners (Keren):             ngrok start --all --config ngrok-doormat.yml 
 echo Witney Road Runners (Joan):               ngrok start --all --config ngrok-harmless.yml
 echo Christchurch Runners (Micah):             ngrok start --all --config ngrok-shivering.yml
-echo Overton Harriers & AC Clubrunners (Dave): tbd
+echo Overton Harriers and AC Clubrunners (Dave): tbd
 pause
