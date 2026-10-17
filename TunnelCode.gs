@@ -210,11 +210,30 @@ var tv = {
 tv.activeSpreadsheetId = tv.activeSpreadsheet.getId();       // the originator ID
 tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
-if (tc.debug) Logger.log('Current Spreadsheet Id: '+tv.activeSpreadsheetId); 
+tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
+tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED"); 
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
   .toString().trim();           // shared local service (stable ngrok for 1GB & 20k requests/mth)
+if (tc.debug)
+  Logger.log('Current Spreadsheet Id: '+tv.activeSpreadsheetId); 
+
+function PauseCalcsOnCapture() {
+  // 🚀 FAILSAFE: Verify ranges exist and validate state before freezing MAP/LAMBDA formulae
+  if (tv.isClubLARGE) {
+    tv.calcsPAUSED.setValue(true);
+    SpreadsheetApp.flush();
+  }
+}
+
+function ResumeCalcsOnCapture() {
+  // 🚀 FAILSAFE: Verify ranges exist before awaking the MAP/LAMBDA formulae
+  if (tv.isClubLARGE) {
+    tv.calcsPAUSED.setValue(false);
+    SpreadsheetApp.flush();
+  }
+}
 
 async function FetchNgrok(path, options = {}) {
   options.headers = options.headers || {};
@@ -529,61 +548,66 @@ function AppendResultRow(
  function PasteResultForRunner(
   thisResult,     // assumes a single row to be added
   runnerNameId = "Alan_13")
-{
+ {
   if (tc.debug) Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
-  const previousROWS = 5;   // previous results (for matching) may include non-parkrunner events
-  hyperLinks = [];   // discard any hyperLinks from duplicate results
-  thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
-  var thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX],tc.dateFORMAT);
-  var thisLocation = thisResult[tc.locationINDEX];
-  var resultsSheet = tv.activeSpreadsheet.getSheetByName(runnerNameId);
-  var lastRow = resultsSheet.getLastRow();
-  var maxRows = Math.min(previousROWS,lastRow-tc.resultsStartROW+1); // e.g. 1 if only 3 rows
-  var firstPrevRow = lastRow-maxRows+1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
-  var previousResultsRange = resultsSheet.getRange(firstPrevRow,1,maxRows,resultsSheet.getLastColumn());
-  var previousResults = previousResultsRange.getValues(); // DisplayValues is slower! 
-  // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
-  if (previousResults.length < 1) {
-    Logger.log('ERROR: No previous result for unique runner, '+runnerNameId+' to be able to match new result');
-    return null;
-  }
-  if (tc.debug)
-    Logger.log('Matching dated event result from last '+previousROWS+' results on sheet, '+runnerNameId+'...');
-  let matchingResults = previousResults.map(function(row) { // match with thisDate format
-    return row[tc.locationINDEX]+'&'+FormatDate(row[tc.dateINDEX],tc.dateFORMAT);
-  });
-  let matchIndex = matchingResults.indexOf(thisLocation+'&'+thisDate);  // check duplicate?
-  if (matchIndex > -1) {   // existing result, but is it complete?
-    hyperLinks = [];  // discard pending hyperlinks since redundant for duplicate result
-    if (tc.debug)
-      Logger.log('Previously captured result at '+thisLocation+' on '+thisDate+
-        ' for unique runner, '+runnerNameId);
-    let partialResult = previousResultsRange.offset(matchIndex,0,1);
-    // Check whether existing result has had positions
-    let genderPositionKnown = previousResults[matchIndex][tc.genderPosnCOL-1];  // 0-indexed
-    // let genderPositionKnown = partialResult.getCell(1,tc.genderPosnCOL).getValue();
-    if (tc.debug)
-      Logger.log('genderPositionKnown [row]: '+genderPositionKnown
-        +' ['+matchIndex+' from '+firstPrevRow+']');
-    if (genderPositionKnown !== "") {
-      Logger.log('Previously imported result for '+thisLocation+' on '+thisDate+
-        ' already added (with positions) for unique runner, '+runnerNameId);
-      return null;    // No update needed if positions already known
-    } else {
-      if (tc.debug)
-        Logger.log('Matched result at '+thisLocation+' on '+thisDate+
-          ' for unique runner, '+runnerNameId+' except for positions');
-      return partialResult;   // continue as if new result because positions omitted
+  PauseCalcsOnCapture();
+  try {
+    const previousROWS = 5;   // previous results (for matching) may include non-parkrunner events
+    hyperLinks = [];   // discard any hyperLinks from duplicate results
+    thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
+    var thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX], tc.dateFORMAT);
+    var thisLocation = thisResult[tc.locationINDEX];
+    var resultsSheet = tv.activeSpreadsheet.getSheetByName(runnerNameId);
+    var lastRow = resultsSheet.getLastRow();
+    var maxRows = Math.min(previousROWS, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
+    var firstPrevRow = lastRow - maxRows + 1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
+    var previousResultsRange = resultsSheet.getRange(firstPrevRow, 1, maxRows, resultsSheet.getLastColumn());
+    var previousResults = previousResultsRange.getValues(); // DisplayValues is slower! 
+    // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
+    if (previousResults.length < 1) {
+      Logger.log('ERROR: No previous result for unique runner, ' + runnerNameId + ' to be able to match new result');
+      return null;
     }
-  } else {    // new result
     if (tc.debug)
-      Logger.log('Appending new result for '+thisLocation+' on '+thisDate+
-      ' added for unique runner, '+runnerNameId);
-    var pastedResult = AppendResultRow(thisResult,resultsSheet);
-    Logger.log('New result imported for '+thisLocation+' on '+thisDate+
-      ' added for unique runner, '+runnerNameId);
-    return pastedResult;
-  }       
+      Logger.log('Matching dated event result from last ' + previousROWS + ' results on sheet, ' + runnerNameId + '...');
+    let matchingResults = previousResults.map(function (row) { // match with thisDate format
+      return row[tc.locationINDEX] + '&' + FormatDate(row[tc.dateINDEX], tc.dateFORMAT);
+    });
+    let matchIndex = matchingResults.indexOf(thisLocation + '&' + thisDate);  // check duplicate?
+    if (matchIndex > -1) {   // existing result, but is it complete?
+      hyperLinks = [];  // discard pending hyperlinks since redundant for duplicate result
+      if (tc.debug)
+        Logger.log('Previously captured result at ' + thisLocation + ' on ' + thisDate +
+          ' for unique runner, ' + runnerNameId);
+      let partialResult = previousResultsRange.offset(matchIndex, 0, 1);
+      // Check whether existing result has had positions
+      let genderPositionKnown = previousResults[matchIndex][tc.genderPosnCOL - 1];  // 0-indexed
+      // let genderPositionKnown = partialResult.getCell(1,tc.genderPosnCOL).getValue();
+      if (tc.debug)
+        Logger.log('genderPositionKnown [row]: ' + genderPositionKnown
+          + ' [' + matchIndex + ' from ' + firstPrevRow + ']');
+      if (genderPositionKnown !== "") {
+        Logger.log('Previously imported result for ' + thisLocation + ' on ' + thisDate +
+          ' already added (with positions) for unique runner, ' + runnerNameId);
+        return null;    // No update needed if positions already known
+      } else {
+        if (tc.debug)
+          Logger.log('Matched result at ' + thisLocation + ' on ' + thisDate +
+            ' for unique runner, ' + runnerNameId + ' except for positions')
+        return partialResult;   // continue as if new result because positions omitted
+      }
+    } else {    // new result
+      if (tc.debug)
+        Logger.log('Appending new result for ' + thisLocation + ' on ' + thisDate +
+          ' added for unique runner, ' + runnerNameId);
+      var pastedResult = AppendResultRow(thisResult, resultsSheet);
+      Logger.log('New result imported for ' + thisLocation + ' on ' + thisDate +
+        ' added for unique runner, ' + runnerNameId);
+      return pastedResult;
+    }
+  } finally {
+    ResumeCalcsOnCapture();
+  }
 }
 
 /**
@@ -777,7 +801,7 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
  *    @param {string} runnerFullName - Runner's full name
  *    @param {Range} resultRange - Range of result data
  *    @param {number} runnerIndex - index of runner imported to date (unless -1 as default)
- *    @param {voolean} cacheUrl - cache as separate Page for re-use (REDUNDANT?)
+ *    @param {boolean} cacheUrl - cache as separate Page for re-use (REDUNDANT?)
  *  @returns {boolean} Success flag
  */
  async function AppendPositionsForResult(runnerFullName,resultRange,
@@ -788,41 +812,46 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
   let runNumber = resultRange.getCell(1,runNumCOL).getValue();
   if (!runNumber) return false;   // Skipping any non-Parkrun instance since no positions
   else {
-    let eventLocation = resultRange.getCell(1,tc.eventCOL).getValue();
-    let eventDateCell = resultRange.getCell(1,tc.dateCOL);
-    let extResultRange = (resultRange.getNumColumns() < tc.ageCatCOL) 
-      ? ExtendRange(resultRange,0,tc.PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
-      : resultRange;             // Result row range previously extended (for Catch-up use-case)
-    let genderPositionKnown = extResultRange.getCell(1,tc.genderPosnCOL).getValue();  
-    if (genderPositionKnown) {
-      if (runnerIndex >= 0)
-        tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex+1);
-      return false;  // Skipping since extra position(s) already on the sheet
-    } else {
-      try {
-        let ageCategory = extResultRange.getCell(1,tc.ageCatCOL).getValue();  // derived from Date - DoB
-        let genderCategory;  // = runnersSHEET.getCell(runnerIndex,genderCatCOL).getValue();  // out of Range!!
-        var resultsLink = GetResultsUrl(eventDateCell,eventLocation,runNumber); // TODO: since workaround not needed
-        // var resultsLink = GetResultsUrl(eventDateCell); // TODO: behind Date (in col B)
-        // Adjust ageCategory to suit language at event - e.g. SW25-29 (uk) => SV25-29 (de)
-        [genderCategory,ageCategory] = GetCategories(resultsLink,ageCategory); // e.g. JM10 => M => Male in uk
-        if (tc.debug)
-          Logger.log('Link to '+eventLocation+' Parkrun results:\n'+resultsLink);
-        let extraPosns = await AssessPositions(runnerFullName,resultsLink,ageCategory,genderCategory,cacheUrl);
-        if (extraPosns && extraPosns.length === 3) {
-          Logger.log('Positions captured for '+runnerFullName+' ('+resultsLink+'): '+extraPosns);
-          IncludePositions(extResultRange,...extraPosns);  // into cells, I..K on result row
-          if (runnerIndex >= 0) tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex+1);
-          return true;
-        } else {
-          Logger.log('CAUTION: Consider revising DoB of '+runnerFullName+' to ensure matching category ('+ageCategory+') at '+eventLocation+' ('+resultsLink+')?');
-          failedCatch.push(resultRange);
-          return false;
+    PauseCalcsOnCapture();
+    try {
+      let eventLocation = resultRange.getCell(1, tc.eventCOL).getValue();
+      let eventDateCell = resultRange.getCell(1, tc.dateCOL);
+      let extResultRange = (resultRange.getNumColumns() < tc.ageCatCOL)
+        ? ExtendRange(resultRange, 0, tc.PBtoAgeCatNumCOLS) // extends to include H..L (for Import use-case)
+        : resultRange;             // Result row range previously extended (for Catch-up use-case)
+      let genderPositionKnown = extResultRange.getCell(1, tc.genderPosnCOL).getValue();
+      if (genderPositionKnown) {
+        if (runnerIndex >= 0)
+          tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex + 1);
+        return false;  // Skipping since extra position(s) already on the sheet
+      } else {
+        try {
+          let ageCategory = extResultRange.getCell(1, tc.ageCatCOL).getValue();  // derived from Date - DoB
+          let genderCategory;  // = runnersSHEET.getCell(runnerIndex,genderCatCOL).getValue();  // out of Range!!
+          var resultsLink = GetResultsUrl(eventDateCell, eventLocation, runNumber); // TODO: since workaround not needed
+          // var resultsLink = GetResultsUrl(eventDateCell); // TODO: behind Date (in col B)
+          // Adjust ageCategory to suit language at event - e.g. SW25-29 (uk) => SV25-29 (de)
+          [genderCategory, ageCategory] = GetCategories(resultsLink, ageCategory); // e.g. JM10 => M => Male in uk
+          if (tc.debug)
+            Logger.log('Link to ' + eventLocation + ' Parkrun results:\n' + resultsLink);
+          let extraPosns = await AssessPositions(runnerFullName, resultsLink, ageCategory, genderCategory, cacheUrl);
+          if (extraPosns && extraPosns.length === 3) {
+            Logger.log('Positions captured for ' + runnerFullName + ' (' + resultsLink + '): ' + extraPosns);
+            IncludePositions(extResultRange, ...extraPosns);  // into cells, I..K on result row
+            if (runnerIndex >= 0) tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex + 1);
+            return true;
+          } else {
+            Logger.log('CAUTION: Consider revising DoB of ' + runnerFullName + ' to ensure matching category (' + ageCategory + ') at ' + eventLocation + ' (' + resultsLink + ')?');
+            failedCatch.push(resultRange);
+            return false;
+          }
+        } catch (err) {
+          Logger.log('ERROR: While appending positions for runner, ' + runnerFullName + ': ' + err);
+          return false; // or throw error
         }
-      } catch (err) {
-        Logger.log('ERROR: While appending positions for runner, '+runnerFullName+': '+err);
-        return false; // or throw error
       }
+    } finally {
+      ResumeCalcsOnCapture();
     }
   }
 }
@@ -874,9 +903,9 @@ async function GetEventsResults(eventDate) {
     Logger.log('INFO: Referencing consolidated report for date, '+effectiveDate+
       '; thus filtering report (if ready) for efficiency');
     var clubWideResults = await AccessPage(effectiveReportUrl,30);
-    if (clubWideResults && clubWideResults.includes('<div class="floatleft">')) {
+    if (clubWideResults && clubWideResults.includes('<div class="table-wrapper clearfix">')) {
       clubWideResults = clubWideResults.slice(
-        clubWideResults.indexOf('<div class="floatleft">'),
+        clubWideResults.indexOf('<div class="table-wrapper clearfix">'),
         clubWideResults.indexOf('<div class="results-error">'));
       eventsResults = clubWideResults.match(/<table[^>]*>(.*?)<\/table>/gs);
       if (eventsResults)
@@ -886,7 +915,7 @@ async function GetEventsResults(eventDate) {
     } else
       Logger.log('ERROR: Club report format may have changed');
   } else
-    Logger.log('WARNING: No defined group OR consolidated report for date does not exist;'+
+    Logger.log('WARNING: No defined group OR consolidated report for date exists;'+
       ' thus checking all runners individually');
   return eventsResults;
 }
