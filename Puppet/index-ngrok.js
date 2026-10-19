@@ -45,8 +45,6 @@ const cookieJAR = [
   'https://www.parkrun.co.za'
 ];
 
-let prevPage;         // retain thisPage on weekly import (minimal cache => single page)
-let prevFilterUrl;    // recall previous event URL determines re-use of retained prevPage
 const launchSECS = 50;  // initial first page load timeout
 const pageSECS = 3;     // Assume 10 seconds BETWEEN page accesses on parkrun site relies on stealth mode?
 const minRunnerTableCOUNT = 3;  // 3 for a 5k runner
@@ -162,7 +160,6 @@ exports.initBrowser = async (_,res) => {
     res.end(thisBrowserWSEp);
   } catch (err) {
     console.error('ERROR: Failed to initialise browser:',err);
-    // consider a relaunch with args, --pull from Docker if image is not properly cached!
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('ERROR: Failed to initialise browser, ' + err);
   } finally {
@@ -268,7 +265,7 @@ async function presetDomainCookies(thisPage,thisUrl) {
  *   @param {string} thisUrl - URL to load
  *   @param {number} tableCount [default 3] -  (-1 means returns thisPage)
  *   @param {number} timeSecs - max timeout (in secs) to load (with table?)
- *   @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableNum is 0)
+ *   @param {boolean} caching - if true, page remains open and is to be (or may have been) cached (when tableCount is 0)
  *  @returns the HTML content when table # is loaded, or thisPage object for alternative detailed searching
  */
 async function loadUrl(thisUrl,
@@ -717,7 +714,7 @@ exports.filterUrl = async (req,res) => {
   let ageCat = req.query?.ac       || 'VM55-59';      // Age-Category filter for matching Dave (expect 2)
   let ageGrade = req.query?.ag     || 'Age-Grade';    // Age-Grade (%age) &sort for matching Dave (expect 8)
   let genderCat = req.query?.gc    || 'Male';         // Gender category filter for matching Dave (expect 11)
-  let caching = Boolean(req.query?.cache === 'true');     // No caching in catch-up mode on a single runner at different events
+  let caching = Boolean(req.query?.cache === 'true');     // Cache during weekly import for a club where (URL) event may be common
 // begin
   console.log('thisUrl: '+thisUrl);
   console.log('matchRunner: '+matchRunner);
@@ -727,9 +724,10 @@ exports.filterUrl = async (req,res) => {
   console.log('caching: '+caching);
   // console.log('caching type: '+typeof caching);
   var thisPage;
-  // TODO: Instead of caching multiple pages per import, need to consider session-based multiple pages per spreadsheet!
   try {
-    if (caching && prevPage && thisUrl == prevFilterUrl) {
+    if (caching) {
+      // loop through each event URL open for this import batch and re-use without delay in refetching
+        && prevPage && thisUrl == prevFilterUrl) {
       thisPage = prevPage;
       console.log('Filter positions using same page for runner, '+matchRunner+' since common event URL, '+thisUrl);
     } else {
@@ -774,7 +772,7 @@ exports.deleteCookies = async (_,res) => {
   var thisBrowser;
   try {
     console.log("Attempting to launch browser...")
-    thisBrowser = await puppeteer.launch({  // variable delay if image not cached?
+    thisBrowser = await puppeteer.launch({  // variable delay if image not ed?
       headless: false,
       executablePath: chromePATH,
       args: [
