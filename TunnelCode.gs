@@ -211,7 +211,7 @@ tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift d
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
 tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
-tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS");   // avoid hitting maxTimeSECS:  ~3-8 imports before trigger recursively
+tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();   // avoid hitting maxTimeSECS:  ~3-8 imports before trigger recursively
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
@@ -1024,9 +1024,11 @@ function ImportResultForEachRunner(
                   return; // skip considering need for further import if already on the last runner
                 let remainingTimeSecs = tc.maxTimeSECS-Math.floor((new Date().getTime()-tv.startTime)/1000);
                 if (tc.debug)
-                  Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
+                  Logger.log('Script time remaining: '+remainingTimeSecs+' seconds (with '
+                    +tv.importSECS+' needed)');
                 if (remainingTimeSecs < tv.importSECS) {
-                  Logger.log('WARNING: Insufficient time ( '+tv.importSECS+' but only '+remainingTimeSecs+' secs remain) to import another result');
+                  Logger.log('WARNING: Insufficient time (needing '+tv.importSECS+' but only '
+                    +remainingTimeSecs+' secs remain) to import another result');
                   tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index + 1); // store next index
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
                   return Promise.reject('Avoid timeout');
