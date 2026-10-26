@@ -107,7 +107,7 @@ i
 /               ExtendRange
 /               >AssessPositions (for one runner, potentially same page)
 /               IncludePositions
-//          If insufficient time to import next member#s results,
+//          If insufficient time to import another member's results,
 //            Trigger recursive task, ImportResultForEachRunner from next index...
 /         >CloseChromeBrowser
 /
@@ -211,7 +211,7 @@ tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift d
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
 tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
-tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS");   // avoid hitting maxTimeSECS:  ~3-10 imports before trigger recursively
+tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS");   // avoid hitting maxTimeSECS:  ~3-8 imports before trigger recursively
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
@@ -1013,7 +1013,7 @@ function ImportResultForEachRunner(
     ).getValues().filter(String);
     return GetEventsResults(eventDate)
       .then(eventsResults => { 
-        // EITHER start afresh (new date, index 0) OR continue from previous import (same datem next index)
+        // EITHER start afresh (new date, index 0) OR continue from previous import (same date, next index)
         let promise = Promise.resolve();  // a promise avoids need for recursion to enforce sequential import
         CleanupImportBatch(reImportResultsFN);    // start with a clean set of triggers!
         for (let index=startIndex; index<runners.length; index++) {
@@ -1026,7 +1026,7 @@ function ImportResultForEachRunner(
                 if (tc.debug)
                   Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
                 if (remainingTimeSecs < tv.importSECS) {
-                  Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to import more results.');
+                  Logger.log('WARNING: Insufficient time (needing '+tv.importSECS'+' but only '+remainingTimeSecs+' secs remain) to import another result');
                   tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index + 1); // store next index
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
                   return Promise.reject('Avoid timeout');
