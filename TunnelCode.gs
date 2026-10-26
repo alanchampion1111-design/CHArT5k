@@ -196,7 +196,6 @@ const tc = {
   overviewTunnelCELL: "B5",
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
   batchSizeMAX: 9, // equivalent to 2 months of results for a single runner
-  importTimeSECS: 58, // avoid hitting maxTimeSECS:  ~6-10 imports before trigger recursively
   maxTimeSECS: 6*60,  // GAS execution limit is 6 mins
   oneDAY: 24*60*60*1000  // milliseconds in a day.
 };
@@ -211,7 +210,8 @@ tv.activeSpreadsheetId = tv.activeSpreadsheet.getId();       // the originator I
 tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
-tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED"); 
+tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
+tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS");   // avoid hitting maxTimeSECS:  ~3-10 imports before trigger recursively
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
@@ -1025,7 +1025,7 @@ function ImportResultForEachRunner(
                 let remainingTimeSecs = tc.maxTimeSECS-Math.floor((new Date().getTime()-tv.startTime)/1000);
                 if (tc.debug)
                   Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
-                if (remainingTimeSecs < tc.importTimeSECS) {
+                if (remainingTimeSecs < tv.importSECS) {
                   Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to import more results.');
                   tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index + 1); // store next index
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
