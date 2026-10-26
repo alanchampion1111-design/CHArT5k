@@ -1026,7 +1026,7 @@ function ImportResultForEachRunner(
                 if (tc.debug)
                   Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
                 if (remainingTimeSecs < tv.importSECS) {
-                  Logger.log('WARNING: Insufficient time (needing '+tv.importSECS'+' but only '+remainingTimeSecs+' secs remain) to import another result');
+                  Logger.log('WARNING: Insufficient time ( '+tv.importSECS+' but only '+remainingTimeSecs+' secs remain) to import another result');
                   tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index + 1); // store next index
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
                   return Promise.reject('Avoid timeout');
