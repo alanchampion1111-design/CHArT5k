@@ -211,7 +211,9 @@ tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift d
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
 tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
 tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();   // avoid hitting maxTimeSECS:  ~3-8 imports before recursive reimport
-tv.batchSize = tv.activeSpreadsheet.getRangeByName("BATCH_SIZE").getValue();   // avoid hitting maxTimeSECS:  ~7-10 sets of positions before recursive batch
+Logger.log('IMPORT_SECS: '+tv.importSECS);
+tv.batchSIZE = tv.activeSpreadsheet.getRangeByName("BATCH_SIZE").getValue();   // avoid hitting maxTimeSECS:  ~7-10 sets of positions before recursive batch
+Logger.log('BATCH_SIZE: '+tv.batchSIZE);
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
@@ -1900,7 +1902,7 @@ async function SyncPositionsPerRunner(
     // WARNING: Limit batch of results to catch up (recursively) because 6 mins max per App script!
     let lastResultRow = resultsSheet.getLastRow();
     failedCatch = [];   // clear failed status for this new batch 
-    let batchMore = tv.batchSize;
+    let batchMore = tv.batchSIZE;
     let updatesApplied = 0;
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,tc.genderPosnCOL).getValue();
@@ -1916,7 +1918,7 @@ async function SyncPositionsPerRunner(
         else
           break; // otherwise, there are no more results beyond the last row!
     }
-    let batchSize = tv.batchSize-batchMore  // actual batchSize expected fewer at the end
+    let batchSize = tv.batchSIZE-batchMore  // actual batchSize expected fewer at the end
     if (tc.debug)
       Logger.log('RunnerId: '+runnerNameId+'\t# of results is '+lastResultRow
         +' and reached result, '+resultRange.getLastRow());
