@@ -195,7 +195,6 @@ const tc = {
   overviewSheetNAME: 'Overview',
   overviewTunnelCELL: "B5",
   sampleURL: 'https://www.parkrun.org.uk/colchestercastle/results/116',
-  batchSizeMAX: 9, // equivalent to 2 months of results for a single runner
   maxTimeSECS: 6*60,  // GAS execution limit is 6 mins
   oneDAY: 24*60*60*1000  // milliseconds in a day.
 };
@@ -211,7 +210,8 @@ tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift d
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
 tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
-tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();   // avoid hitting maxTimeSECS:  ~3-8 imports before trigger recursively
+tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();   // avoid hitting maxTimeSECS:  ~3-8 imports before recursive reimport
+tv.batchSize = tv.activeSpreadsheet.getRangeByName("BATCH_SIZE").getValue();   // avoid hitting maxTimeSECS:  ~7-10 sets of positions before recursive batch
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
   .getRange(tc.overviewTunnelCELL).getValue()    //  e.g. https://harmless-subarctic-barrier.ngrok-free.dev
@@ -1900,7 +1900,7 @@ async function SyncPositionsPerRunner(
     // WARNING: Limit batch of results to catch up (recursively) because 6 mins max per App script!
     let lastResultRow = resultsSheet.getLastRow();
     failedCatch = [];   // clear failed status for this new batch 
-    let batchMore = tc.batchSizeMAX;
+    let batchMore = tv.batchSize;
     let updatesApplied = 0;
     while (batchMore) {
       let genderPositionKnown = resultRange.getCell(1,tc.genderPosnCOL).getValue();
@@ -1916,13 +1916,12 @@ async function SyncPositionsPerRunner(
         else
           break; // otherwise, there are no more results beyond the last row!
     }
-    let batchSize = tc.batchSizeMAX-batchMore  // actual batchSize expected fewer at the end
+    let batchSize = tv.batchSize-batchMore  // actual batchSize expected fewer at the end
     if (tc.debug)
       Logger.log('RunnerId: '+runnerNameId+'\t# of results is '+lastResultRow
         +' and reached result, '+resultRange.getLastRow());
     let remainToDo = lastResultRow-resultRange.getLastRow();
     var moreBatches = (remainToDo > 0);
-    // batchSize = tc.batchSizeMAX-batchMore;  // adjusted at end of results table?
     let numFailures = batchSize - updatesApplied;
     remainToDo = remainToDo + numFailures;
     moreBatches = (remainToDo > 0);
