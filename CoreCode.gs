@@ -1158,6 +1158,7 @@ function GenerateChartsFromGroups(
       Logger.log('Perf sheet: '+perfSheetName+' ['+grpBlocks[perfSheetName].length+' charts]');
     if (grpBlocks[perfSheetName].every(g => g.disableDraw))
       continue;
+    PauseCalcsOnGenerate();   // halt calcs for large clubs to reduce recursion
     var index = parseInt(PropertiesService
       .getScriptProperties()
       .getProperty(cc.continueINDEX+'_'+cv.activeSpreadsheetId+'_'+perfSheetName))
@@ -1182,7 +1183,7 @@ function GenerateChartsFromGroups(
       let perfChartCol = groupRange.offset(1,1).getValue() || undefined;
       let firstRunner = groupRange.offset(1,2).getValue() || undefined;
       if (firstRunner === "#N/A")
-        continue;
+        continue;   // skip to next chart if none in group
 
       // Stage 2b. Place Group performances data on sheet prior to creating Group chart
       var chartTitle = grpParams.groupName+" ("+grpParams.groupTitle+") "+grpParams.perfColumnTitle;
@@ -1216,11 +1217,13 @@ function GenerateChartsFromGroups(
         } else  // need to use split functions for a large club/family
           Logger.log('ERROR: Exiting since unable to continue chart generation beyond index, '+index+
            ' in the absence of expected function, '+continueGenerate);
-        return;
+        ResumeCalcsOnGenerate();   // restore calcs for large clubs (since recursing)
+        return; // continue next chart on recurse?
       }
     }   // Generated all charts for this perfSheetName 
     PropertiesService.getScriptProperties()
       .deleteProperty(cc.continueINDEX+'_'+cv.activeSpreadsheetId+'_'+perfSheetName);
+    ResumeCalcsOnGenerate();   // restore calcs for large clubs (otherwise click Runners!P1)
   }
 }
                
@@ -1846,9 +1849,10 @@ function MeritDetailedTrendsChart() {
   const sinceYEAR = cv.allRunnersSheet
     .getRange(cc.sinceYearCELL)
     .getValue();
+  PauseCalcsOnGenerate();   // halt calcs for large clubs to ensure all are checked
   for (var [runnerIndex,runnerName] of runnersNames.entries()) {
     let numRuns = runnersNumRuns[runnerIndex];
-    if ( numRuns < meritNumRUNS) continue;   // not reached threshhold (150)
+    if ( numRuns < meritNumRUNS) continue;   // not reached threshhold (100/150)
     let runnerNameId = runnerName+'_'+runnerIndex;
     let runnerResultsSheet = cv.activeSpreadsheet
       .getSheetByName(runnerNameId);
@@ -1865,6 +1869,7 @@ function MeritDetailedTrendsChart() {
     CloneTrendsChart(runnerNameId,numRuns,runnerResultsSheet,
       trendCharts,sinceYEAR);
   }
+  ResumeCalcsOnGenerate();  // assuming no timeout (otherwise click on Runners!P1)
 }
 
 /**
