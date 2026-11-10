@@ -73,7 +73,10 @@ const cc = {
   resultTABLE: 'Event',   // First Header title in Results sheet
   eventHeaderCELL: "A2",  // Header row is below the Runner name title
   firstResultCELL: "A3",  //  ...and at least one Result has been cleanly entered
-  offsetBORDER: 5,        // number pixels around chart
+  trendsRecentROW: 24,    // row where recent Trends chart appears on runners' sheets (assumes default ends at 22)
+  trendsCOL: 14,          // column where Trends charts appear on runners' sheets (col. N)
+  trendsBORDER: 2,        // number of pixels around extra Trends chart
+  offsetBORDER: 5,        // number pixels around Groups comparative charts
   groupStringsCOUNT: 5,   // String parameters from Groups sheet up to and including Compare Format
   groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
   paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
@@ -81,9 +84,11 @@ const cc = {
   chartTimeSECS: 90,      // time needed to generate a chart (<10 runners?)
   maxTimeSECS: 6*60,      // limit off 6 minutes per GAS script (governs need to batch)
   chartColOFFSET: -2,     // column B from D on any performances chart sheet (e.g. for Leagues)
-  trendColOFFSET: 12,      // column N from B on runner's own trend chart sheet
-  continueINDEX: 'chartIndex' // properties for continuing chart generation
+  trendColOFFSET: 12,     // column N from B on runner's own trend chart sheet
+  continueINDEX: 'chartIndex', // properties for continuing chart generation
+  scrollCOL: 13           // Scroll down when selecting column M beyond the table
 };
+
 var cv = {
   activeSpreadsheet: SpreadsheetApp
     .getActiveSpreadsheet(),      // allows dynamic shift to new context
@@ -92,10 +97,27 @@ var cv = {
 cv.activeSpreadsheetId = cv.activeSpreadsheet.getId();       // the originator ID
 cv.activeSpreadsheetName = cv.activeSpreadsheet.getName();
 cv.allRunnersSheet = cv.activeSpreadsheet
-  .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
+  .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet 
+cv.isClubLARGE = cv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
+cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED").getValue(); 
 if (cc.debug)
-  Logger.log('Current Spreadsheet Id: '+cv.activeSpreadsheetId);  
-const scrollCOL = 13;         // Scroll down when selecting column M beyond the table
+  Logger.log('Current Spreadsheet Id: '+cv.activeSpreadsheetId);
+
+function PauseCalcsOnGenerate() {
+  // 🚀 FAILSAFE: Verify ranges exist and validate state before freezing MAP/LAMBDA formulae
+  if(cv.isClubLARGE) {
+    cv.calcsPAUSED.setValue(true);
+    SpreadsheetApp.flush();
+  }
+}
+
+function ResumeCalcsOnGenerate() {
+  // 🚀 FAILSAFE: Verify ranges exist before awaking the MAP/LAMBDA formulae
+  if(cv.isClubLARGE) {
+    cv.calcsPAUSED.setValue(false);
+    SpreadsheetApp.flush();
+  }
+}
 
 /* ---------------------------------------------------------------------------
 /
@@ -437,7 +459,7 @@ function onSelectionChange(e) {
   var range = e.range;
   // Only effective when selecting a cell just to the right of the table
   // assuming a down-arrow image is on the right of that Event result header
-  if (range.getColumn() !== scrollCOL) return
+  if (range.getColumn() !== cc.scrollCOL) return
   var resultsSheet = e.source.getActiveSheet();
   // Skip sheet if table does not contain Event results
   if (resultsSheet.getRange(cc.eventHeaderCELL).getValue() !== cc.resultTABLE) return;
@@ -1368,7 +1390,7 @@ function GetOverview() {
   overviewTable.push(["Owner",ownerEmail]);
   const ownerService = {  // tunnel service running on a dedicated laptop owned by Group owner
     "alan.champion1111@gmail.com": "https://harmless-subarctic-barrier.ngrok-free.dev",
-    "ironchamp@gmail.com": "https://doormat-obsolete-exemption.ngrok-free.dev",
+    "kerenism@gmail.com": "https://doormat-obsolete-exemption.ngrok-free.dev",
     "micahdougall@gmail.com": "https://shivering-visibly-sensitize.ngrok-free.dev"
   };
   overviewTable.push(["Tunnel",ownerService[ownerEmail]]);
@@ -1802,7 +1824,7 @@ function CloneTrendsChart(runnerNameId,numRuns,runnerResultsSheet,
   });
   let finalChart = newChartBuilder  // render new detailed trend chart
     .setOption('title', 'Run times and age-grades (since '+sinceYear+')')
-    .setPosition(22, 14, 0, 0) // Row 22, Col N (14)
+    .setPosition(cc.trendsRecentROW,cc.trendsCOL,cc.trendsBORDER,cc.trendsBORDER) // Row 24, Col N (14)
     .build();
   runnerResultsSheet.insertChart(finalChart);
   Logger.log("INFO: Successfully merited trends chart on runner's results sheet, "+runnerNameId+
