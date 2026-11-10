@@ -99,7 +99,7 @@ cv.activeSpreadsheetName = cv.activeSpreadsheet.getName();
 cv.allRunnersSheet = cv.activeSpreadsheet
   .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet 
 cv.isClubLARGE = cv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
-cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED").getValue(); 
+cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED"); 
 if (cc.debug)
   Logger.log('Current Spreadsheet Id: '+cv.activeSpreadsheetId);
 
