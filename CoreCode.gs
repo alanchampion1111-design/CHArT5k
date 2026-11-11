@@ -81,7 +81,6 @@ const cc = {
   groupValuesCOUNT: 6,    // ...with remaining parameters are numbers or boolean flags
   paramsCOUNT: 11,        // main header in Groups sheet (runner parameters start in col 3 below)
   recentYRS: 2,           // filter comparison graphs based to most recent years only
-  chartTimeSECS: 90,      // time needed to generate a chart (<10 runners?)
   maxTimeSECS: 6*60,      // limit off 6 minutes per GAS script (governs need to batch)
   chartColOFFSET: -2,     // column B from D on any performances chart sheet (e.g. for Leagues)
   trendColOFFSET: 12,     // column N from B on runner's own trend chart sheet
@@ -99,7 +98,9 @@ cv.activeSpreadsheetName = cv.activeSpreadsheet.getName();
 cv.allRunnersSheet = cv.activeSpreadsheet
   .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet 
 cv.isClubLARGE = cv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
-cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED"); 
+cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
+cv.chartSECS = cv.activeSpreadsheet.getRangeByName("CHART_SECS").getValue();   // 100-150 secs needed to generate a chart (<12 runners?) 
+Logger.log('CHART_SECS: '+cv.chartSECS);
 if (cc.debug)
   Logger.log('Current Spreadsheet Id: '+cv.activeSpreadsheetId);
 
@@ -1184,6 +1185,7 @@ function GenerateChartsFromGroups(
       let firstRunner = groupRange.offset(1,2).getValue() || undefined;
       if (firstRunner === "#N/A")
         continue;   // skip to next chart if none in group
+      Logger.log('Group '+index+': # of runners: '+runnersLegend.length);
 
       // Stage 2b. Place Group performances data on sheet prior to creating Group chart
       var chartTitle = grpParams.groupName+" ("+grpParams.groupTitle+") "+grpParams.perfColumnTitle;
@@ -1198,9 +1200,10 @@ function GenerateChartsFromGroups(
         continue;
       let remainingTimeSecs = cc.maxTimeSECS-Math.floor((new Date().getTime()-cv.startTime)/1000); 
       if (cc.debug)
-        Logger.log('Script time remaining: '+remainingTimeSecs+' seconds');
-      if (remainingTimeSecs < cc.chartTimeSECS) {
-        Logger.log('WARNING: Insufficient time ('+remainingTimeSecs+' secs) to generate any more charts.');
+        Logger.log('Script time remaining: '+remainingTimeSecs+' seconds (with '+cv.chartSECS+' needed per chart)');
+      if (remainingTimeSecs < cv.chartSECS) {
+        Logger.log('WARNING: Insufficient time (needing '+cv.chartSECS+' but only '
+                    +remainingTimeSecs+' secs remain) to generate another chart');
         let continueGenerate = 'Generate'+perfSheetName.replace(/\s+/g, '')+'BlockCharts';
         if (typeof globalThis[continueGenerate] === "function"  // directed to sandbox (i.e. CHAMPION Parkrunners)
           || typeof CHArT5kPlanet?.[continueGenerate] === "function") // directed via Router.gs (other Planet Group SSs)
