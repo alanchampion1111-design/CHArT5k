@@ -166,10 +166,6 @@ const tc = {
   parkrunnerIdCOL: 10,        // in column J on Runners sheet
   titleNameCELL: "A1",        // Runners cell club/family name (with link to consolidated results)
   templateNameCELL: "E1",     // Runners cell identifies the seed template (e.g. Joe_90)
-  importDateCELL: "I1",       // Runners cell for the last import date (d-MMM-yy)
-  clubIdCELL: "J1",           // Runners cell identifies the club or family group id
-  importIndexCELL: "K1",      // Runners cell with index of runner to continue import
-  importTotalCELL: "L1",  // Runners cell with number of runners who ran on this import date
   locationINDEX: 0,       // column A
   dateINDEX: 1,           // column B
   eventCOL: 1,            // column A is the event location
@@ -208,11 +204,15 @@ var tv = {
 tv.activeSpreadsheetId = tv.activeSpreadsheet.getId();       // the originator ID
 tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift during spawning
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
-tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
-tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
-tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();   // avoid hitting maxTimeSECS:  ~3-8 imports before recursive reimport
+tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB").getValue();    // TRUE if number of members is over 100 (for performance tuning)
+tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");             // toggles true/false during import/catch-up (for large clubs)
+tv.importDATE = tv.activeSpreadsheet.getRangeByName("IMPORT_DATE");               // Track latest import date (dd/mm/yyyy aligned with parkrun format)
+tv.importCLUB = tv.activeSpreadsheet.getRangeByName("IMPORT_CLUB");               // Identifies the parkrun club(/family) group id (linked report filters import)
+tv.importIDX = tv.activeSpreadsheet.getRangeByName("IMPORT_IDX");                 // Track index of runner to continue import
+tv.importCNT = tv.activeSpreadsheet.getRangeByName("IMPORT_CNT");                 // Track number of imports/updates who ran on import date
+tv.importSECS = tv.activeSpreadsheet.getRangeByName("IMPORT_SECS").getValue();    // avoid hitting maxTimeSECS:  ~3-8 imports before recursive reimport
 Logger.log('IMPORT_SECS: '+tv.importSECS);
-tv.batchSIZE = tv.activeSpreadsheet.getRangeByName("BATCH_SIZE").getValue();   // avoid hitting maxTimeSECS:  ~7-10 sets of positions before recursive batch
+tv.batchSIZE = tv.activeSpreadsheet.getRangeByName("BATCH_SIZE").getValue();      // avoid hitting maxTimeSECS:  ~7-10 sets of positions before recursive batch
 Logger.log('BATCH_SIZE: '+tv.batchSIZE);
 tv.browserURL = tv.activeSpreadsheet
   .getSheetByName(tc.overviewSheetNAME)
@@ -824,7 +824,7 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
       let genderPositionKnown = extResultRange.getCell(1, tc.genderPosnCOL).getValue();
       if (genderPositionKnown) {
         if (runnerIndex >= 0)
-          tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex + 1);
+          tv.importIDX.setValue(runnerIndex+1);
         return false;  // Skipping since extra position(s) already on the sheet
       } else {
         try {
@@ -840,7 +840,8 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
           if (extraPosns && extraPosns.length === 3) {
             Logger.log('Positions captured for ' + runnerFullName + ' (' + resultsLink + '): ' + extraPosns);
             IncludePositions(extResultRange, ...extraPosns);  // into cells, I..K on result row
-            if (runnerIndex >= 0) tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(runnerIndex + 1);
+            if (runnerIndex >= 0)
+              tv.importIDX.setValue(runnerIndex+1);
             return true;
           } else {
             Logger.log('CAUTION: Consider revising DoB of ' + runnerFullName + ' to ensure matching category (' + ageCategory + ') at ' + eventLocation + ' (' + resultsLink + ')?');
@@ -866,27 +867,17 @@ function GetLastSaturday(date) {
 
 function TrackImportDate(eventDate) {
   let startIndex = 0;
-  let prevImportDate = tv.allRunnersSheet
-    .getRange(tc.importDateCELL)
-    .getDisplayValue();   // assumes dd/mm/yyyy format on SS (as in parkrun)
+  let prevImportDate = tv.importDATE.getDisplayValue();   // assumes dd/mm/yyyy format on SS (as in parkrun)
   if (tc.debug) 
     Logger.log('Import date: '+eventDate+' ('+prevImportDate+')');
   if (eventDate === prevImportDate) {   // continue since assume prev import incomplete
-    startIndex = tv.allRunnersSheet
-      .getRange(tc.importIndexCELL)
-      .getValue();
+    startIndex = tv.importIDX.getValue();
   } else {  // fresh import
-    tv.allRunnersSheet
-      .getRange(tc.importDateCELL)
-      .setValue(eventDate);
-    tv.allRunnersSheet
-      .getRange(tc.importIndexCELL)
-      .setValue(startIndex);
+    tv.importDATE.setValue(eventDate);
+    tv.importIDX.setValue(startIndex);
   }
   if (startIndex == 0)  // whether a fresh import or manually reset
-    tv.allRunnersSheet
-      .getRange(tc.importTotalCELL)
-      .setValue(0);
+    tv.importCNT.setValue(0);
   return startIndex;
 }
 
@@ -896,9 +887,7 @@ async function GetEventsResults(eventDate) {
     tc.universalDateFORMAT
   );
   let eventsResults;
-  let clubId = tv.allRunnersSheet
-    .getRange(tc.clubIdCELL)
-    .getValue();
+  let clubId = tv.importCLUB.getValue();
   if (clubId) {
     let clubReportUrl = tc.consolidatedReportURL+clubId;  // latest result (previous date?)
     let effectiveReportUrl = clubReportUrl+'&eventdate='+effectiveDate;
@@ -951,7 +940,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
             Logger.log('Appending result positions for unique runner sheet, '+runnerNameId);
           return AppendPositionsForResult(runnerFullName,resultRange,index,true); // caching
         } else {
-          tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index);
+          tv.importIDX.setValue(index);
           if (tc.debug)
             Logger.log('Positions already appended for runner, '+runnerNameId);
           return true;
@@ -964,8 +953,8 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
     })
     .then((success) => {
       if (success) {
-        let numWhoRan = tv.allRunnersSheet.getRange(tc.importTotalCELL).getValue();
-        tv.allRunnersSheet.getRange(tc.importTotalCELL).setValue(numWhoRan+1);
+        let numWhoRan = tv.importCNT.getValue();
+        tv.importCNT.setValue(numWhoRan+1);
       }
       return true;
     });
@@ -978,9 +967,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
 function ReImportResultForEachRunner(
   eventDate = undefined)  // undefined means always continue with precedent import date
 {
-  eventDate = tv.allRunnersSheet
-      .getRange(tc.importDateCELL)
-      .getDisplayValue();   // consistently dd/mm/yyyy format on SS (as in parkrun)
+  eventDate = tv.importDATE.getDisplayValue();   // consistently dd/mm/yyyy format on SS (as in parkrun)
   ImportResultForEachRunner(eventDate);
 }
 
@@ -1031,7 +1018,7 @@ function ImportResultForEachRunner(
                 if (remainingTimeSecs < tv.importSECS) {
                   Logger.log('WARNING: Insufficient time (needing '+tv.importSECS+' but only '
                     +remainingTimeSecs+' secs remain) to import another result');
-                  tv.allRunnersSheet.getRange(tc.importIndexCELL).setValue(index + 1); // store next index
+                  tv.importIDX.setValue(index+1); // track next index to continue
                   Logger.log('Exiting loop and continuing import beyond index, '+index);
                   return Promise.reject('Avoid timeout');
                 }
@@ -1059,7 +1046,7 @@ function ImportResultForEachRunner(
     Logger.log('ERROR: '+error);
   })
   .finally(() => {
-    let numWhoRan = tv.allRunnersSheet.getRange(tc.importTotalCELL).getValue();
+    let numWhoRan = tv.importCNT.getValue();
     Logger.log('Number of results imported/updated: '+tv.numImports+
       ' (out of '+numWhoRan+' who ran on '+eventDate+')');
     return CloseChromeBrowser();
@@ -1684,9 +1671,7 @@ async function InstantiateGroupSpreadSheet(
     let hyperlink = tc.summaryPrefixURL+'"&D$1&"/groups/'+
       parkrunGroupId;   // instead of softlink
     let groupFormula = '=HYPERLINK("'+hyperlink+'",'+parkrunGroupId+')';
-    tv.allRunnersSheet
-      .getRange(tc.clubIdCELL)
-      .setFormula(groupFormula);  // in J1
+    tv.importCLUB.setFormula(groupFormula);  // in J1
     groupName = await RenameGroupSpreadsheet(groupName,parkrunGroupId);  // scrape into A1
   }
   return groupName; // + tv.activeSpreadsheet & Id, &  tv.allRunnersSheet
