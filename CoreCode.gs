@@ -97,7 +97,7 @@ cv.activeSpreadsheetId = cv.activeSpreadsheet.getId();       // the originator I
 cv.activeSpreadsheetName = cv.activeSpreadsheet.getName();
 cv.allRunnersSheet = cv.activeSpreadsheet
   .getSheetByName(cc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet 
-cv.isClubLARGE = cv.activeSpreadsheet.getRangeByName("LARGE_CLUB");
+cv.isClubLARGE = cv.activeSpreadsheet.getRangeByName("LARGE_CLUB").getValue();    // TRUE if number of members is over 100 (for performance tuning)
 cv.calcsPAUSED = cv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");
 cv.chartSECS = cv.activeSpreadsheet.getRangeByName("CHART_SECS").getValue();   // 100-150 secs needed to generate a chart (<12 runners?) 
 Logger.log('CHART_SECS: '+cv.chartSECS);
