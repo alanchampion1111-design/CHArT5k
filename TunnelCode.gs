@@ -560,15 +560,17 @@ function AppendResultRow(
   if (tc.debug) Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
   PauseCalcsOnCapture();
   try {
-    const previousROWS = 5;   // previous results (for matching) may include non-parkrunner events
+    const previousROWS = 2;   // duplicate from previous results may include non-parkrunner events
     hyperLinks = [];   // discard any hyperLinks from duplicate results
     thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
+    let rawDate = new Date(thisResult[tc.dateINDEX]);
+    var previousEventRows = Math.ceil((new Date() - rawDate)/(1000 * 60 * 60 * 24 * 7))+ previousROWS;
     var thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX], tc.dateFORMAT);
     var thisLocation = thisResult[tc.locationINDEX];
     var resultsSheet = tv.activeSpreadsheet.getSheetByName(runnerNameId);
     var lastRow = resultsSheet.getLastRow();
-    var maxRows = Math.min(previousROWS, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
-    var firstPrevRow = lastRow - maxRows + 1;   // e.g. 18=22-5+1 (from 19th row if last is 23)
+    var maxRows = Math.min(previousEventRows, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
+    var firstPrevRow = lastRow - maxRows + 1;   // e.g. 18=22-2+1 (from 19th row if last is 23)
     var previousResultsRange = resultsSheet.getRange(firstPrevRow, 1, maxRows, resultsSheet.getLastColumn());
     var previousResults = previousResultsRange.getValues(); // DisplayValues is slower! 
     // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
@@ -577,7 +579,7 @@ function AppendResultRow(
       return null;
     }
     if (tc.debug)
-      Logger.log('Matching dated event result from last ' + previousROWS + ' results on sheet, ' + runnerNameId + '...');
+      Logger.log('Matching dated event result from previous ' + previousEventRows + ' results on sheet, ' + runnerNameId + '...');
     let matchingResults = previousResults.map(function (row) { // match with thisDate format
       return row[tc.locationINDEX] + '&' + FormatDate(row[tc.dateINDEX], tc.dateFORMAT);
     });
