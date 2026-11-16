@@ -97,16 +97,20 @@ i
 /             GetResultRow
 //          When latest is a new result...
 /             >PasteResultForRunner ->
+/               PauseCalcsOnCapture (if a large club)
 //              Loop for each cell...
 /                 CleanValue (apply links as hyperlinks)
 /               FormatDate (potentially redundant)
 /               AppendResultRow
+/               ResumeCalcsOnCapture (if a large club)
 /             >AppendPositionsForResult ->
+/               PauseCalcsOnCapture (if a large club)
 /               GetResultUrl (possibly same event URL as previous runner?)
 /               GetCategories (for language-based filter)
 /               ExtendRange
 /               >AssessPositions (for one runner, potentially same page)
 /               IncludePositions
+/               ResumeCalcsOnCapture (if a large club)
 //          If insufficient time to import another member's results,
 //            Trigger recursive task, ImportResultForEachRunner from next index...
 /         >CloseChromeBrowser
@@ -128,12 +132,14 @@ i
 //            When positions not previously updated...
 //              Loop for each runner's result (per batch)...
 /                 AppendPositionsForResult ->
+/                   PauseCalcsOnCapture (if a large club)
 /                   GetResultUrl
 //                  When event is a Parkrun...
 /                     GetCategories (for language-based filter)
 /                     >AssessPositions (for one runner)
 /                     IncludePositions
-/                       Trigger forked task, BatchPositionsForRunner
+/                   ResumeCalcsOnCapture (if a large club)
+/                 Trigger forked task, BatchPositionsForRunner
 /         >CloseChromeBrowser
 /
 /   2b. BatchPositionsForRunner (recurse if more to sync):
@@ -1136,6 +1142,7 @@ async function ImportAllResultsForRunner(
   thisPage = undefined    // expected known when 'ALL' (since required to get name)
 ) {
   if (tc.debug) Logger.log('Import All from parkrunner, '+parkrunnerId+' to results sheet, '+runnerNameId);
+  PauseCalcsOnCapture();
   return CopyResultForRunner(parkrunnerId,runnerNameId,'ALL',thisPage)
     .then(allResults => {
       if (allResults) {
@@ -1145,6 +1152,7 @@ async function ImportAllResultsForRunner(
     })
     .catch(err => 
       Logger.log('ERROR: Importing all results\n'+err));
+  ResumeCalcsOnCapture();
 }
 
 /**
@@ -1224,12 +1232,14 @@ function CreateRunnerResultsSheet(
 /         GetRunnerDetails (incl. age category)
 /         CreateRunnerResultsSheet (in current spreadsheet)
 /         ImportAllResultsForRunner (...b/fwd page)
+/           PauseCalcsOnCapture (if a large club)
 /           CopyResultForRunner (ALL results from page)
 /           PasteAllResultsForRunner (chronologically in cs)
 /             CleanValue
 /             FormatDate (TODO: potentially redundant)
 /             PrepareResultRow
 /             AppendAllResults
+/           ResumeCalcsOnCapture (if a large club)
 //        If DoB unknown
 /           HoldAgeCategoryInAbsenceofDoB (in G1)
 //        else
