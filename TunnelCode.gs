@@ -557,7 +557,8 @@ function AppendResultRow(
   thisResult,     // assumes a single row to be added
   runnerNameId = "Alan_13")
  {
-  if (tc.debug) Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
+  if (tc.debug)
+    Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
   PauseCalcsOnCapture();
   try {
     const previousROWS = 2;   // duplicate from previous results may include non-parkrunner events
@@ -571,8 +572,10 @@ function AppendResultRow(
     var lastRow = resultsSheet.getLastRow();
     var maxRows = Math.min(previousEventRows, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
     var firstPrevRow = lastRow - maxRows + 1;   // e.g. 18=22-2+1 (from 19th row if last is 23)
+    if (tc.debug)
+      Logger.log('Range for checking if any duplicates: from row, '+firstPrevRow+' for '+maxRows+' rows');
     var previousResultsRange = resultsSheet.getRange(firstPrevRow, 1, maxRows, resultsSheet.getLastColumn());
-    var previousResults = previousResultsRange.getValues(); // DisplayValues is slower! 
+    var previousResults = previousResultsRange.getValues();   // DisplayValues is slower! 
     // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
     if (previousResults.length < 1) {
       Logger.log('ERROR: No previous result for unique runner, ' + runnerNameId + ' to be able to match new result');
