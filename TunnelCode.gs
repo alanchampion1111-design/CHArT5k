@@ -188,7 +188,7 @@ const tc = {
   resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
   resultsConsecFailsCELL: "G1", // during Catch-up, prevents recursion on consecutive fails to match Age Cat
   dateFORMAT: 'd-MMM-yy',
-  parkrunDateFORMAT: 'dd/MM/yyyy',  // perhaps for UK-based runners?
+  parkrunDateFORMAT: 'dd/mm/yyyy',  // date format perspective outside US (incl. for events in US)
   universalDateFORMAT: 'yyyy-MM-dd',
   summaryGroupURL: 'https://www.parkrun.org.uk/groups/',  
   summaryPrefixURL: 'https://www.parkrun.', // org.uk (domain) in D1
@@ -374,7 +374,7 @@ async function CopyResultForRunner(
     // Location & date (cols A..B) should suffice for match & skip PasteResult...
     let latestResult = resultsSheet.getRange(resultsSheet.getLastRow(),1,1,tc.dateCOL)
       .getDisplayValues()[0];   // Assume dated event (if exists) is at the end
-    if (latestResult[tc.dateINDEX] === FormatDate(eventRef,tc.dateFORMAT)) {
+    if (latestResult[tc.dateINDEX] === FormatDate(eventRef)) {
       if (tc.debug)
         Logger.log('Skip re-importing duplicate (although positions may need updating) for runner, '+runnerNameId);
       return latestResult;
@@ -472,15 +472,27 @@ function CleanValue(cell) {
 
 /**
  *  Formats a date string into a specified format.
- *    @param {string} dateSource - Date string to format (dd/MM/yyyy expected) 
+ *    @param {string} dateSource - Date string from parkrun site (dd/mm/yyyy expected) including from US (when run outside US) 
  *    @param {string} dateFormat - Output date format (e.g. "d-MMM-yy")
- *  @returns {string} Formatted date string
+ *  @returns {string} Formatted date string, universally consistent with formatting on sheet
  */
-function FormatDate(dateSource,dateFormat) {
+function FormatDate(dateSource,dateFormat=tc.dateFORMAT) {
   return Utilities.formatDate(  // ensure ISO dates beforehand
     new Date(dateSource.replace(/(\d+)\/(\d+)\/(\d+)/,'$3-$2-$1')),
-    Session.getScriptTimeZone(),
-    dateFormat  // more readable & universal, PLUS consistent with current formatting on sheet
+    Session.getScriptTimeZone(),dateFormat  
+  );
+}
+
+/**
+ *  Converts a formatted date string back to a Date for comparison
+ *    @param {string} dateSource - Date string, typically as an international format ('d-MMM-yy') 
+ *    @param {string} dateFormat - Input date format (e.g. "d-MMM-yy")
+ *  @returns {Date} - expected a value based on 2000+year + month-value + day-of-month
+ */
+function RawDate(dateSource,dateFormat=tc.dateFORMAT) {
+  return Utilities.parseDate(
+    dateSource,Session.getScriptTimeZone(),
+    dateFormat  // assume ISO date format presented on spreadsheet
   );
 }
 
@@ -561,28 +573,30 @@ function AppendResultRow(
     Logger.log('Consider pasting result into unique runner sheet, '+runnerNameId+'...');
   PauseCalcsOnCapture();
   try {
-    const previousROWS = 2;   // duplicate from previous results may include non-parkrunner events
+    const considerROWS = 2;   // duplicate from previous results may include non-parkrunner events
     hyperLinks = [];   // discard any hyperLinks from duplicate results
     thisResult = thisResult.map(CleanValue);   // includes 00: (for hh:) prefix on elapsed time
-    let rawDate = new Date(thisResult[tc.dateINDEX]);
-    var previousEventRows = Math.ceil((new Date() - rawDate)/(1000 * 60 * 60 * 24 * 7))+ previousROWS;
-    var thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX], tc.dateFORMAT);
+    let thisDate = thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX]);   // 03/10/2026 -> 3-Oct-26
+    let rawDate = RawDate(thisDate);
+    if (tc.debug)
+      Logger.log('Raw date (from '+thisDate+'): '+rawDate);
+    var considerEventRows = Math.ceil((new Date() - rawDate)/(1000*60*60*24*7))+considerROWS;
     var thisLocation = thisResult[tc.locationINDEX];
     var resultsSheet = tv.activeSpreadsheet.getSheetByName(runnerNameId);
     var lastRow = resultsSheet.getLastRow();
-    var maxRows = Math.min(previousEventRows, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
+    var maxRows = Math.min(considerEventRows, lastRow - tc.resultsStartROW + 1); // e.g. 1 if only 3 rows
     var firstPrevRow = lastRow - maxRows + 1;   // e.g. 18=22-2+1 (from 19th row if last is 23)
     if (tc.debug)
       Logger.log('Range for checking if any duplicates: from row, '+firstPrevRow+' for '+maxRows+' rows');
-    var previousResultsRange = resultsSheet.getRange(firstPrevRow, 1, maxRows, resultsSheet.getLastColumn());
+    var previousResultsRange = resultsSheet.getRange(firstPrevRow,1,maxRows,resultsSheet.getLastColumn());
     var previousResults = previousResultsRange.getValues();   // DisplayValues is slower! 
     // if (tc.debug) Logger.log('Match previous results:\n'+previousResults);
     if (previousResults.length < 1) {
-      Logger.log('ERROR: No previous result for unique runner, ' + runnerNameId + ' to be able to match new result');
+      Logger.log('ERROR: No previous result for unique runner, '+runnerNameId +' to be able to match new result');
       return null;
     }
     if (tc.debug)
-      Logger.log('Matching dated event result from previous ' + previousEventRows + ' results on sheet, ' + runnerNameId + '...');
+      Logger.log('Matching dated event result from previous '+considerEventRows+' results on sheet, '+runnerNameId+'...');
     let matchingResults = previousResults.map(function (row) { // match with thisDate format
       return row[tc.locationINDEX] + '&' + FormatDate(row[tc.dateINDEX], tc.dateFORMAT);
     });
@@ -855,7 +869,8 @@ let failedCatch = [];   // tracks failed rows per batch of CatchUp... to revise 
               tv.importIDX.setValue(runnerIndex+1);
             return true;
           } else {
-            Logger.log('CAUTION: Consider revising DoB of ' + runnerFullName + ' to ensure matching category (' + ageCategory + ') at ' + eventLocation + ' (' + resultsLink + ')?');
+            Logger.log('CAUTION: Consider revising DoB of '+runnerFullName+' to ensure matching category ('
+              +ageCategory+') at '+eventLocation+' ('+resultsLink+')?');
             failedCatch.push(resultRange);
             return false;
           }
@@ -2099,7 +2114,7 @@ function BatchPositionsForRunner() {
  * Triggers batch processing for runners needing position catch-up, always  in series
  */
 function CatchUpAllPositions() {
-  const unknownDOB = FormatDate(tc.defaultDATE,tc.dateFORMAT);
+  const unknownDOB = FormatDate(tc.defaultDATE);
   let runnersNames = tv.allRunnersSheet
     .getRange(tc.runnersNameCOLUMN+tc.runnersStartROW+":"+tc.runnersNameCOLUMN)
     .getValues()
