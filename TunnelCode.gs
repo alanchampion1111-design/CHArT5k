@@ -1171,8 +1171,9 @@ async function ImportAllResultsForRunner(
       return true;
     })
     .catch(err => 
-      Logger.log('ERROR: Importing all results\n'+err));
-  ResumeCalcsOnCapture();
+      Logger.log('ERROR: Importing all results\n'+err))
+    .finally(() =>
+      ResumeCalcsOnCapture());
 }
 
 /**
