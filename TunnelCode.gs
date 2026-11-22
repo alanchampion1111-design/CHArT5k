@@ -188,7 +188,7 @@ const tc = {
   resultsTempAgeCatCELL: "G1",  // when DoB omitted initially, at least retain the Age Category temporarily
   resultsConsecFailsCELL: "G1", // during Catch-up, prevents recursion on consecutive fails to match Age Cat
   dateFORMAT: 'd-MMM-yy',
-  parkrunDateFORMAT: 'dd/mm/yyyy',  // date format perspective outside US (incl. for events in US)
+  parkrunDateFORMAT: 'dd/MM/yyyy',  // date format perspective outside US (incl. for events in US)
   universalDateFORMAT: 'yyyy-MM-dd',
   summaryGroupURL: 'https://www.parkrun.org.uk/groups/',  
   summaryPrefixURL: 'https://www.parkrun.', // org.uk (domain) in D1
@@ -212,7 +212,7 @@ tv.allRunnersSheet = tv.activeSpreadsheet   // MUST redo after a dynamic shift d
   .getSheetByName(tc.runnersSheetNAME);     // ...for new runners from initiating Spreadsheet
 tv.isClubLARGE = tv.activeSpreadsheet.getRangeByName("LARGE_CLUB").getValue();    // TRUE if number of members is over 100 (for performance tuning)
 tv.calcsPAUSED = tv.activeSpreadsheet.getRangeByName("CALCS_PAUSED");             // toggles true/false during import/catch-up (for large clubs)
-tv.importDATE = tv.activeSpreadsheet.getRangeByName("IMPORT_DATE");               // Track latest import date (dd/mm/yyyy aligned with parkrun format)
+tv.importDATE = tv.activeSpreadsheet.getRangeByName("IMPORT_DATE");               // Track latest import date (dd/MM/yyyy aligned with parkrun format)
 tv.importCLUB = tv.activeSpreadsheet.getRangeByName("IMPORT_CLUB");               // Identifies the parkrun club(/family) group id (linked report filters import)
 tv.importIDX = tv.activeSpreadsheet.getRangeByName("IMPORT_IDX");                 // Track index of runner to continue import
 tv.importCNT = tv.activeSpreadsheet.getRangeByName("IMPORT_CNT");                 // Track number of imports/updates who ran on import date
@@ -472,7 +472,7 @@ function CleanValue(cell) {
 
 /**
  *  Formats a date string into a specified format.
- *    @param {string} dateSource - Date string from parkrun site (dd/mm/yyyy expected) including from US (when run outside US) 
+ *    @param {string} dateSource - Date string from parkrun site (dd/MM/yyyy expected) including from US (when run outside US) 
  *    @param {string} dateFormat - Output date format (e.g. "d-MMM-yy")
  *  @returns {string} Formatted date string, universally consistent with formatting on sheet
  */
@@ -598,7 +598,7 @@ function AppendResultRow(
     if (tc.debug)
       Logger.log('Matching dated event result from previous '+considerEventRows+' results on sheet, '+runnerNameId+'...');
     let matchingResults = previousResults.map(function (row) { // match with thisDate format
-      return row[tc.locationINDEX] + '&' + FormatDate(row[tc.dateINDEX], tc.dateFORMAT);
+      return row[tc.locationINDEX] + '&' + FormatDate(row[tc.dateINDEX]);
     });
     let matchIndex = matchingResults.indexOf(thisLocation + '&' + thisDate);  // check duplicate?
     if (matchIndex > -1) {   // existing result, but is it complete?
@@ -893,7 +893,7 @@ function GetLastSaturday(date) {
 
 function TrackImportDate(eventDate) {
   let startIndex = 0;
-  let prevImportDate = tv.importDATE.getDisplayValue();   // assumes dd/mm/yyyy format on SS (as in parkrun)
+  let prevImportDate = tv.importDATE.getDisplayValue();   // assumes dd/MM/yyyy format on SS (as in parkrun)
   if (tc.debug) 
     Logger.log('Import date: '+eventDate+' ('+prevImportDate+')');
   if (eventDate === prevImportDate) {   // continue since assume prev import incomplete
@@ -993,7 +993,7 @@ async function ImportRunnerResult(index,runners,eventDate,eventsResults) {
 function ReImportResultForEachRunner(
   eventDate = undefined)  // undefined means always continue with precedent import date
 {
-  eventDate = tv.importDATE.getDisplayValue();   // consistently dd/mm/yyyy format on SS (as in parkrun)
+  eventDate = tv.importDATE.getDisplayValue();   // consistently dd/MM/yyyy format on SS (as in parkrun)
   ImportResultForEachRunner(eventDate);
 }
 
@@ -1138,7 +1138,7 @@ function PasteAllResultsForRunner(
   // Paste in reverse order from parkrun site => earliest result first
   allResults.reverse().forEach(thisResult => {
     thisResult = thisResult.map(CleanValue);        // extracts hyperLinks...
-    thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX],tc.dateFORMAT);
+    thisResult[tc.dateINDEX] = FormatDate(thisResult[tc.dateINDEX]);
     let [rowFormulae,rowValues] =
       PrepareResultRow(thisResult);   // ...applies hyperLinks
     linksCount = rowFormulae.length;   // constant = # of formulae
@@ -1344,7 +1344,7 @@ function PromptForRunner(
 {
   const ui = SpreadsheetApp.getUi();
   const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])-[A-Za-z]{3}-(19|20)?\d{2}$/;
-  const dobPlace = 'dd-Mmm-yyyy';
+  const dobPlace = 'dd-MMM-yyyy';
   const formDefaultDate = String(tc.defaultDATE);
   var formHTML = '\n'+
     '<form onsubmit="if(!document.getElementById(\'dob\').checkValidity()) {'+
@@ -1384,7 +1384,7 @@ function PromptForRunner(
  * Find matching runner index in Runners sheet range
  *    @param {Range} runnersRange - 
  *    @param {number} thisParkrunnerId - parkrunner barcode (numeric!)
- *    @param {Date} thisDob (string) - form format, d-Mmm-yy or dd-Mmm-yyyy
+ *    @param {Date} thisDob (string) - form format, d-MMM-yy or dd-MMM-yyyy
  *  @returns {number} index - unique index (0+) in Runners sheet (-1 if rare no match)
  */
 function FindRunnerIndex(runnersRange,thisParkrunnerId,thisDob) {
